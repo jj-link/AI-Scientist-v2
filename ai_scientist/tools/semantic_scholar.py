@@ -4,16 +4,45 @@ import time
 import warnings
 from typing import Dict, List, Optional, Union
 
-import backoff
-
 from ai_scientist.tools.base_tool import BaseTool
 
+S2_REQUEST_TIMEOUT_SECONDS = 30
+S2_MAX_TRIES = 4
+S2_MAX_BACKOFF_SECONDS = 30
 
-def on_backoff(details: Dict) -> None:
-    print(
-        f"Backing off {details['wait']:0.1f} seconds after {details['tries']} tries "
-        f"calling function {details['target'].__name__} at {time.strftime('%X')}"
+
+def _s2_get(url: str, **kwargs):
+    """GET with bounded retry for transient Semantic Scholar failures.
+
+    Retries HTTP 429, 5xx, connection failures, and timeouts with capped
+    exponential backoff, stopping after S2_MAX_TRIES attempts. Permanent 4xx
+    responses and the final transient exception propagate to the caller.
+    """
+    kwargs.setdefault("timeout", S2_REQUEST_TIMEOUT_SECONDS)
+    for attempt in range(1, S2_MAX_TRIES + 1):
+        try:
+            rsp = requests.get(url, **kwargs)
+        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
+            if attempt == S2_MAX_TRIES:
+                raise
+        else:
+            transient = rsp.status_code == 429 or 500 <= rsp.status_code < 600
+            if not transient:
+                rsp.raise_for_status()
+                return rsp
+            if attempt == S2_MAX_TRIES:
+                rsp.raise_for_status()
+        wait = min(2 ** (attempt - 1), S2_MAX_BACKOFF_SECONDS)
+        print(
+            f"Semantic Scholar request failed (attempt {attempt}/{S2_MAX_TRIES}); "
+            f"retrying in {wait} seconds."
+        )
+        time.sleep(wait)
+    raise requests.exceptions.RequestException(
+        "Semantic Scholar request loop exited without a response."
     )
+
+
 
 
 class SemanticScholarSearchTool(BaseTool):
@@ -49,20 +78,15 @@ class SemanticScholarSearchTool(BaseTool):
         else:
             return "No papers found."
 
-    @backoff.on_exception(
-        backoff.expo,
-        (requests.exceptions.HTTPError, requests.exceptions.ConnectionError),
-        on_backoff=on_backoff,
-    )
     def search_for_papers(self, query: str) -> Optional[List[Dict]]:
         if not query:
             return None
-        
+
         headers = {}
         if self.S2_API_KEY:
             headers["X-API-KEY"] = self.S2_API_KEY
-        
-        rsp = requests.get(
+
+        rsp = _s2_get(
             "https://api.semanticscholar.org/graph/v1/paper/search",
             headers=headers,
             params={
@@ -73,7 +97,6 @@ class SemanticScholarSearchTool(BaseTool):
         )
         print(f"Response Status Code: {rsp.status_code}")
         print(f"Response Content: {rsp.text[:500]}")
-        rsp.raise_for_status()
         results = rsp.json()
         total = results.get("total", 0)
         if total == 0:
@@ -98,9 +121,6 @@ Abstract: {paper.get("abstract", "No abstract available.")}"""
         return "\n\n".join(paper_strings)
 
 
-@backoff.on_exception(
-    backoff.expo, requests.exceptions.HTTPError, on_backoff=on_backoff
-)
 def search_for_papers(query, result_limit=10) -> Union[None, List[Dict]]:
     S2_API_KEY = os.getenv("S2_API_KEY")
     headers = {}
@@ -114,7 +134,7 @@ def search_for_papers(query, result_limit=10) -> Union[None, List[Dict]]:
     if not query:
         return None
     
-    rsp = requests.get(
+    rsp = _s2_get(
         "https://api.semanticscholar.org/graph/v1/paper/search",
         headers=headers,
         params={
@@ -127,7 +147,6 @@ def search_for_papers(query, result_limit=10) -> Union[None, List[Dict]]:
     print(
         f"Response Content: {rsp.text[:500]}"
     )  # Print the first 500 characters of the response content
-    rsp.raise_for_status()
     results = rsp.json()
     total = results["total"]
     time.sleep(1.0)
