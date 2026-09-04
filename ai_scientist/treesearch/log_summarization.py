@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import sys
 
 from .journal import Node, Journal
@@ -151,6 +152,21 @@ def get_stage_summary(journal, stage_name, model, client):
     response = get_response_from_llm(prompt, client, model, sys_msg)
     summary_json = extract_json_between_markers(response[0])
     return summary_json
+
+
+def _stage_number(stage_name: str) -> int:
+    """Stage number from a journal/stage name like 'stage_2_baseline_search'.
+
+    Raises ValueError for names without the 'stage_<n>_' prefix instead of
+    silently assigning them to stage zero.
+    """
+    match = re.match(r"^stage_(\d+)_", stage_name)
+    if not match:
+        raise ValueError(
+            f"Cannot parse a stage number from stage name {stage_name!r}; "
+            "expected the 'stage_<number>_...' layout."
+        )
+    return int(match.group(1))
 
 
 def get_node_log(node):
@@ -330,12 +346,41 @@ def annotate_history(journal, cfg=None):
 
 
 def overall_summarize(journals, cfg=None):
+    """Summarize journals into (draft, baseline, research, ablation) summaries.
+
+    Journals are grouped by the stage number parsed from their stage name,
+    never by list position. Stages 1-3 use the last insertion-order journal
+    for that stage (manager.journals records execution order); stage 4
+    concatenates qualifying ablation leaf logs from every stage-4 journal.
+    Missing stages summarize to None.
+    """
     from concurrent.futures import ThreadPoolExecutor
 
-    def process_stage(idx, stage_tuple):
-        stage_name, journal = stage_tuple
+    journals = list(journals)
+    grouped: dict[int, list[tuple[str, object]]] = {}
+    for stage_name, journal in journals:
+        grouped.setdefault(_stage_number(stage_name), []).append((stage_name, journal))
+    # (stage number, final stage name for that stage, journals in order)
+    stage_items = sorted(
+        (num, pairs[-1][0], [journal for _, journal in pairs])
+        for num, pairs in grouped.items()
+    )
+
+    def process_stage(num, stage_name, stage_journals):
+        if num == 4:
+            logs = []
+            for journal in stage_journals:
+                annotate_history(journal, cfg=cfg)
+                good_leaf_nodes = [
+                    n for n in journal.good_nodes if n.is_leaf and n.ablation_name
+                ]
+                logs.extend(get_node_log(n) for n in good_leaf_nodes)
+            return logs
+
+        # Stages 1-3 summarize the final journal recorded for that stage.
+        journal = stage_journals[-1]
         annotate_history(journal, cfg=cfg)
-        if idx in [1, 2]:
+        if num in (2, 3):
             best_node = journal.get_best_node(cfg=cfg)
             # get multi-seed results and aggregater node
             child_nodes = best_node.children
@@ -365,31 +410,32 @@ def overall_summarize(journals, cfg=None):
                         agg_node
                     ),
                 }
-        elif idx == 3:
-            good_leaf_nodes = [
-                n for n in journal.good_nodes if n.is_leaf and n.ablation_name
-            ]
-            return [get_node_log(n) for n in good_leaf_nodes]
-        elif idx == 0:
+        elif num == 1:
             if cfg.agent.get("summary", None) is not None:
                 model = cfg.agent.summary.get("model", "")
             else:
                 model = "gpt-4o-2024-08-06"
             client = get_ai_client(model)
-            summary_json = get_stage_summary(journal, stage_name, model, client)
-            return summary_json
+            return get_stage_summary(journal, stage_name, model, client)
 
     from tqdm import tqdm
 
     with ThreadPoolExecutor() as executor:
-        results = list(
+        summaries = list(
             tqdm(
-                executor.map(process_stage, range(len(list(journals))), journals),
+                executor.map(lambda item: process_stage(*item), stage_items),
                 desc="Processing stages",
-                total=len(list(journals)),
+                total=len(stage_items),
             )
         )
-        draft_summary, baseline_summary, research_summary, ablation_summary = results
+
+    summary_by_stage = {
+        num: summary for (num, _, _), summary in zip(stage_items, summaries)
+    }
+    draft_summary = summary_by_stage.get(1)
+    baseline_summary = summary_by_stage.get(2)
+    research_summary = summary_by_stage.get(3)
+    ablation_summary = summary_by_stage.get(4)
 
     return draft_summary, baseline_summary, research_summary, ablation_summary
 
