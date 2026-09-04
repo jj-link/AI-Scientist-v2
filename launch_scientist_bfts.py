@@ -136,7 +136,23 @@ def parse_arguments():
         default=None,
         help="Path to the role-to-endpoint/model YAML (default: ais_roles.yaml).",
     )
+    parser.add_argument(
+        "--bfts-config",
+        type=str,
+        default="bfts_config.yaml",
+        help="Path to the BFTS search configuration YAML.",
+    )
     return parser.parse_args()
+
+
+def prepare_bfts_config(args, idea_dir, idea_path_json):
+    """Select the requested BFTS config and hand it to the editor unchanged."""
+    config_path = args.bfts_config
+    return edit_bfts_config_file(
+        config_path,
+        idea_dir,
+        idea_path_json,
+    )
 
 
 def get_available_gpus(gpu_ids=None):
@@ -305,12 +321,7 @@ if __name__ == "__main__":
     with open(idea_path_json, "w") as f:
         json.dump(ideas[args.idea_idx], f, indent=4)
 
-    config_path = "bfts_config.yaml"
-    idea_config_path = edit_bfts_config_file(
-        config_path,
-        idea_dir,
-        idea_path_json,
-    )
+    idea_config_path = prepare_bfts_config(args, idea_dir, idea_path_json)
 
     perform_experiments_bfts(idea_config_path)
     experiment_results_dir = osp.join(idea_dir, "logs/0-run/experiment_results")
