@@ -155,16 +155,17 @@ def get_stage_summary(journal, stage_name, model, client):
 
 
 def _stage_number(stage_name: str) -> int:
-    """Stage number from a journal/stage name like 'stage_2_baseline_search'.
+    """Stage number from a journal/stage name.
 
-    Raises ValueError for names without the 'stage_<n>_' prefix instead of
-    silently assigning them to stage zero.
+    The runtime uses two layouts for the same numbering: 'stage_2_baseline_search'
+    (directory/report names) and '1_initial_implementation_1_preliminary'
+    (journal keys, numeric prefix without the 'stage_' token).
     """
-    match = re.match(r"^stage_(\d+)_", stage_name)
+    match = re.match(r"^(?:stage_)?(\d+)(?:_|$)", stage_name)
     if not match:
         raise ValueError(
             f"Cannot parse a stage number from stage name {stage_name!r}; "
-            "expected the 'stage_<number>_...' layout."
+            "expected 'stage_<number>_...' or '<number>_...'."
         )
     return int(match.group(1))
 

@@ -159,3 +159,6 @@ def test_invalid_stage_name_fails_clearly():
 def test_stage_number_parsing():
     assert log_summarization._stage_number("stage_1_idea_draft") == 1
     assert log_summarization._stage_number("stage_4_ablation") == 4
+    # Journal keys use a numeric prefix without the 'stage_' token.
+    assert log_summarization._stage_number("1_initial_implementation_1_preliminary") == 1
+    assert log_summarization._stage_number("4_ablation_studies_2_component") == 4
