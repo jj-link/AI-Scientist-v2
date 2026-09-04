@@ -97,12 +97,35 @@ def query(
             model_routing.log_request(routed_model, ok=False, error=e)
             raise
         req_time = time.time() - t0
-        model_routing.log_request(routed_model, ok=True, latency_ms=req_time * 1000)
-        choice = completion.choices[0]
 
         if func_spec is None:
+            choice = completion.choices[0]
             output = choice.message.content
+            if model_routing.is_selfhosted(routed_model) and (
+                output is None or output == ""
+            ):
+                # Self-hosted invariant: fail loudly with request metadata
+                # only; never log response text, reasoning text, prompts, or
+                # credentials, and never translate/retry it here.
+                reasoning = getattr(choice.message, "reasoning_content", None) or ""
+                choice_tool_calls = getattr(choice.message, "tool_calls", None)
+                detail = (
+                    f"Self-hosted completion returned empty content for "
+                    f"{routed_model} (served model "
+                    f"{filtered_kwargs.get('model')}): "
+                    f"finish_reason={choice.finish_reason!r}, "
+                    f"reasoning_content_chars={len(reasoning)}, "
+                    f"tool_calls={'yes' if choice_tool_calls else 'no'}."
+                )
+                model_routing.log_request(routed_model, ok=False, error=detail)
+                raise ValueError(detail)
+            model_routing.log_request(
+                routed_model, ok=True, latency_ms=req_time * 1000
+            )
             break
+
+        model_routing.log_request(routed_model, ok=True, latency_ms=req_time * 1000)
+        choice = completion.choices[0]
 
         tool_calls = choice.message.tool_calls
         if tool_calls and tool_calls[0].function.name == func_spec.name:

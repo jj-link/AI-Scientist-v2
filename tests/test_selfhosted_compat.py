@@ -62,18 +62,25 @@ def test_get_available_llms_malformed_config_raises(monkeypatch):
         get_available_llms()
 
 
-def make_completion(text="ok"):
+def make_completion(
+    text="ok", finish_reason="stop", reasoning_content=None, tool_calls=None
+):
     return SimpleNamespace(
         choices=[
-            SimpleNamespace(message=SimpleNamespace(content=text, tool_calls=None))
+            SimpleNamespace(
+                message=SimpleNamespace(
+                    content=text,
+                    reasoning_content=reasoning_content,
+                    tool_calls=tool_calls,
+                ),
+                finish_reason=finish_reason,
+            )
         ],
         usage=SimpleNamespace(prompt_tokens=5, completion_tokens=2),
         system_fingerprint="fp",
         model="served",
         created=1,
     )
-
-
 class FakeClient:
     def __init__(self, completion):
         self.calls = []
@@ -170,3 +177,89 @@ def test_legacy_provider_request_unchanged(monkeypatch, tmp_path):
         {"role": "system", "content": "sys prompt"}
     ]
     assert client.calls[0]["model"] == "gpt-4o"
+
+
+def _read_log(tmp_path):
+    import json
+
+    log = tmp_path / "req.jsonl"
+    if not log.exists():
+        return []
+    return [
+        json.loads(line)
+        for line in log.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+
+
+def test_llm_empty_selfhosted_reply_raises_and_logs(flagged_cfg, tmp_path):
+    from ai_scientist.llm import get_response_from_llm
+
+    for empty in (None, ""):
+        client = FakeClient(
+            make_completion(text=empty, finish_reason="length", reasoning_content="think")
+        )
+        with pytest.raises(ValueError, match="empty content") as excinfo:
+            get_response_from_llm(
+                prompt="p", client=client, model="role/citation", system_message="s"
+            )
+        message = str(excinfo.value)
+        assert "role/citation" in message
+        assert "qwen" in message
+        assert "finish_reason='length'" in message
+        assert "reasoning_content_chars=5" in message
+        assert "tool_calls=no" in message
+    records = _read_log(tmp_path)
+    assert len(records) == 2
+    assert all(record["ok"] is False for record in records)
+    assert all("think" not in (record.get("error") or "") for record in records)
+
+
+def test_llm_valid_text_logs_success(flagged_cfg, tmp_path):
+    from ai_scientist.llm import get_response_from_llm
+
+    client = FakeClient(make_completion(text="hello"))
+    content, history = get_response_from_llm(
+        prompt="p", client=client, model="role/citation", system_message="s"
+    )
+    assert content == "hello"
+    records = _read_log(tmp_path)
+    assert records[-1]["ok"] is True
+
+
+def test_backend_empty_selfhosted_text_fails_with_metadata(
+    flagged_cfg, monkeypatch, tmp_path
+):
+    import ai_scientist.treesearch.backend.backend_openai as backend
+
+    completion = make_completion(text=None, reasoning_content="abc")
+    client = FakeClient(completion)
+    monkeypatch.setattr(backend, "get_ai_client", lambda m, max_retries=0: client)
+    with pytest.raises(ValueError, match="empty content") as excinfo:
+        backend.query("task", None, model="role/citation")
+    message = str(excinfo.value)
+    assert "role/citation" in message
+    assert "qwen" in message
+    assert "finish_reason='stop'" in message
+    assert "reasoning_content_chars=3" in message
+    assert "tool_calls=no" in message
+    records = _read_log(tmp_path)
+    assert records[-1]["ok"] is False
+    assert "abc" not in records[-1]["error"]
+    assert client.calls
+
+
+def test_backend_empty_string_text_fails(flagged_cfg, monkeypatch, tmp_path):
+    import ai_scientist.treesearch.backend.backend_openai as backend
+
+    client = FakeClient(make_completion(text=""))
+    monkeypatch.setattr(backend, "get_ai_client", lambda m, max_retries=0: client)
+    with pytest.raises(ValueError, match="empty content"):
+        backend.query("task", None, model="role/citation")
+    assert _read_log(tmp_path)[-1]["ok"] is False
+
+
+def test_backend_valid_text_logs_success(flagged_cfg, monkeypatch, tmp_path):
+    run_query(monkeypatch, "role/citation", "task", None)
+    records = _read_log(tmp_path)
+    assert records[-1]["ok"] is True
