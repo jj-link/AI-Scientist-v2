@@ -123,8 +123,10 @@ roles:
     model: qwen3.8-27b-6000pro
     max_tokens: 4096
 
-# Generated experiment code executes on this CUDA device (RTX 4090).
-# Verify the index with: nvidia-smi --query-gpu=index,name --format=csv,noheader
-# 0 = RTX PRO 6000 Blackwell (model serving), 1 = RTX 4090 (experiments).
+# Generated experiment code executes on the RTX 4090.
+# CUDA device enumeration (torch) on this workstation: 0 = RTX 4090 (24 GiB),
+# 1 = RTX PRO 6000 Blackwell (95.6 GiB, model serving). nvidia-smi lists the
+# PRO 6000 first, but CUDA/torch order is inverted — verify with:
+# python -c "import torch; [print(i, torch.cuda.get_device_name(i)) for i in range(torch.cuda.device_count())]"
 experiment_execution:
-  cuda_device: 1
+  cuda_device: 0
