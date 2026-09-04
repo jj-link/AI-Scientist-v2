@@ -7,6 +7,9 @@ from ai_scientist.utils.token_tracker import track_token_usage
 import anthropic
 import backoff
 import openai
+import time
+
+from ai_scientist import model_routing
 
 MAX_NUM_TOKENS = 4096
 
@@ -107,7 +110,33 @@ def get_batch_responses_from_llm(
     if msg_history is None:
         msg_history = []
 
-    if model.startswith(("cborg/", "spark/")):
+    if model_routing.is_selfhosted(model):
+        settings = model_routing.role_settings(model)
+        role_max_tokens = settings.get("max_tokens") or MAX_NUM_TOKENS
+        role_temperature = settings.get("temperature", temperature)
+        new_msg_history = msg_history + [{"role": "user", "content": msg}]
+        t0 = time.time()
+        try:
+            response = client.chat.completions.create(
+                model=model_routing.served_model_for(model),
+                messages=[
+                    {"role": "system", "content": system_message},
+                    *new_msg_history,
+                ],
+                temperature=role_temperature,
+                max_tokens=role_max_tokens,
+                n=n_responses,
+                stop=None,
+            )
+        except Exception as e:
+            model_routing.log_request(model, ok=False, error=e)
+            raise
+        model_routing.log_request(model, ok=True, latency_ms=(time.time() - t0) * 1000)
+        content = [r.message.content for r in response.choices]
+        new_msg_history = [
+            new_msg_history + [{"role": "assistant", "content": c}] for c in content
+        ]
+    elif model.startswith(("cborg/", "spark/")):
         new_msg_history = msg_history + [{"role": "user", "content": msg}]
         response = client.chat.completions.create(
             model=model.split("/", 1)[1],
@@ -303,7 +332,31 @@ def get_response_from_llm(
     if msg_history is None:
         msg_history = []
 
-    if model.startswith(("cborg/", "spark/")):
+    if model_routing.is_selfhosted(model):
+        settings = model_routing.role_settings(model)
+        role_max_tokens = settings.get("max_tokens") or MAX_NUM_TOKENS
+        role_temperature = settings.get("temperature", temperature)
+        new_msg_history = msg_history + [{"role": "user", "content": msg}]
+        t0 = time.time()
+        try:
+            response = client.chat.completions.create(
+                model=model_routing.served_model_for(model),
+                messages=[
+                    {"role": "system", "content": system_message},
+                    *new_msg_history,
+                ],
+                temperature=role_temperature,
+                max_tokens=role_max_tokens,
+                n=1,
+                stop=None,
+            )
+        except Exception as e:
+            model_routing.log_request(model, ok=False, error=e)
+            raise
+        model_routing.log_request(model, ok=True, latency_ms=(time.time() - t0) * 1000)
+        content = response.choices[0].message.content
+        new_msg_history = new_msg_history + [{"role": "assistant", "content": content}]
+    elif model.startswith(("cborg/", "spark/")):
         new_msg_history = msg_history + [{"role": "user", "content": msg}]
         response = client.chat.completions.create(
             model=model.split("/", 1)[1],
@@ -519,6 +572,14 @@ def extract_json_between_markers(llm_output: str) -> dict | None:
 
 
 def create_client(model) -> tuple[Any, str]:
+    if model_routing.is_selfhosted(model):
+        info = model_routing.parse_model(model)
+        role_desc = f" (role: {info['role']})" if info["role"] else ""
+        print(
+            f"Using self-hosted endpoint '{info['endpoint']}' with model "
+            f"{info['served_model']}{role_desc}."
+        )
+        return model_routing.create_selfhosted_client(model), model
     if model.startswith("cborg/"):
         print(f"Using CBORG API with model {model}.")
         return openai.OpenAI(

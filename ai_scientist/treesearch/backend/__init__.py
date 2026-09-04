@@ -41,6 +41,7 @@ def query(
         OutputType: A string completion if func_spec is None, otherwise a dict with the function call details.
     """
 
+
     model_kwargs = model_kwargs | {
         "model": model,
         "temperature": temperature,

@@ -1,0 +1,130 @@
+# Role-based routing for self-hosted OpenAI-compatible endpoints.
+#
+# Every AI-Scientist role resolves its endpoint and model from this file.
+# Referencing a role from any model argument uses the prefix: role/<name>
+# (e.g. bfts_config.yaml: agent.code.model: role/experiment_code).
+# Existing model strings (cborg/..., spark/..., ollama/..., gpt/o1/claude/gemini)
+# keep working unchanged; this file only ADDS routing.
+#
+# Endpoints are peers: no global priority, no silent fallback.
+# Credentials come from environment variables only and are never logged.
+
+endpoints:
+  local:
+    # SGLang/vLLM on this workstation (RTX PRO 6000), OpenAI-compatible.
+    base_url: http://localhost:8000/v1
+    api_key_env: LOCAL_MODEL_API_KEY   # optional for keyless servers
+    provides: [text, function_calling, vision]
+
+  spark:
+    # DGX Spark cluster vLLM server.
+    base_url: http://100.92.139.82:8888/v1
+    api_key_env: SPARK_MODEL_API_KEY   # optional for keyless servers
+    provides: [text, vision, function_calling]
+
+roles:
+  # ---- High-intelligence / nuanced work: Spark model by default ----
+
+  ideation:               # research ideation (also used by reflection rounds)
+    endpoint: spark
+    model: deepseek-v4-flash-vision-exp
+    max_tokens: 8192
+
+  ideation_reflection:    # same call path as ideation; kept explicit for clarity
+    endpoint: spark
+    model: deepseek-v4-flash-vision-exp
+    max_tokens: 8192
+
+  experiment_planning:    # stage-goal planning (shares the agent.code call path)
+    endpoint: spark
+    model: deepseek-v4-flash-vision-exp
+    max_tokens: 12000
+
+  experiment_code:        # code generation + debugging (agent.code)
+    endpoint: spark
+    model: deepseek-v4-flash-vision-exp
+    max_tokens: 12000
+    requires: [function_calling]
+
+  experiment_debugging:   # same call path as experiment_code; explicit alias
+    endpoint: spark
+    model: deepseek-v4-flash-vision-exp
+    max_tokens: 12000
+    requires: [function_calling]
+
+  experiment_feedback:    # result/traceback evaluation (agent.feedback)
+    endpoint: spark
+    model: deepseek-v4-flash-vision-exp
+    max_tokens: 8192
+
+  tree_scoring:           # tree-search node selection + scoring (select_node)
+    endpoint: spark
+    model: deepseek-v4-flash-vision-exp
+    max_tokens: 4096
+    requires: [function_calling]
+
+  findings_synthesis:     # summarizing scientific findings (summary)
+    endpoint: spark
+    model: deepseek-v4-flash-vision-exp
+    max_tokens: 8192
+
+  visual_feedback:        # interpreting plots/figures during search (vlm_feedback)
+    endpoint: spark
+    model: deepseek-v4-flash-vision-exp
+    max_tokens: 4096
+    requires: [vision]
+
+  plot_interpretation:    # scientific meaning of plots (vlm_feedback/summary path)
+    endpoint: spark
+    model: deepseek-v4-flash-vision-exp
+    max_tokens: 4096
+    requires: [vision]
+
+  writeup:                # main paper writeup + reflection (model_writeup)
+    endpoint: spark
+    model: deepseek-v4-flash-vision-exp
+    max_tokens: 16384
+
+  review:                 # paper review + meta-review (model_review)
+    endpoint: spark
+    model: deepseek-v4-flash-vision-exp
+    max_tokens: 8192
+
+  report:                 # final report from journal (report)
+    endpoint: spark
+    model: deepseek-v4-flash-vision-exp
+    max_tokens: 8192
+
+  # ---- Routine / high-volume work: local model by default ----
+
+  plot_generation:        # generating aggregation/plotting code (model_agg_plots)
+    endpoint: local
+    model: qwen3.8-27b-6000pro
+    max_tokens: 8192
+
+  citation:               # citation lookup + formatting (model_citation)
+    endpoint: local
+    model: qwen3.8-27b-6000pro
+    max_tokens: 4096
+
+  writeup_small:          # smaller writeup revisions (model_writeup_small)
+    endpoint: local
+    model: qwen3.8-27b-6000pro
+    max_tokens: 8192
+
+  figure_description:     # figure descriptions / visual checks (VLM side of writeup_small)
+    endpoint: local
+    model: qwen3.8-27b-6000pro
+    max_tokens: 4096
+    requires: [vision]
+
+  structured_extraction:  # routine structured extraction / batch requests
+    endpoint: local
+    model: qwen3.8-27b-6000pro
+    max_tokens: 4096
+
+# Generated experiment code executes on this CUDA device (RTX 4090).
+# Verify the index with: nvidia-smi --query-gpu=index,name --format=csv,noheader
+# 0 = RTX PRO 6000 Blackwell (model serving), 1 = RTX 4090 (experiments).
+experiment_execution:
+  cuda_device: 1

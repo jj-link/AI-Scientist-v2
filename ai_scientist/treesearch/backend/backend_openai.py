@@ -3,6 +3,8 @@ import logging
 import time
 import os
 
+from ai_scientist import model_routing
+
 from .utils import FunctionSpec, OutputType, opt_messages_to_list, backoff_create
 from funcy import notnone, once, select_values
 import openai
@@ -19,6 +21,8 @@ OPENAI_TIMEOUT_EXCEPTIONS = (
 )
 
 def get_ai_client(model: str, max_retries=2) -> openai.OpenAI:
+    if model_routing.is_selfhosted(model):
+        return model_routing.create_selfhosted_client(model, max_retries=max_retries)
     if model.startswith("cborg/"):
         return openai.OpenAI(
             api_key=os.environ["CBORG_API_KEY"],
@@ -57,22 +61,32 @@ def query(
         # force the model to use the function
         filtered_kwargs["tool_choice"] = func_spec.openai_tool_choice_dict
 
-    for prefix in ("ollama/", "cborg/", "spark/"):
-        if filtered_kwargs.get("model", "").startswith(prefix):
-            filtered_kwargs["model"] = filtered_kwargs["model"][len(prefix):]
-            break
+    routed_model = filtered_kwargs.get("model", "")
+    if model_routing.is_selfhosted(routed_model):
+        # 'role/<name>' / 'selfhosted/<endpoint>/<model>' -> served model id
+        filtered_kwargs["model"] = model_routing.served_model_for(routed_model)
+    else:
+        for prefix in ("ollama/", "cborg/", "spark/"):
+            if filtered_kwargs.get("model", "").startswith(prefix):
+                filtered_kwargs["model"] = filtered_kwargs["model"][len(prefix):]
+                break
 
     t0 = time.time()
     max_attempts = 3 if func_spec is not None else 1
     output = None
     for attempt in range(1, max_attempts + 1):
-        completion = backoff_create(
-            client.chat.completions.create,
-            OPENAI_TIMEOUT_EXCEPTIONS,
-            messages=messages,
-            **filtered_kwargs,
-        )
+        try:
+            completion = backoff_create(
+                client.chat.completions.create,
+                OPENAI_TIMEOUT_EXCEPTIONS,
+                messages=messages,
+                **filtered_kwargs,
+            )
+        except Exception as e:
+            model_routing.log_request(routed_model, ok=False, error=e)
+            raise
         req_time = time.time() - t0
+        model_routing.log_request(routed_model, ok=True, latency_ms=req_time * 1000)
         choice = completion.choices[0]
 
         if func_spec is None:

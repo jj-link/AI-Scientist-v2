@@ -7,6 +7,9 @@ import openai
 import os
 from PIL import Image
 from ai_scientist.utils.token_tracker import track_token_usage
+import time
+
+from ai_scientist import model_routing
 
 MAX_NUM_TOKENS = 4096
 
@@ -121,6 +124,24 @@ def make_vlm_call(client, model, temperature, system_message, prompt):
             temperature=temperature,
             max_tokens=MAX_NUM_TOKENS,
         )
+    elif model_routing.is_selfhosted(model):
+        settings = model_routing.role_settings(model)
+        t0 = time.time()
+        try:
+            response = client.chat.completions.create(
+                model=model_routing.served_model_for(model),
+                messages=[
+                    {"role": "system", "content": system_message},
+                    *prompt,
+                ],
+                temperature=temperature,
+                max_tokens=settings.get("max_tokens") or MAX_NUM_TOKENS,
+            )
+        except Exception as e:
+            model_routing.log_request(model, ok=False, error=e)
+            raise
+        model_routing.log_request(model, ok=True, latency_ms=(time.time() - t0) * 1000)
+        return response
     elif model.startswith(("cborg/", "spark/")):
         return client.chat.completions.create(
             model=model.split("/", 1)[1],
@@ -171,7 +192,7 @@ def get_response_from_vlm(
     if msg_history is None:
         msg_history = []
 
-    if model in AVAILABLE_VLMS:
+    if model in AVAILABLE_VLMS or model_routing.is_selfhosted(model):
         # Convert single image path to list for consistent handling
         if isinstance(image_paths, str):
             image_paths = [image_paths]
@@ -221,6 +242,14 @@ def get_response_from_vlm(
 
 def create_client(model: str) -> tuple[Any, str]:
     """Create client for vision-language model."""
+    if model_routing.is_selfhosted(model):
+        info = model_routing.parse_model(model)
+        role_desc = f" (role: {info['role']})" if info["role"] else ""
+        print(
+            f"Using self-hosted endpoint '{info['endpoint']}' with model "
+            f"{info['served_model']}{role_desc}."
+        )
+        return model_routing.create_selfhosted_client(model), model
     if model.startswith("cborg/"):
         print(f"Using CBORG API with model {model}.")
         return openai.OpenAI(
@@ -318,7 +347,7 @@ def get_batch_responses_from_vlm(
     if msg_history is None:
         msg_history = []
 
-    if model in AVAILABLE_VLMS:
+    if model in AVAILABLE_VLMS or model_routing.is_selfhosted(model):
         # Convert single image path to list
         if isinstance(image_paths, str):
             image_paths = [image_paths]
@@ -352,6 +381,24 @@ def get_batch_responses_from_vlm(
                 n=n_responses,
                 seed=0,
             )
+        elif model_routing.is_selfhosted(model):
+            settings = model_routing.role_settings(model)
+            t0 = time.time()
+            try:
+                response = client.chat.completions.create(
+                    model=model_routing.served_model_for(model),
+                    messages=[
+                        {"role": "system", "content": system_message},
+                        *new_msg_history,
+                    ],
+                    temperature=temperature,
+                    max_tokens=settings.get("max_tokens") or MAX_NUM_TOKENS,
+                    n=n_responses,
+                )
+            except Exception as e:
+                model_routing.log_request(model, ok=False, error=e)
+                raise
+            model_routing.log_request(model, ok=True, latency_ms=(time.time() - t0) * 1000)
         else:
             # Get multiple responses
             response = client.chat.completions.create(

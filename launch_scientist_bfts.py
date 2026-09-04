@@ -8,6 +8,8 @@ import re
 import sys
 from datetime import datetime
 from ai_scientist.llm import create_client
+from ai_scientist import model_routing
+import yaml
 
 from contextlib import contextmanager
 from ai_scientist.treesearch.perform_experiments_bfts_with_agentmanager import (
@@ -85,19 +87,19 @@ def parse_arguments():
     parser.add_argument(
         "--model_agg_plots",
         type=str,
-        default="cborg/lbl/cborg-mini",
+        default="role/plot_generation",
         help="Model to use for plot aggregation",
     )
     parser.add_argument(
         "--model_writeup",
         type=str,
-        default="cborg/lbl/cborg-coder-max",
+        default="role/writeup",
         help="Model to use for writeup",
     )
     parser.add_argument(
         "--model_citation",
         type=str,
-        default="cborg/lbl/cborg-mini",
+        default="role/citation",
         help="Model to use for citation gathering",
     )
     parser.add_argument(
@@ -109,13 +111,13 @@ def parse_arguments():
     parser.add_argument(
         "--model_writeup_small",
         type=str,
-        default="cborg/lbl/cborg-vision",
+        default="role/writeup_small",
         help="Smaller model to use for writeup",
     )
     parser.add_argument(
         "--model_review",
         type=str,
-        default="cborg/lbl/cborg-vision",
+        default="role/review",
         help="Model to use for review main text and captions",
     )
     parser.add_argument(
@@ -127,6 +129,12 @@ def parse_arguments():
         "--skip_review",
         action="store_true",
         help="If set, skip the review process",
+    )
+    parser.add_argument(
+        "--role-config",
+        type=str,
+        default=None,
+        help="Path to the role-to-endpoint/model YAML (default: ais_roles.yaml).",
     )
     return parser.parse_args()
 
@@ -183,6 +191,57 @@ if __name__ == "__main__":
     args = parse_arguments()
     os.environ["AI_SCIENTIST_ROOT"] = os.path.dirname(os.path.abspath(__file__))
     print(f"Set AI_SCIENTIST_ROOT to {os.environ['AI_SCIENTIST_ROOT']}")
+    # Self-hosted role routing (additive): activate only when role/selfhosted
+    # model strings are in use, preserving legacy provider configurations.
+    _routing_in_use = any(
+        str(getattr(args, a, "") or "").startswith(("role/", "selfhosted/"))
+        for a in (
+            "model_agg_plots",
+            "model_writeup",
+            "model_citation",
+            "model_writeup_small",
+            "model_review",
+        )
+    )
+    if not _routing_in_use:
+        try:
+            with open("bfts_config.yaml", "r", encoding="utf-8") as f:
+                _cfg_text = f.read()
+            _routing_in_use = "role/" in _cfg_text or "selfhosted/" in _cfg_text
+        except OSError:
+            pass
+    if _routing_in_use:
+        if args.role_config:
+            os.environ[model_routing.ROLE_CONFIG_ENV] = args.role_config
+        try:
+            _mapping = model_routing.validate_roles()
+        except model_routing.RoleConfigError as e:
+            raise SystemExit(f"Role configuration error: {e}")
+        print("role mapping:")
+        for _role_name, _info in _mapping.items():
+            _caps = (
+                f" (requires {', '.join(_info['capabilities'])})"
+                if _info["capabilities"]
+                else ""
+            )
+            print(f"  {_role_name:<22} -> {_info['endpoint']:<8} {_info['model']}{_caps}")
+    # Pin generated-experiment execution to the configured CUDA device. Model
+    # inference is unaffected (HTTP-based), so this only constrains the
+    # experiment workers' GPU.
+    _role_cfg_path = model_routing.role_config_path()
+    if _role_cfg_path.exists():
+        try:
+            with open(_role_cfg_path, "r", encoding="utf-8") as f:
+                _role_cfg = yaml.safe_load(f) or {}
+            _exp_gpu = (_role_cfg.get("experiment_execution") or {}).get("cuda_device")
+            if _exp_gpu is not None:
+                os.environ["CUDA_VISIBLE_DEVICES"] = str(_exp_gpu)
+                print(
+                    f"Experiments pinned via CUDA_VISIBLE_DEVICES={_exp_gpu} "
+                    f"(from {_role_cfg_path})"
+                )
+        except yaml.YAMLError as e:
+            raise SystemExit(f"Invalid role config {_role_cfg_path}: {e}")
 
     # Check available GPUs and adjust parallel processes if necessary
     available_gpus = get_available_gpus()

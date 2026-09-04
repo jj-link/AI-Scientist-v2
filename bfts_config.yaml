@@ -23,7 +23,7 @@ exec:
 generate_report: True
 # LLM settings for final report from journal
 report:
-  model: cborg/lbl/cborg-mini
+  model: role/report
   temp: 1.0
 
 experiment:
@@ -54,19 +54,19 @@ agent:
 
   # LLM settings for coding
   code:
-    model: cborg/lbl/cborg-coder-max
+    model: role/experiment_code
     temp: 1.0
     max_tokens: 12000
 
   # LLM settings for evaluating program output / tracebacks
   feedback:
-    model: cborg/lbl/cborg-mini
+    model: role/experiment_feedback
     # gpt-4o
     temp: 0.5
     max_tokens: 8192
 
   vlm_feedback:
-    model: cborg/lbl/cborg-vision
+    model: role/visual_feedback
     temp: 0.5
     max_tokens: null
 
@@ -79,9 +79,9 @@ agent:
   # If not specified, the default behavior will be used.
 
   summary:
-    model: cborg/lbl/cborg-mini
+    model: role/findings_synthesis
     temp: 0.3
 
   select_node:
-    model: cborg/lbl/cborg-mini
+    model: role/tree_scoring
     temp: 0.3

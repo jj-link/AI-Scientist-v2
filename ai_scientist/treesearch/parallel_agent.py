@@ -1119,6 +1119,13 @@ class GPUManager:
 
 def get_gpu_count() -> int:
     """Get number of available NVIDIA GPUs without using torch"""
+    # Respect an explicit CUDA_VISIBLE_DEVICES constraint first (e.g. when the
+    # launcher pins experiments to the configured experiment GPU).
+    cuda_visible_devices = os.environ.get("CUDA_VISIBLE_DEVICES")
+    if cuda_visible_devices:
+        devices = [d for d in cuda_visible_devices.split(",") if d and d != "-1"]
+        if devices:
+            return len(devices)
     try:
         # First try using nvidia-smi
         nvidia_smi = subprocess.run(
@@ -1130,12 +1137,6 @@ def get_gpu_count() -> int:
         gpus = nvidia_smi.stdout.strip().split("\n")
         return len(gpus)
     except (subprocess.SubprocessError, FileNotFoundError):
-        # If nvidia-smi fails, try environment variable
-        cuda_visible_devices = os.environ.get("CUDA_VISIBLE_DEVICES")
-        if cuda_visible_devices:
-            # Filter out empty strings and -1 values
-            devices = [d for d in cuda_visible_devices.split(",") if d and d != "-1"]
-            return len(devices)
         return 0
 
 
@@ -1444,7 +1445,21 @@ class ParallelAgent:
         os.makedirs(working_dir, exist_ok=True)
 
         if gpu_id is not None:
-            os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
+            parent_devices = [
+                d
+                for d in os.environ.get("CUDA_VISIBLE_DEVICES", "").split(",")
+                if d and d != "-1"
+            ]
+            if parent_devices:
+                # Map the worker's device index into the parent-visible device
+                # list so a configured CUDA_VISIBLE_DEVICES (e.g. the RTX 4090)
+                # is honored instead of re-addressing physical index gpu_id.
+                if gpu_id < len(parent_devices):
+                    os.environ["CUDA_VISIBLE_DEVICES"] = parent_devices[gpu_id]
+                else:
+                    os.environ["CUDA_VISIBLE_DEVICES"] = ""
+            else:
+                os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
             logger.info(f"Process {process_id} assigned to GPU {gpu_id}")
         else:
             os.environ["CUDA_VISIBLE_DEVICES"] = ""
