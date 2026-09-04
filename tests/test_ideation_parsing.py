@@ -86,3 +86,23 @@ def test_malformed_json_rejected():
     text = "ACTION: SearchSemanticScholar\nARGUMENTS: {query: unclosed"
     with pytest.raises(ValueError, match="Invalid JSON arguments"):
         parse_action_response(text, KNOWN)
+
+
+def test_reflection_prompt_final_round_instructs_finalization():
+    from ai_scientist.perform_ideation_temp_free import build_reflection_prompt
+
+    final = build_reflection_prompt(1, 2, "429 error from search tool")
+    assert "Round 2/2" in final
+    assert "429 error from search tool" in final
+    assert "final round" in final
+    assert "FinalizeIdea" in final
+
+
+def test_reflection_prompt_nonfinal_round_has_no_finalize_instruction():
+    from ai_scientist.perform_ideation_temp_free import build_reflection_prompt
+
+    mid = build_reflection_prompt(0, 2, "")
+    assert "Round 1/2" in mid
+    assert "No new results." in mid
+    assert "final round" not in mid
+    assert "Do not call any more tools" not in mid

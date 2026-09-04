@@ -124,6 +124,31 @@ Results from your last action (if any):
 {last_tool_results}
 """
 
+FINAL_ROUND_INSTRUCTION = (
+    "\nThis is the final round. Do not call any more tools. Finalize your idea "
+    "now with the FinalizeIdea action, providing the IDEA JSON in ARGUMENTS, "
+    "using whatever evidence is available."
+)
+
+
+def build_reflection_prompt(
+    round_idx: int, num_reflections: int, last_tool_results: str
+) -> str:
+    """Reflection prompt for the 0-based round.
+
+    Short reflection budgets never reach a finalize decision on their own
+    (observed: the model re-searches after tool failures), so the final
+    round carries an explicit FinalizeIdea instruction.
+    """
+    prompt = idea_reflection_prompt.format(
+        current_round=round_idx + 1,
+        num_reflections=num_reflections,
+        last_tool_results=last_tool_results or "No new results.",
+    )
+    if round_idx == num_reflections - 1:
+        prompt += FINAL_ROUND_INSTRUCTION
+    return prompt
+
 
 _ACTION_ARGS_RE = re.compile(
     r"ACTION\s*:\s*(.*?)\s*ARGUMENTS\s*:", re.DOTALL | re.IGNORECASE
@@ -223,10 +248,8 @@ def generate_temp_free_idea(
                     )
                 else:
                     # Use the reflection prompt, including tool results if any
-                    prompt_text = idea_reflection_prompt.format(
-                        current_round=reflection_round + 1,
-                        num_reflections=num_reflections,
-                        last_tool_results=last_tool_results or "No new results.",
+                    prompt_text = build_reflection_prompt(
+                        reflection_round, num_reflections, last_tool_results
                     )
 
                 response_text, msg_history = get_response_from_llm(
