@@ -60,9 +60,10 @@ agent:
   code:
     model: role/experiment_code
     temp: 1.0
-    # qwen3.8 is a reasoning model: 12k was consumed by thinking alone
-    # (48k reasoning chars, finish_reason='length', empty content).
-    max_tokens: 32768
+    # Not consumed by the treesearch caller (plan_and_code_query passes no
+    # max_tokens; backend_openai falls back to the role budget). Kept at the
+    # upstream default for config parity.
+    max_tokens: 12000
 
   # LLM settings for evaluating program output / tracebacks
   feedback:
