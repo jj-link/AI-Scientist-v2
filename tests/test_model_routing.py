@@ -226,3 +226,52 @@ def test_gpu_count_respects_visible_devices(monkeypatch):
     # No nvidia-smi stub here: the fallback path must not crash.
     count = get_gpu_count()
     assert isinstance(count, int)
+
+
+def test_per_role_api_key_overrides_endpoint(role_cfg, monkeypatch):
+    from openai import OpenAI
+
+    monkeypatch.setenv("SPARK_MODEL_API_KEY", "sk-endpoint-default")
+    monkeypatch.setenv("REVIEW_KEY", "sk-role-override")
+    monkeypatch.setenv("LOCAL_MODEL_API_KEY", "sk-local")
+
+    # Two roles on the SAME endpoint, different key env vars.
+    cfg = yaml.safe_load(role_cfg.read_text(encoding="utf-8"))
+    cfg["roles"]["review_override"] = {
+        "endpoint": "spark",
+        "model": "big-model",
+        "api_key_env": "REVIEW_KEY",
+    }
+    role_cfg.write_text(yaml.safe_dump(cfg), encoding="utf-8")
+    model_routing._cache.clear()
+
+    assert model_routing.create_selfhosted_client("role/writeup").api_key == (
+        "sk-endpoint-default"
+    )
+    override = model_routing.create_selfhosted_client("role/review_override")
+    assert isinstance(override, OpenAI)
+    assert override.api_key == "sk-role-override"
+
+
+def test_client_timeout_finite_and_overridable(role_cfg, monkeypatch):
+    monkeypatch.delenv("SPARK_MODEL_API_KEY", raising=False)
+
+    # Default is finite so a wedged endpoint fails clearly.
+    assert model_routing.DEFAULT_ENDPOINT_TIMEOUT > 0
+    default = model_routing.create_selfhosted_client("role/writeup")
+    assert float(default.timeout) == model_routing.DEFAULT_ENDPOINT_TIMEOUT
+
+    # Endpoint-level override.
+    cfg = yaml.safe_load(role_cfg.read_text(encoding="utf-8"))
+    cfg["endpoints"]["spark"]["timeout"] = 123.5
+    role_cfg.write_text(yaml.safe_dump(cfg), encoding="utf-8")
+    os.utime(role_cfg, None)
+    assert float(
+        model_routing.create_selfhosted_client("role/writeup").timeout
+    ) == 123.5
+
+    # Role-level override wins over the endpoint value.
+    cfg["roles"]["writeup"]["timeout"] = 7
+    role_cfg.write_text(yaml.safe_dump(cfg), encoding="utf-8")
+    os.utime(role_cfg, None)
+    assert float(model_routing.create_selfhosted_client("role/writeup").timeout) == 7.0

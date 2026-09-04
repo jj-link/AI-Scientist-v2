@@ -177,6 +177,10 @@ def role_settings(model: str) -> dict:
     return parsed["settings"] if parsed else {}
 
 
+DEFAULT_ENDPOINT_TIMEOUT = 600  # seconds; finite so a wedged endpoint fails
+                                # clearly instead of stalling the pipeline.
+
+
 def create_selfhosted_client(model: str, max_retries: int = 2):
     """Create an OpenAI client for a role/ or selfhosted/ model string."""
     import openai
@@ -188,7 +192,10 @@ def create_selfhosted_client(model: str, max_retries: int = 2):
         )
     cfg = load_role_config()
     endpoint = cfg["endpoints"][parsed["endpoint"]] or {}
-    api_key_env = endpoint.get("api_key_env")
+    # Per-role auth overrides the endpoint default; env var NAMES only.
+    api_key_env = (
+        parsed["settings"].get("api_key_env") or endpoint.get("api_key_env")
+    )
     api_key = os.environ.get(api_key_env) if api_key_env else None
     if not api_key:
         api_key = "unused"
@@ -197,7 +204,14 @@ def create_selfhosted_client(model: str, max_retries: int = 2):
         raise RoleConfigError(
             f"Endpoint {parsed['endpoint']!r} has no 'base_url'."
         )
-    return openai.OpenAI(base_url=base_url, api_key=api_key, max_retries=max_retries)
+    timeout = float(
+        parsed["settings"].get(
+            "timeout", endpoint.get("timeout", DEFAULT_ENDPOINT_TIMEOUT)
+        )
+    )
+    return openai.OpenAI(
+        base_url=base_url, api_key=api_key, max_retries=max_retries, timeout=timeout
+    )
 
 
 def request_log_path() -> str:
