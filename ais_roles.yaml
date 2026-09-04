@@ -17,8 +17,11 @@ endpoints:
     provides: [text, function_calling, vision]
 
   spark:
-    # DGX Spark cluster vLLM server.
-    base_url: http://100.92.139.82:8888/v1
+    # DGX Spark cluster vLLM server (spark2-ts, port 8888), reached through
+    # an SSH local forward in WSL (spark-relay, 0.0.0.0:18888 -> spark2:8888)
+    # because the Windows-native Tailscale socket path to 100.92.139.82 is
+    # currently broken; WSL reaches the same server in ~30ms.
+    base_url: http://localhost:18888/v1
     api_key_env: SPARK_MODEL_API_KEY   # optional for keyless servers
     provides: [text, vision, function_calling]
 
