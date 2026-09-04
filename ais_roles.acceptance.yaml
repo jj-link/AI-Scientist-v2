@@ -14,7 +14,7 @@ endpoints:
     api_key_env: SPARK_MODEL_API_KEY
     provides: [text, vision, function_calling]
 roles:
-  ideation:               {endpoint: spark, model: deepseek-v4-flash-vision-exp, max_tokens: 8192}
+  ideation:               {endpoint: spark, model: deepseek-v4-flash-vision-exp, max_tokens: 32768}
   # qwen3.8 is a reasoning model. Treesearch callers pass max_tokens from the
   # bfts config (agent.code), which overrides the role budget below; the role
   # budget applies only when a caller passes none (backend_openai fallback).
@@ -25,17 +25,17 @@ roles:
   # (32,616 reasoning chars, finish_reason='length') at 8192.
   plot_generation:        {endpoint: local, model: qwen3.8-27b-6000pro, max_tokens: 32768}
   tree_scoring:           {endpoint: local, model: qwen3.8-27b-6000pro, max_tokens: 4096, requires: [function_calling]}
-  ideation_reflection:    {endpoint: spark, model: deepseek-v4-flash-vision-exp, max_tokens: 8192}
-  experiment_planning:    {endpoint: spark, model: deepseek-v4-flash-vision-exp, max_tokens: 12000}
-  experiment_feedback:    {endpoint: spark, model: deepseek-v4-flash-vision-exp, max_tokens: 8192}
-  findings_synthesis:     {endpoint: spark, model: deepseek-v4-flash-vision-exp, max_tokens: 8192}
+  ideation_reflection:    {endpoint: spark, model: deepseek-v4-flash-vision-exp, max_tokens: 32768}
+  experiment_planning:    {endpoint: spark, model: deepseek-v4-flash-vision-exp, max_tokens: 32768}
+  experiment_feedback:    {endpoint: spark, model: deepseek-v4-flash-vision-exp, max_tokens: 32768}
+  findings_synthesis:     {endpoint: spark, model: deepseek-v4-flash-vision-exp, max_tokens: 32768}
   # Spark's vision path returns empty content with finish_reason='length' at
   # any output budget (probe: out_tokens == budget, 0 content chars), while
   # local serves image_url parts correctly. Non-tool vision roles run local.
   visual_feedback:        {endpoint: local, model: qwen3.8-27b-6000pro, max_tokens: 8192, requires: [vision]}
   plot_interpretation:    {endpoint: spark, model: deepseek-v4-flash-vision-exp, max_tokens: 4096, requires: [vision]}
-  review:                 {endpoint: spark, model: deepseek-v4-flash-vision-exp, max_tokens: 8192}
-  report:                 {endpoint: spark, model: deepseek-v4-flash-vision-exp, max_tokens: 8192}
+  review:                 {endpoint: spark, model: deepseek-v4-flash-vision-exp, max_tokens: 32768}
+  report:                 {endpoint: spark, model: deepseek-v4-flash-vision-exp, max_tokens: 32768}
   writeup:                {endpoint: spark, model: deepseek-v4-flash-vision-exp, max_tokens: 32768, timeout: 1800}
 
   citation:               {endpoint: local, model: qwen3.8-27b-6000pro, max_tokens: 4096}
