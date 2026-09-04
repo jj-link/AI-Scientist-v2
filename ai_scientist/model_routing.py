@@ -177,6 +177,28 @@ def role_settings(model: str) -> dict:
     return parsed["settings"] if parsed else {}
 
 
+def endpoint_settings(model: str) -> dict[str, Any]:
+    """Endpoint mapping for a role/ or selfhosted/ model string.
+
+    Returns the raw endpoint configuration from the current role config
+    (base_url, requires_user_message, ...). Legacy provider strings are
+    rejected, matching served_model_for.
+    """
+    parsed = parse_model(model)
+    if parsed is None:
+        raise RoleConfigError(
+            f"Model string {model!r} is not a self-hosted or role model string."
+        )
+    endpoint_name = parsed["endpoint"]
+    endpoint = load_role_config()["endpoints"].get(endpoint_name)
+    if endpoint is None:
+        raise RoleConfigError(
+            f"Endpoint {endpoint_name!r} is not configured. "
+            f"Configured endpoints: {sorted(load_role_config()['endpoints'])}."
+        )
+    return endpoint or {}
+
+
 DEFAULT_ENDPOINT_TIMEOUT = 600  # seconds; finite so a wedged endpoint fails
                                 # clearly instead of stalling the pipeline.
 

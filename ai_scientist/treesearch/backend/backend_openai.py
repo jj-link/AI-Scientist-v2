@@ -54,21 +54,32 @@ def query(
     client = get_ai_client(model_kwargs.get("model"), max_retries=0)
     filtered_kwargs: dict = select_values(notnone, model_kwargs)  # type: ignore
 
+    routed_model = filtered_kwargs.get("model", "")
     messages = opt_messages_to_list(system_message, user_message)
+
+    if model_routing.is_selfhosted(routed_model) and model_routing.endpoint_settings(
+        routed_model
+    ).get("requires_user_message"):
+        if not system_message and not user_message:
+            raise ValueError("Self-hosted request requires task content.")
+        if system_message and not user_message:
+            # Endpoints with requires_user_message reject a system-only
+            # conversation: move the compiled task content into the user turn
+            # verbatim. Requests with both messages are left unchanged.
+            messages = [{"role": "user", "content": system_message}]
 
     if func_spec is not None:
         filtered_kwargs["tools"] = [func_spec.as_openai_tool_dict]
         # force the model to use the function
         filtered_kwargs["tool_choice"] = func_spec.openai_tool_choice_dict
 
-    routed_model = filtered_kwargs.get("model", "")
     if model_routing.is_selfhosted(routed_model):
         # 'role/<name>' / 'selfhosted/<endpoint>/<model>' -> served model id
         filtered_kwargs["model"] = model_routing.served_model_for(routed_model)
     else:
         for prefix in ("ollama/", "cborg/", "spark/"):
-            if filtered_kwargs.get("model", "").startswith(prefix):
-                filtered_kwargs["model"] = filtered_kwargs["model"][len(prefix):]
+            if routed_model.startswith(prefix):
+                filtered_kwargs["model"] = routed_model[len(prefix):]
                 break
 
     t0 = time.time()

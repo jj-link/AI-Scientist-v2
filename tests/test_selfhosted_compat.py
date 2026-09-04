@@ -2,8 +2,10 @@
 
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
+import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -58,3 +60,113 @@ def test_get_available_llms_malformed_config_raises(monkeypatch):
     monkeypatch.setattr(model_routing, "load_role_config", malformed)
     with pytest.raises(model_routing.RoleConfigError, match="must be a mapping"):
         get_available_llms()
+
+
+def make_completion(text="ok"):
+    return SimpleNamespace(
+        choices=[
+            SimpleNamespace(message=SimpleNamespace(content=text, tool_calls=None))
+        ],
+        usage=SimpleNamespace(prompt_tokens=5, completion_tokens=2),
+        system_fingerprint="fp",
+        model="served",
+        created=1,
+    )
+
+
+class FakeClient:
+    def __init__(self, completion):
+        self.calls = []
+        outer = self
+
+        class Completions:
+            def create(self, **kwargs):
+                outer.calls.append(kwargs)
+                return completion
+
+        class Chat:
+            completions = Completions()
+
+        self.chat = Chat()
+
+
+@pytest.fixture()
+def flagged_cfg(tmp_path, monkeypatch):
+    cfg = {
+        "endpoints": {
+            "local": {
+                "base_url": "http://localhost:8000/v1",
+                "requires_user_message": True,
+            },
+            "spark": {"base_url": "http://localhost:18888/v1"},
+        },
+        "roles": {
+            "citation": {"endpoint": "local", "model": "qwen", "max_tokens": 4096},
+            "writeup": {"endpoint": "spark", "model": "big", "max_tokens": 8192},
+        },
+    }
+    path = tmp_path / "roles.yaml"
+    path.write_text(yaml.safe_dump(cfg), encoding="utf-8")
+    monkeypatch.setenv(model_routing.ROLE_CONFIG_ENV, str(path))
+    monkeypatch.setenv(model_routing.REQUEST_LOG_ENV, str(tmp_path / "req.jsonl"))
+    model_routing._cache.clear()
+
+
+def run_query(monkeypatch, model, system_message, user_message):
+    import ai_scientist.treesearch.backend.backend_openai as backend
+
+    client = FakeClient(make_completion())
+    monkeypatch.setattr(backend, "get_ai_client", lambda m, max_retries=0: client)
+    out, req_time, in_tok, out_tok, info = backend.query(
+        system_message, user_message, model=model
+    )
+    assert out == "ok"
+    return client.calls
+
+
+def test_flagged_endpoint_system_only_becomes_exact_user(flagged_cfg, monkeypatch):
+    calls = run_query(monkeypatch, "role/citation", "Do the compiled task.", None)
+    assert calls[0]["messages"] == [
+        {"role": "user", "content": "Do the compiled task."}
+    ]
+    assert calls[0]["model"] == "qwen"
+    # No dummy filler may be appended.
+    assert "Proceed with the task" not in calls[0]["messages"][0]["content"]
+
+
+def test_flagged_endpoint_both_messages_unchanged(flagged_cfg, monkeypatch):
+    calls = run_query(monkeypatch, "role/citation", "sys", "user task")
+    assert calls[0]["messages"] == [
+        {"role": "system", "content": "sys"},
+        {"role": "user", "content": "user task"},
+    ]
+
+
+def test_flagged_endpoint_without_content_raises(flagged_cfg, monkeypatch):
+    import ai_scientist.treesearch.backend.backend_openai as backend
+
+    client = FakeClient(make_completion())
+    monkeypatch.setattr(backend, "get_ai_client", lambda m, max_retries=0: client)
+    with pytest.raises(ValueError, match="requires task content"):
+        backend.query(None, None, model="role/citation")
+    assert client.calls == []
+
+
+def test_unflagged_routed_endpoint_keeps_system_only(flagged_cfg, monkeypatch):
+    calls = run_query(monkeypatch, "role/writeup", "Do the compiled task.", None)
+    assert calls[0]["messages"] == [
+        {"role": "system", "content": "Do the compiled task."}
+    ]
+
+
+def test_legacy_provider_request_unchanged(monkeypatch, tmp_path):
+    import ai_scientist.treesearch.backend.backend_openai as backend
+
+    monkeypatch.setenv(model_routing.REQUEST_LOG_ENV, str(tmp_path / "req.jsonl"))
+    client = FakeClient(make_completion())
+    monkeypatch.setattr(backend, "get_ai_client", lambda m, max_retries=0: client)
+    backend.query("sys prompt", None, model="gpt-4o")
+    assert client.calls[0]["messages"] == [
+        {"role": "system", "content": "sys prompt"}
+    ]
+    assert client.calls[0]["model"] == "gpt-4o"

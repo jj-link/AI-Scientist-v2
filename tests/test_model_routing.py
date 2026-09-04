@@ -275,3 +275,19 @@ def test_client_timeout_finite_and_overridable(role_cfg, monkeypatch):
     role_cfg.write_text(yaml.safe_dump(cfg), encoding="utf-8")
     os.utime(role_cfg, None)
     assert float(model_routing.create_selfhosted_client("role/writeup").timeout) == 7.0
+
+
+def test_endpoint_settings_returns_endpoint_mapping(role_cfg):
+    settings = model_routing.endpoint_settings("role/citation")
+    assert settings["base_url"] == "http://localhost:8000/v1"
+    assert "requires_user_message" not in settings
+
+
+def test_endpoint_settings_direct_selfhosted(role_cfg):
+    settings = model_routing.endpoint_settings("selfhosted/spark/big-model")
+    assert settings["api_key_env"] == "SPARK_MODEL_API_KEY"
+
+
+def test_endpoint_settings_rejects_legacy_strings(role_cfg):
+    with pytest.raises(model_routing.RoleConfigError, match="not a self-hosted"):
+        model_routing.endpoint_settings("gpt-4o-2024-11-20")
