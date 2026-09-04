@@ -76,15 +76,24 @@ def make_completion(
                 finish_reason=finish_reason,
             )
         ],
-        usage=SimpleNamespace(prompt_tokens=5, completion_tokens=2),
+        usage=SimpleNamespace(
+            prompt_tokens=5,
+            completion_tokens=2,
+            completion_tokens_details=None,
+            prompt_tokens_details=None,
+        ),
         system_fingerprint="fp",
         model="served",
         created=1,
     )
+
+
 class FakeClient:
     def __init__(self, completion):
         self.calls = []
         outer = self
+
+
 
         class Completions:
             def create(self, **kwargs):
@@ -110,6 +119,7 @@ def flagged_cfg(tmp_path, monkeypatch):
         "roles": {
             "citation": {"endpoint": "local", "model": "qwen", "max_tokens": 4096},
             "writeup": {"endpoint": "spark", "model": "big", "max_tokens": 8192},
+            "no_budget": {"endpoint": "spark", "model": "big"},
         },
     }
     path = tmp_path / "roles.yaml"
@@ -263,3 +273,119 @@ def test_backend_valid_text_logs_success(flagged_cfg, monkeypatch, tmp_path):
     run_query(monkeypatch, "role/citation", "task", None)
     records = _read_log(tmp_path)
     assert records[-1]["ok"] is True
+
+
+def test_backend_applies_role_max_tokens_when_caller_omits(
+    flagged_cfg, monkeypatch, tmp_path
+):
+    import ai_scientist.treesearch.backend.backend_openai as backend
+
+    client = FakeClient(make_completion())
+    monkeypatch.setattr(backend, "get_ai_client", lambda m, max_retries=0: client)
+    backend.query("task", None, model="role/citation")
+    assert client.calls[0]["max_tokens"] == 4096
+
+
+def test_backend_preserves_caller_max_tokens(flagged_cfg, monkeypatch):
+    import ai_scientist.treesearch.backend.backend_openai as backend
+
+    client = FakeClient(make_completion())
+    monkeypatch.setattr(backend, "get_ai_client", lambda m, max_retries=0: client)
+    backend.query("task", None, model="role/citation", max_tokens=123)
+    assert client.calls[0]["max_tokens"] == 123
+
+
+
+def test_backend_omits_max_tokens_when_role_declares_none(
+    flagged_cfg, monkeypatch
+):
+
+    import ai_scientist.treesearch.backend.backend_openai as backend
+
+    client = FakeClient(make_completion())
+    monkeypatch.setattr(backend, "get_ai_client", lambda m, max_retries=0: client)
+    backend.query("task", None, model="role/no_budget")
+    assert "max_tokens" not in client.calls[0]
+
+
+def test_legacy_provider_max_tokens_unchanged(monkeypatch, tmp_path):
+    import ai_scientist.treesearch.backend.backend_openai as backend
+
+    monkeypatch.setenv(model_routing.REQUEST_LOG_ENV, str(tmp_path / "req.jsonl"))
+    client = FakeClient(make_completion())
+    monkeypatch.setattr(backend, "get_ai_client", lambda m, max_retries=0: client)
+    backend.query("task", None, model="gpt-4o")
+    assert "max_tokens" not in client.calls[0]
+
+
+def test_vlm_empty_selfhosted_reply_raises_and_logs(flagged_cfg, tmp_path):
+    from ai_scientist.vlm import make_vlm_call
+
+    for empty in (None, ""):
+        client = FakeClient(
+            make_completion(text=empty, finish_reason="stop", reasoning_content="vis")
+        )
+        with pytest.raises(ValueError, match="empty content") as excinfo:
+            make_vlm_call(
+                client,
+                "role/citation",
+                0.5,
+                system_message="s",
+                prompt=[{"role": "user", "content": "look"}],
+            )
+        message = str(excinfo.value)
+        assert "role/citation" in message
+        assert "qwen" in message
+        assert "reasoning_content_chars=3" in message
+        assert "tool_calls=no" in message
+    records = _read_log(tmp_path)
+    assert len(records) == 2
+    assert all(record["ok"] is False for record in records)
+    assert all("vis" not in (record.get("error") or "") for record in records)
+
+
+def test_vlm_valid_text_logs_success(flagged_cfg, tmp_path):
+    from ai_scientist.vlm import make_vlm_call
+
+    client = FakeClient(make_completion(text="analysis"))
+    response = make_vlm_call(
+        client,
+        "role/citation",
+        0.5,
+        system_message="s",
+        prompt=[{"role": "user", "content": "look"}],
+    )
+    assert response.choices[0].message.content == "analysis"
+    records = _read_log(tmp_path)
+    assert records[-1]["ok"] is True
+
+
+def test_public_wrapper_preserves_multimodal_parts_and_role_budget(
+    flagged_cfg, monkeypatch
+):
+    """Regression for the observed visual-review overflow: a parts list must
+    reach the wire as OpenAI content parts (never stringified base64) with
+    the role's configured output budget."""
+    from ai_scientist.treesearch import backend as public_backend
+
+    client = FakeClient(make_completion(text="ok"))
+    monkeypatch.setattr(
+        public_backend.backend_openai,
+        "get_ai_client",
+        lambda m, max_retries=0: client,
+    )
+    parts = [
+        {"type": "text", "text": "analyze these plots"},
+        {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64,QUJD"}},
+    ]
+    public_backend.query(
+        system_message=None,
+        user_message=parts,
+        func_spec=None,
+        model="role/citation",
+        temperature=0.5,
+    )
+    sent = client.calls[0]
+    assert sent["messages"] == [{"role": "user", "content": parts}]
+    assert sent["messages"][0]["content"][1]["type"] == "image_url"
+    assert sent["max_tokens"] == 4096

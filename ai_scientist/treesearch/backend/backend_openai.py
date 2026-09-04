@@ -76,6 +76,15 @@ def query(
     if model_routing.is_selfhosted(routed_model):
         # 'role/<name>' / 'selfhosted/<endpoint>/<model>' -> served model id
         filtered_kwargs["model"] = model_routing.served_model_for(routed_model)
+        if filtered_kwargs.get("max_tokens") is None:
+            # Roles declare an output budget. Without it a vLLM server fills
+            # the remaining context and reports 'requested 0 output tokens'
+            # once the prompt approaches the model limit.
+            role_max_tokens = model_routing.role_settings(routed_model).get(
+                "max_tokens"
+            )
+            if role_max_tokens:
+                filtered_kwargs["max_tokens"] = role_max_tokens
     else:
         for prefix in ("ollama/", "cborg/", "spark/"):
             if routed_model.startswith(prefix):

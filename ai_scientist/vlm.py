@@ -140,6 +140,23 @@ def make_vlm_call(client, model, temperature, system_message, prompt):
         except Exception as e:
             model_routing.log_request(model, ok=False, error=e)
             raise
+        choice = response.choices[0]
+        content = choice.message.content
+        if content is None or content == "":
+            # Self-hosted invariant: report the empty completion with request
+            # metadata only; never log response text, reasoning text, prompts,
+            # or credentials, and never retry it here.
+            reasoning = getattr(choice.message, "reasoning_content", None) or ""
+            tool_calls = getattr(choice.message, "tool_calls", None)
+            detail = (
+                f"Self-hosted VLM completion returned empty content for {model} "
+                f"(served model {model_routing.served_model_for(model)}): "
+                f"finish_reason={choice.finish_reason!r}, "
+                f"reasoning_content_chars={len(reasoning)}, "
+                f"tool_calls={'yes' if tool_calls else 'no'}."
+            )
+            model_routing.log_request(model, ok=False, error=detail)
+            raise ValueError(detail)
         model_routing.log_request(model, ok=True, latency_ms=(time.time() - t0) * 1000)
         return response
     elif model.startswith(("cborg/", "spark/")):
