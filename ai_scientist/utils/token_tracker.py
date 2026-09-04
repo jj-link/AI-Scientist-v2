@@ -163,11 +163,11 @@ def track_token_usage(func):
                 result.usage.prompt_tokens,
                 result.usage.completion_tokens,
                 result.usage.completion_tokens_details.reasoning_tokens,
-                (
-                    result.usage.prompt_tokens_details.cached_tokens
-                    if hasattr(result.usage, "prompt_tokens_details")
-                    else 0
-                ),
+            (
+                result.usage.prompt_tokens_details.cached_tokens
+                if getattr(result.usage, "prompt_tokens_details", None) is not None
+                else 0
+            ),
             )
             # Add interaction details
             token_tracker.add_interaction(
@@ -201,11 +201,11 @@ def track_token_usage(func):
                 result.usage.prompt_tokens,
                 result.usage.completion_tokens,
                 result.usage.completion_tokens_details.reasoning_tokens,
-                (
-                    result.usage.prompt_tokens_details.cached_tokens
-                    if hasattr(result.usage, "prompt_tokens_details")
-                    else 0
-                ),
+            (
+                result.usage.prompt_tokens_details.cached_tokens
+                if getattr(result.usage, "prompt_tokens_details", None) is not None
+                else 0
+            ),
             )
             # Add interaction details
             token_tracker.add_interaction(

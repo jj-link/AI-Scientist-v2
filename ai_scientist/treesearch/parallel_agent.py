@@ -1179,7 +1179,10 @@ class ParallelAgent:
             self.num_workers = min(self.num_workers, self.num_gpus)
             logger.info(f"Limiting workers to {self.num_workers} to match GPU count")
 
-        self.timeout = self.cfg.exec.timeout
+        # The interpreter kills a run at cfg.exec.timeout; give the parent
+        # future a grace margin so the worker's timeout result is delivered
+        # instead of racing it and losing the node without feedback.
+        self.timeout = self.cfg.exec.timeout + 300
         self.executor = ProcessPoolExecutor(max_workers=self.num_workers)
         self._is_shutdown = False
         # Define the metric once at initialization

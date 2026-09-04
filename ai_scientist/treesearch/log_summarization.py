@@ -264,6 +264,7 @@ def annotate_history(journal, cfg=None):
         if node.parent:
             max_retries = 3
             retry_count = 0
+            msg_history = []
             while retry_count < max_retries:
                 try:
                     if cfg.agent.get("summary", None) is not None:
@@ -271,7 +272,7 @@ def annotate_history(journal, cfg=None):
                     else:
                         model = "gpt-4o-2024-08-06"
                     client = get_ai_client(model)
-                    response = get_response_from_llm(
+                    response, msg_history = get_response_from_llm(
                         overall_plan_summarizer_prompt.format(
                             prev_overall_plan=node.parent.overall_plan,
                             current_plan=node.plan,
@@ -279,11 +280,43 @@ def annotate_history(journal, cfg=None):
                         client,
                         model,
                         report_summarizer_sys_msg,
+                        msg_history=msg_history,
                     )
-                    node.overall_plan = extract_json_between_markers(response[0])[
-                        "overall_plan"
-                    ]
+                    parsed = extract_json_between_markers(response)
+                    if parsed is None or "overall_plan" not in parsed:
+                        raise ValueError(
+                            "Model response did not contain valid JSON "
+                            "with an 'overall_plan' field"
+                        )
+                    node.overall_plan = parsed["overall_plan"]
                     break
+                except ValueError as e:
+                    # The model answered but not in the required JSON shape.
+                    # Project convention: show the model its previous answer
+                    # and the parse error, and ask it to try again.
+                    retry_count += 1
+                    if retry_count == max_retries:
+                        print(
+                            f"Model did not produce a parseable summary after "
+                            f"{max_retries} attempts ({e}). Using the raw response "
+                            "text as the overall plan."
+                        )
+                        node.overall_plan = response
+                        break
+                    print(
+                        f"Error occurred: {e}. Retrying... ({max_retries - retry_count} attempts left)"
+                    )
+                    msg_history = msg_history + [
+                        {
+                            "role": "user",
+                            "content": (
+                                f"Your previous response could not be parsed: {e}. "
+                                "Please respond again with a THOUGHT section followed "
+                                'by valid JSON with an "overall_plan" field between '
+                                "the ```json markers."
+                            ),
+                        }
+                    ]
                 except Exception as e:
                     retry_count += 1
                     if retry_count == max_retries:

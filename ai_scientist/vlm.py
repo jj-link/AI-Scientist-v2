@@ -29,6 +29,10 @@ AVAILABLE_VLMS = [
     "ollama/qwen2.5vl:32b",
 
     "ollama/z-uo/qwen2.5vl_tools:32b",
+    # CBORG vision alias (on-prem, Bearer key)
+    "cborg/lbl/cborg-vision",
+    # DGX Spark cluster vision model (keyless)
+    "spark/deepseek-v4-flash-vision-exp",
 ]
 
 
@@ -54,6 +58,19 @@ def make_llm_call(client, model, temperature, system_message, prompt):
     if model.startswith("ollama/"):
         return client.chat.completions.create(
             model=model.replace("ollama/", ""),
+            messages=[
+                {"role": "system", "content": system_message},
+                *prompt,
+            ],
+            temperature=temperature,
+            max_tokens=MAX_NUM_TOKENS,
+            n=1,
+            stop=None,
+            seed=0,
+        )
+    elif model.startswith(("cborg/", "spark/")):
+        return client.chat.completions.create(
+            model=model.split("/", 1)[1],
             messages=[
                 {"role": "system", "content": system_message},
                 *prompt,
@@ -97,6 +114,16 @@ def make_vlm_call(client, model, temperature, system_message, prompt):
     if model.startswith("ollama/"):
         return client.chat.completions.create(
             model=model.replace("ollama/", ""),
+            messages=[
+                {"role": "system", "content": system_message},
+                *prompt,
+            ],
+            temperature=temperature,
+            max_tokens=MAX_NUM_TOKENS,
+        )
+    elif model.startswith(("cborg/", "spark/")):
+        return client.chat.completions.create(
+            model=model.split("/", 1)[1],
             messages=[
                 {"role": "system", "content": system_message},
                 *prompt,
@@ -194,6 +221,18 @@ def get_response_from_vlm(
 
 def create_client(model: str) -> tuple[Any, str]:
     """Create client for vision-language model."""
+    if model.startswith("cborg/"):
+        print(f"Using CBORG API with model {model}.")
+        return openai.OpenAI(
+            api_key=os.environ["CBORG_API_KEY"],
+            base_url=os.environ.get("CBORG_API_BASE", "https://api.cborg.lbl.gov/v1"),
+        ), model
+    if model.startswith("spark/"):
+        print(f"Using DGX Spark cluster with model {model}.")
+        return openai.OpenAI(
+            api_key=os.environ.get("SPARK_API_KEY") or "unused",
+            base_url=os.environ.get("SPARK_API_BASE", "http://100.92.139.82:8888/v1"),
+        ), model
     if model in [
         "gpt-4o-2024-05-13",
         "gpt-4o-2024-08-06",

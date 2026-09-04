@@ -240,7 +240,7 @@ class Interpreter:
 
         # wait for child to actually start execution (we don't want interrupt child setup)
         try:
-            state = self.event_outq.get(timeout=10)
+            state = self.event_outq.get(timeout=120)  # Windows spawn re-imports torch; 10s is too tight
         except queue.Empty:
             msg = "REPL child process failed to start execution"
             logger.critical(msg)

@@ -85,19 +85,19 @@ def parse_arguments():
     parser.add_argument(
         "--model_agg_plots",
         type=str,
-        default="o3-mini-2025-01-31",
+        default="cborg/lbl/cborg-mini",
         help="Model to use for plot aggregation",
     )
     parser.add_argument(
         "--model_writeup",
         type=str,
-        default="o1-preview-2024-09-12",
+        default="cborg/lbl/cborg-coder-max",
         help="Model to use for writeup",
     )
     parser.add_argument(
         "--model_citation",
         type=str,
-        default="gpt-4o-2024-11-20",
+        default="cborg/lbl/cborg-mini",
         help="Model to use for citation gathering",
     )
     parser.add_argument(
@@ -109,13 +109,13 @@ def parse_arguments():
     parser.add_argument(
         "--model_writeup_small",
         type=str,
-        default="gpt-4o-2024-05-13",
+        default="cborg/lbl/cborg-vision",
         help="Smaller model to use for writeup",
     )
     parser.add_argument(
         "--model_review",
         type=str,
-        default="gpt-4o-2024-11-20",
+        default="cborg/lbl/cborg-vision",
         help="Model to use for review main text and captions",
     )
     parser.add_argument(
