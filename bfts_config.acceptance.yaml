@@ -60,7 +60,9 @@ agent:
   code:
     model: role/experiment_code
     temp: 1.0
-    max_tokens: 12000
+    # qwen3.8 is a reasoning model: 12k was consumed by thinking alone
+    # (48k reasoning chars, finish_reason='length', empty content).
+    max_tokens: 32768
 
   # LLM settings for evaluating program output / tracebacks
   feedback:
