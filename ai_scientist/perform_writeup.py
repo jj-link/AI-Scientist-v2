@@ -17,6 +17,7 @@ from ai_scientist.llm import (
 )
 
 from ai_scientist.tools.semantic_scholar import search_for_papers
+from ai_scientist.utils.latex import resolve_tex_tool
 
 from ai_scientist.perform_vlm_review import generate_vlm_img_review
 from ai_scientist.vlm import create_client as create_vlm_client
@@ -39,11 +40,13 @@ def remove_accents_and_clean(s):
 def compile_latex(cwd, pdf_file, timeout=30):
     print("GENERATING LATEX")
 
+    pdflatex = resolve_tex_tool("pdflatex")
+    bibtex = resolve_tex_tool("bibtex")
     commands = [
-        ["pdflatex", "-interaction=nonstopmode", "template.tex"],
-        ["bibtex", "template"],
-        ["pdflatex", "-interaction=nonstopmode", "template.tex"],
-        ["pdflatex", "-interaction=nonstopmode", "template.tex"],
+        [pdflatex, "-interaction=nonstopmode", "template.tex"],
+        [bibtex, "template"],
+        [pdflatex, "-interaction=nonstopmode", "template.tex"],
+        [pdflatex, "-interaction=nonstopmode", "template.tex"],
     ]
 
     for command in commands:
@@ -90,11 +93,13 @@ def detect_pages_before_impact(latex_folder, timeout=30):
         shutil.copytree(latex_folder, temp_dir, dirs_exist_ok=True)
 
         # Compile in the temp folder
+        pdflatex = resolve_tex_tool("pdflatex")
+        bibtex = resolve_tex_tool("bibtex")
         commands = [
-            ["pdflatex", "-interaction=nonstopmode", "template.tex"],
-            ["bibtex", "template"],
-            ["pdflatex", "-interaction=nonstopmode", "template.tex"],
-            ["pdflatex", "-interaction=nonstopmode", "template.tex"],
+            [pdflatex, "-interaction=nonstopmode", "template.tex"],
+            [bibtex, "template"],
+            [pdflatex, "-interaction=nonstopmode", "template.tex"],
+            [pdflatex, "-interaction=nonstopmode", "template.tex"],
         ]
         for command in commands:
             try:

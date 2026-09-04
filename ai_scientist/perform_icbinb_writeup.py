@@ -17,7 +17,7 @@ from ai_scientist.llm import (
     get_available_llms,
 )
 
-from ai_scientist.utils.token_tracker import track_token_usage
+from ai_scientist.utils.latex import resolve_tex_tool
 
 from ai_scientist.tools.semantic_scholar import search_for_papers
 
@@ -45,11 +45,13 @@ def remove_accents_and_clean(s):
 def compile_latex(cwd, pdf_file, timeout=30):
     print("GENERATING LATEX")
 
+    pdflatex = resolve_tex_tool("pdflatex")
+    bibtex = resolve_tex_tool("bibtex")
     commands = [
-        ["pdflatex", "-interaction=nonstopmode", "template.tex"],
-        ["bibtex", "template"],
-        ["pdflatex", "-interaction=nonstopmode", "template.tex"],
-        ["pdflatex", "-interaction=nonstopmode", "template.tex"],
+        [pdflatex, "-interaction=nonstopmode", "template.tex"],
+        [bibtex, "template"],
+        [pdflatex, "-interaction=nonstopmode", "template.tex"],
+        [pdflatex, "-interaction=nonstopmode", "template.tex"],
     ]
 
     for command in commands:
