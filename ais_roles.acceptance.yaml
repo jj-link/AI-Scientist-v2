@@ -21,6 +21,9 @@ roles:
   # Coding roles need headroom for reasoning + code in both paths.
   experiment_code:        {endpoint: local, model: qwen3.8-27b-6000pro, max_tokens: 32768, requires: [function_calling]}
   experiment_debugging:   {endpoint: local, model: qwen3.8-27b-6000pro, max_tokens: 32768, requires: [function_calling]}
+  # plot_generation: aggregator-script generation hit the same reasoning wall
+  # (32,616 reasoning chars, finish_reason='length') at 8192.
+  plot_generation:        {endpoint: local, model: qwen3.8-27b-6000pro, max_tokens: 32768}
   tree_scoring:           {endpoint: local, model: qwen3.8-27b-6000pro, max_tokens: 4096, requires: [function_calling]}
   ideation_reflection:    {endpoint: spark, model: deepseek-v4-flash-vision-exp, max_tokens: 8192}
   experiment_planning:    {endpoint: spark, model: deepseek-v4-flash-vision-exp, max_tokens: 12000}
@@ -35,7 +38,6 @@ roles:
   report:                 {endpoint: spark, model: deepseek-v4-flash-vision-exp, max_tokens: 8192}
   writeup:                {endpoint: spark, model: deepseek-v4-flash-vision-exp, max_tokens: 32768, timeout: 1800}
 
-  plot_generation:        {endpoint: local, model: qwen3.8-27b-6000pro, max_tokens: 8192}
   citation:               {endpoint: local, model: qwen3.8-27b-6000pro, max_tokens: 4096}
   writeup_small:          {endpoint: local, model: qwen3.8-27b-6000pro, max_tokens: 8192}
   figure_description:     {endpoint: local, model: qwen3.8-27b-6000pro, max_tokens: 4096, requires: [vision]}
