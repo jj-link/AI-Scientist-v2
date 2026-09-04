@@ -85,6 +85,21 @@ AVAILABLE_LLMS = [
 ]
 
 
+def get_available_llms() -> list[str]:
+    """Static provider list plus role/<name> entries from the current config.
+
+    A missing role config keeps the legacy provider list usable for existing
+    CLIs; a present but malformed config raises RoleConfigError instead of
+    being silently ignored.
+    """
+    path = model_routing.role_config_path()
+    if not path.exists():
+        return list(AVAILABLE_LLMS)
+    cfg = model_routing.load_role_config()
+    roles = cfg.get("roles") or {}
+    return list(AVAILABLE_LLMS) + [f"role/{name}" for name in roles]
+
+
 # Get N responses from a single message, used for ensembling.
 @backoff.on_exception(
     backoff.expo,

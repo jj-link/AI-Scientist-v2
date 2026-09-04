@@ -9,8 +9,8 @@ import sys
 
 sys.path.append(osp.join(osp.dirname(__file__), ".."))
 from ai_scientist.llm import (
-    AVAILABLE_LLMS,
     create_client,
+    get_available_llms,
     get_response_from_llm,
 )
 
@@ -273,8 +273,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--model",
         type=str,
-        default="gpt-4o-2024-05-13",
-        choices=AVAILABLE_LLMS,
+        choices=get_available_llms(),
         help="Model to use for AI Scientist.",
     )
     parser.add_argument(
