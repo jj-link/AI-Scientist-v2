@@ -125,6 +125,65 @@ Results from your last action (if any):
 """
 
 
+_ACTION_ARGS_RE = re.compile(
+    r"ACTION\s*:\s*(.*?)\s*ARGUMENTS\s*:", re.DOTALL | re.IGNORECASE
+)
+_ARGS_MARKER_RE = re.compile(r"ARGUMENTS\s*:", re.IGNORECASE)
+_JSON_FENCE_RE = re.compile(r"```json\s*(.*?)\s*```", re.DOTALL | re.IGNORECASE)
+
+
+def parse_action_response(
+    response_text: str, known_actions: set[str]
+) -> tuple[str, dict]:
+    """Extract (action, arguments) from an ideation text completion.
+
+    Accepts exactly two layouts:
+      1. "ACTION: <name>" followed by "ARGUMENTS: <JSON object>".
+      2. A bare "<name>:" or "<name>" line followed by "ARGUMENTS:" — the
+         variant observed from self-hosted text completions.
+
+    The JSON object is decoded with raw_decode so trailing prose (e.g. a
+    THOUGHT: section) cannot corrupt parsing.
+    """
+    args_match = _ARGS_MARKER_RE.search(response_text)
+    if args_match is None:
+        raise ValueError("Ideation response is missing an 'ARGUMENTS:' section.")
+    arguments_text = response_text[args_match.end() :].strip()
+
+    action_match = _ACTION_ARGS_RE.search(response_text)
+    if action_match is not None:
+        action = action_match.group(1).strip()
+        layout = "ACTION-marked"
+    else:
+        action = response_text[: args_match.start()].strip()
+        if action.endswith(":"):
+            action = action[:-1].strip()
+        layout = "bare-action"
+
+    if action not in known_actions:
+        raise ValueError(
+            f"Unknown action {action!r} (layout: {layout}); "
+            f"expected one of {sorted(known_actions)}."
+        )
+
+    fence_match = _JSON_FENCE_RE.match(arguments_text)
+    if fence_match is not None:
+        arguments_text = fence_match.group(1).strip()
+
+    try:
+        arguments, _ = json.JSONDecoder().raw_decode(arguments_text)
+    except json.JSONDecodeError as exc:
+        raise ValueError(
+            f"Invalid JSON arguments for action {action!r} (layout: {layout}): {exc}"
+        ) from exc
+    if not isinstance(arguments, dict):
+        raise ValueError(
+            f"Arguments for action {action!r} (layout: {layout}) "
+            f"must be a JSON object, got {type(arguments).__name__}."
+        )
+    return action, arguments
+
+
 def generate_temp_free_idea(
     idea_fname: str,
     client: Any,
@@ -180,68 +239,31 @@ def generate_temp_free_idea(
 
                 # Parse the LLM's response
                 try:
-                    # Use regular expressions to extract the components
-                    action_pattern = r"ACTION:\s*(.*?)\s*ARGUMENTS:"
-                    arguments_pattern = r"ARGUMENTS:\s*(.*?)(?:$|\nTHOUGHT:|\n$)"
-
-                    action_match = re.search(
-                        action_pattern, response_text, re.DOTALL | re.IGNORECASE
+                    action, arguments_json = parse_action_response(
+                        response_text, set(tools_dict) | {"FinalizeIdea"}
                     )
-                    arguments_match = re.search(
-                        arguments_pattern, response_text, re.DOTALL | re.IGNORECASE
-                    )
-
-                    if not all([action_match, arguments_match]):
-                        raise ValueError("Failed to parse the LLM response.")
-
-                    action = action_match.group(1).strip()
-                    arguments_text = arguments_match.group(1).strip()
                     print(f"Action: {action}")
-                    print(f"Arguments: {arguments_text}")
-
-                    # If arguments are wrapped in ```json blocks, extract the content
-                    if arguments_text.startswith("```json"):
-                        arguments_text = re.search(
-                            r"```json\s*(.*?)\s*```", arguments_text, re.DOTALL
-                        ).group(1)
+                    print(f"Arguments: {json.dumps(arguments_json)}")
 
                     # Process the action and arguments
                     if action in tools_dict:
-                        # It's a tool we have defined
                         tool = tools_dict[action]
-                        # Parse arguments
+                        # The helper already parsed a JSON object; use it directly.
                         try:
-                            arguments_json = json.loads(arguments_text)
-                        except json.JSONDecodeError:
-                            raise ValueError(f"Invalid arguments JSON for {action}.")
-
-                        # Use the tool
-                        try:
-                            # Assuming the arguments match the parameters of the tool
                             result = tool.use_tool(**arguments_json)
                             last_tool_results = result
                         except Exception as e:
                             last_tool_results = f"Error using tool {action}: {str(e)}"
                     elif action == "FinalizeIdea":
-                        # Parse arguments
-                        try:
-                            arguments_json = json.loads(arguments_text)
-                            idea = arguments_json.get("idea")
-                            if not idea:
-                                raise ValueError("Missing 'idea' in arguments.")
+                        idea = arguments_json.get("idea")
+                        if not idea:
+                            raise ValueError("Missing 'idea' in arguments.")
 
-                            # Append the idea to the archive
-                            idea_str_archive.append(json.dumps(idea))
-                            print(f"Proposal finalized: {idea}")
-                            idea_finalized = True
-                            break
-                        except json.JSONDecodeError:
-                            raise ValueError("Invalid arguments JSON for FinalizeIdea.")
-                    else:
-                        print(
-                            "Invalid action. Please specify one of the available tools."
-                        )
-                        print(f"Available actions are: {tool_names_str}")
+                        # Append the idea to the archive
+                        idea_str_archive.append(json.dumps(idea))
+                        print(f"Proposal finalized: {idea}")
+                        idea_finalized = True
+                        break
                 except Exception as e:
                     print(
                         f"Failed to parse LLM response. Response text:\n{response_text}"
