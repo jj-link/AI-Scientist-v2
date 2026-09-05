@@ -389,6 +389,7 @@ export default function CrashAssistant({
 }) {
   const [reviewOpen, setReviewOpen] = useState(false);
   const [hidden, setHidden] = useState(false);
+  const [reopen, setReopen] = useState(false);
   const { data, error, refresh } = useApi<DiagnosticEnvelope>(
     `/api/jobs/${job.id}/diagnostic`,
     2000,
@@ -396,6 +397,7 @@ export default function CrashAssistant({
   const diagnostic = data?.diagnostic ?? undefined;
   useEffect(() => {
     setHidden(false);
+    setReopen(false);
     setReviewOpen(false);
   }, [job.id]);
   if (!diagnostic || diagnostic.state === "skipped") return null;
@@ -423,10 +425,15 @@ export default function CrashAssistant({
       </div>
     );
   }
-  if (diagnostic.dismissed) return null;
-  if (hidden) {
+  if ((diagnostic.dismissed || hidden) && !reopen) {
     return (
-      <button className="text-button" onClick={() => setHidden(false)}>
+      <button
+        className="text-button"
+        onClick={() => {
+          setReopen(true);
+          setHidden(false);
+        }}
+      >
         Crash assistant
       </button>
     );
