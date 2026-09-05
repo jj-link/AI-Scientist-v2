@@ -1,6 +1,4 @@
-import atexit
 import logging
-import shutil
 import json
 import pickle
 from . import backend
@@ -26,6 +24,7 @@ from .agent_manager import AgentManager
 from pathlib import Path
 from .agent_manager import Stage
 from .log_summarization import overall_summarize
+from ai_scientist.progress import PipelineFailure, check_stop, emit
 
 
 logger = logging.getLogger("ai-scientist")
@@ -55,7 +54,10 @@ def journal_to_rich_tree(journal: Journal, cfg):
     return tree
 
 
-def perform_experiments_bfts(config_path: str):
+def perform_experiments_bfts(
+    config_path: str, *, on_event=None, should_stop=None
+) -> Path:
+    check_stop(should_stop)
     # turn config path string into a path object
     config_path = Path(config_path)
     cfg = load_cfg(config_path)
@@ -69,12 +71,8 @@ def perform_experiments_bfts(config_path: str):
 
     with Status("Preparing agent workspace (copying and extracting files) ..."):
         prep_agent_workspace(cfg)
+    check_stop(should_stop)
 
-    def cleanup():
-        if global_step == 0:
-            shutil.rmtree(cfg.workspace_dir)
-
-    atexit.register(cleanup)
 
     manager = AgentManager(
         task_desc=task_desc,
@@ -152,11 +150,34 @@ def perform_experiments_bfts(config_path: str):
             save_run(cfg, journal, stage_name=f"stage_{stage.name}")
 
         except Exception as e:
-            print(f"Error in step callback: {e}")
+            logger.exception("Failed to save experiment step")
+            message = "Experiment progress could not be saved."
+            emit(
+                on_event,
+                "phase_failed",
+                "experiments",
+                code="step_save_failed",
+                message=message,
+            )
+            raise PipelineFailure(message) from e
 
+        stage_number, stage_name, substage_number, substage_name = (
+            manager.parse_stage_names(stage.name)
+        )
+        emit(
+            on_event,
+            "step_saved",
+            "experiments",
+            stage=stage_number,
+            stage_name=stage_name,
+            substage=f"{substage_number}_{substage_name}",
+            total_nodes=stage_summary["total_nodes"],
+            good_nodes=stage_summary["good_nodes"],
+            buggy_nodes=stage_summary["buggy_nodes"],
+            best_metric=stage_summary["best_metric"],
+        )
         print(f"Run saved at {cfg.log_dir / f'stage_{stage.name}'}")
         print(f"Step {len(journal)}/{stage.max_iterations} at stage_{stage.name}")
-        print(f"Run saved at {cfg.log_dir / f'stage_{stage.name}'}")
 
     def generate_live(manager):
         current_stage = manager.current_stage
@@ -208,7 +229,13 @@ def perform_experiments_bfts(config_path: str):
         screen=True,
     )
 
-    manager.run(exec_callback=create_exec_callback(status), step_callback=step_callback)
+    manager.run(
+        exec_callback=create_exec_callback(status),
+        step_callback=step_callback,
+        on_event=on_event,
+        should_stop=should_stop,
+    )
+    check_stop(should_stop)
 
     manager_pickle_path = cfg.log_dir / "manager.pkl"
     try:
@@ -254,6 +281,9 @@ def perform_experiments_bfts(config_path: str):
         print(f"- Baseline summary: {baseline_summary_path}")
         print(f"- Research summary: {research_summary_path}")
         print(f"- Ablation summary: {ablation_summary_path}")
+
+    check_stop(should_stop)
+    return Path(cfg.log_dir)
 
 
 if __name__ == "__main__":

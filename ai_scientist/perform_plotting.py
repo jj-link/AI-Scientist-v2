@@ -6,10 +6,12 @@ import shutil
 import subprocess
 import sys
 import traceback
+from pathlib import Path
 from rich import print
 
 from ai_scientist.llm import create_client, get_response_from_llm
 from ai_scientist.utils.token_tracker import token_tracker
+from ai_scientist.progress import Cancelled, check_stop
 from ai_scientist.perform_icbinb_writeup import (
     load_idea_text,
     load_exp_summaries,
@@ -101,7 +103,7 @@ def run_aggregator_script(
 ):
     if not aggregator_code.strip():
         print("No aggregator code was provided. Skipping aggregator script run.")
-        return ""
+        return False, ""
     with open(aggregator_script_path, "w") as f:
         f.write(aggregator_code)
 
@@ -110,6 +112,7 @@ def run_aggregator_script(
     )
 
     aggregator_out = ""
+    success = False
     try:
         result = subprocess.run(
             [sys.executable, script_name],
@@ -120,6 +123,7 @@ def run_aggregator_script(
             text=True,
         )
         aggregator_out = result.stdout + "\n" + result.stderr
+        success = True
         print("Aggregator script ran successfully.")
     except subprocess.CalledProcessError as e:
         aggregator_out = (e.stdout or "") + "\n" + (e.stderr or "")
@@ -130,16 +134,26 @@ def run_aggregator_script(
         print("Error while running aggregator script.")
         print(e)
 
-    return aggregator_out
+    return success, aggregator_out
 
 
 def aggregate_plots(
-    base_folder: str, model: str = "o1-2024-12-17", n_reflections: int = 5
-) -> None:
+    base_folder: str, model: str = "o1-2024-12-17", n_reflections: int = 5,
+    *, should_stop=None,
+) -> dict:
+    check_stop(should_stop)
     filename = "auto_plot_aggregator.py"
     aggregator_script_path = os.path.join(base_folder, filename)
     figures_dir = os.path.join(base_folder, "figures")
 
+
+    def outcome(success):
+        figures = sorted(
+            str(path.resolve())
+            for path in Path(figures_dir).rglob("*")
+            if path.is_file() and path.suffix.lower() in {".png", ".jpg", ".jpeg", ".pdf", ".svg"}
+        )
+        return {"success": success, "figures": figures}
     # Clean up previous files
     if os.path.exists(aggregator_script_path):
         os.remove(aggregator_script_path)
@@ -161,6 +175,7 @@ def aggregate_plots(
     # Call LLM
     client, model_name = create_client(model)
     response, msg_history = None, []
+    check_stop(should_stop)
     try:
         response, msg_history = get_response_from_llm(
             prompt=aggregator_prompt,
@@ -170,25 +185,29 @@ def aggregate_plots(
             print_debug=False,
             msg_history=msg_history,
         )
+    except Cancelled:
+        raise
     except Exception:
         traceback.print_exc()
         print("Failed to get aggregator script from LLM.")
-        return
+        return outcome(False)
 
+    check_stop(should_stop)
     aggregator_code = extract_code_snippet(response)
     if not aggregator_code.strip():
         print(
             "No Python code block was found in LLM response. Full response:\n", response
         )
-        return
+        return outcome(False)
 
     # First run of aggregator script
-    aggregator_out = run_aggregator_script(
+    success, aggregator_out = run_aggregator_script(
         aggregator_code, aggregator_script_path, base_folder, filename
     )
 
     # Multiple reflection loops
     for i in range(n_reflections):
+        check_stop(should_stop)
         # Check number of figures
         figure_count = 0
         if os.path.exists(figures_dir):
@@ -227,11 +246,14 @@ If you believe you are done, simply say: "I am done". Otherwise, please provide 
                 msg_history=msg_history,
             )
 
+        except Cancelled:
+            raise
         except Exception:
             traceback.print_exc()
             print("Failed to get reflection from LLM.")
-            return
+            return outcome(False)
 
+        check_stop(should_stop)
         # Early-exit check
         if figure_count > 0 and "I am done" in reflection_response:
             print("LLM indicated it is done with reflections. Exiting reflection loop.")
@@ -245,7 +267,7 @@ If you believe you are done, simply say: "I am done". Otherwise, please provide 
             and aggregator_new_code.strip() != aggregator_code.strip()
         ):
             aggregator_code = aggregator_new_code
-            aggregator_out = run_aggregator_script(
+            success, aggregator_out = run_aggregator_script(
                 aggregator_code, aggregator_script_path, base_folder, filename
             )
         else:
@@ -253,8 +275,11 @@ If you believe you are done, simply say: "I am done". Otherwise, please provide 
                 f"No new aggregator script was provided or it was identical. Reflection step {i+1} complete."
             )
 
+    check_stop(should_stop)
+    return outcome(success)
 
-def main():
+
+def main(argv=None):
     parser = argparse.ArgumentParser(
         description="Generate and execute a final plot aggregation script with LLM assistance."
     )
@@ -274,11 +299,12 @@ def main():
         default=5,
         help="Number of reflection steps to attempt (default: 5).",
     )
-    args = parser.parse_args()
-    aggregate_plots(
+    args = parser.parse_args(argv)
+    result = aggregate_plots(
         base_folder=args.folder, model=args.model, n_reflections=args.reflections
     )
+    return 0 if result["success"] else 1
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

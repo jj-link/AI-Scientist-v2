@@ -194,3 +194,9 @@ final_papers/
 # HF
 cache/
 huggingface/
+
+# Local AI-Scientist Studio state and browser build/evidence
+ui_data/
+frontend/node_modules/
+frontend/dist/
+frontend/*.tsbuildinfo

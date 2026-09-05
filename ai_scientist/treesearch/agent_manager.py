@@ -13,6 +13,7 @@ import json
 from rich import print
 from .utils.serialize import parse_markdown_to_dict
 from .utils.metric import WorstMetricValue
+from ai_scientist.progress import PipelineFailure, check_stop, emit
 
 
 logger = logging.getLogger(__name__)
@@ -418,15 +419,16 @@ Your research idea:\n\n
             )
             if stage.stage_number == 1:
                 # For initial stage, if it didn't even find a working implementation until max iterations,
-                # end gracefully and stop the experiment.
+                # propagate failure instead of ending as a successful run.
                 logger.error(
                     f"Initial stage {stage.name} did not find a working implementation after {stage.max_iterations} iterations. Consider increasing the max iterations or reducing the complexity of the research idea."
                 )
                 print(
                     f"[red]Experiment ended: Could not find working implementation in initial stage after {stage.max_iterations} iterations[/red]"
                 )
-                self.current_stage = None  # This will cause the run loop to exit
-                return True, "Failed to find working implementation"
+                raise PipelineFailure(
+                    "Initial implementation did not produce a working result within its iteration limit."
+                )
             else:
                 return True, "Reached max iterations"
 
@@ -689,15 +691,37 @@ Your research idea:\n\n
             stage_number=stage_number,
         )
 
-    def run(self, exec_callback, step_callback=None):
-        """Run the experiment through generated stages"""
+    def run(
+        self, exec_callback, step_callback=None, *, on_event=None, should_stop=None
+    ):
+        """Run the experiment through generated stages with optional progress hooks."""
+        def stage_event(event_type, stage):
+            number, name, substage_number, substage_name = self.parse_stage_names(
+                stage.name
+            )
+            emit(
+                on_event,
+                event_type,
+                "experiments",
+                stage=number,
+                stage_name=name,
+                substage=f"{substage_number}_{substage_name}",
+            )
+
+        def fail(code, message):
+            emit(on_event, "phase_failed", "experiments", code=code, message=message)
+            raise PipelineFailure(message)
+
         while self.current_stage:  # Main stage loop
+            check_stop(should_stop)
             main_stage = self.parse_stage_names(self.current_stage.name)[0]
             print(f"[green]Starting main stage: {main_stage}[/green]")
             print(f"[cyan]Goals: {self.current_stage.goals}[/cyan]")
 
             current_substage = self.current_stage
             while current_substage:  # Sub-stage loop
+                check_stop(should_stop)
+                stage_event("stage_started", current_substage)
                 print(f"[green]Starting sub-stage: {current_substage.name}[/green]")
 
                 with self._create_agent_for_stage(current_substage) as agent:
@@ -713,23 +737,30 @@ Your research idea:\n\n
                             print(
                                 f"[red]No previous best implementation found for {self.current_stage.name}. Something went wrong so finishing the experiment...[/red]"
                             )
-                            self.current_stage = None
-                            current_substage = None
-                            break
+                            fail(
+                                "no_previous_best",
+                                "No working implementation was available from the previous stage.",
+                            )
 
                     # Run until sub-stage completion
                     while True:
+                        check_stop(should_stop)
                         agent.step(exec_callback)
                         if step_callback:
                             step_callback(
                                 current_substage, self.journals[current_substage.name]
                             )
+                        check_stop(should_stop)
 
                         # First check if main stage is complete
-                        (
-                            main_stage_complete,
-                            main_stage_feedback,
-                        ) = self._check_stage_completion(current_substage)
+                        try:
+                            (
+                                main_stage_complete,
+                                main_stage_feedback,
+                            ) = self._check_stage_completion(current_substage)
+                        except PipelineFailure as exc:
+                            fail("no_working_implementation", str(exc))
+                        check_stop(should_stop)
                         print(
                             f"[cyan]Feedback from _check_stage_completion: {main_stage_feedback}[/cyan]"
                         )
@@ -740,6 +771,7 @@ Your research idea:\n\n
                                     current_substage.name
                                 )
                                 if best_node:
+                                    check_stop(should_stop)
                                     seed_nodes = agent._run_multi_seed_evaluation(
                                         best_node
                                     )
@@ -748,12 +780,14 @@ Your research idea:\n\n
                                             current_substage,
                                             self.journals[current_substage.name],
                                         )
+                                    check_stop(should_stop)
                                     agent._run_plot_aggregation(best_node, seed_nodes)
                                     if step_callback:
                                         step_callback(
                                             current_substage,
                                             self.journals[current_substage.name],
                                         )
+                                    check_stop(should_stop)
                                     print(
                                         f"Stage {current_substage.name} multi-seed eval done."
                                     )
@@ -761,11 +795,13 @@ Your research idea:\n\n
                                     logger.error(
                                         f"No best node found for {current_substage.name} during multi-seed eval, something went wrong so finishing the experiment..."
                                     )
-                                    self.current_stage = None
-                                    current_substage = None
-                                    break
+                                    fail(
+                                        "no_best_for_multiseed",
+                                        "No working implementation was available for multi-seed evaluation.",
+                                    )
 
                             # Exit the loop to move to next main stage
+                            stage_event("stage_finished", current_substage)
                             current_substage = None
                             break
 
@@ -775,6 +811,7 @@ Your research idea:\n\n
                         ) = self._check_substage_completion(
                             current_substage, self.journals[current_substage.name]
                         )
+                        check_stop(should_stop)
 
                         if substage_complete:
                             # Create next sub-stage
@@ -783,6 +820,8 @@ Your research idea:\n\n
                                 self.journals[current_substage.name],
                                 substage_feedback,
                             )
+                            check_stop(should_stop)
+                            stage_event("stage_finished", current_substage)
                             if next_substage:
                                 # Record sub-stage transition
                                 self.stage_history.append(
@@ -802,12 +841,14 @@ Your research idea:\n\n
                                 # If no next sub-stage could be created, end this main stage
                                 current_substage = None
                             break
+            check_stop(should_stop)
             self._save_checkpoint()
             # Main stage complete - create next main stage
             if self.current_stage:
                 next_main_stage = self._create_next_main_stage(
                     self.stages[-1], self.journals[self.stages[-1].name]
                 )
+                check_stop(should_stop)
                 if next_main_stage:
                     # Record main stage transition
                     self.stage_history.append(

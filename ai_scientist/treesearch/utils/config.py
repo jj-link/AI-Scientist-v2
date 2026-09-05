@@ -257,3 +257,4 @@ def save_run(cfg: Config, journal, stage_name: str = None):
             print("No best node found yet")
     except Exception as e:
         print(f"Error saving best solution: {e}")
+        raise

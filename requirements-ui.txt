@@ -1,0 +1,4 @@
+# Optional browser application; headless research installs do not need these.
+fastapi>=0.115,<1
+uvicorn>=0.34,<1
+psutil>=7,<8

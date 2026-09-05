@@ -1,5 +1,6 @@
 import argparse
 import json
+import os
 import os.path as osp
 import re
 import traceback
@@ -16,6 +17,7 @@ from ai_scientist.llm import (
 
 from ai_scientist.tools.semantic_scholar import SemanticScholarSearchTool
 from ai_scientist.tools.base_tool import BaseTool
+from ai_scientist.progress import Cancelled, check_stop, emit
 
 # Create tool instances
 semantic_scholar_tool = SemanticScholarSearchTool()
@@ -217,96 +219,109 @@ def generate_temp_free_idea(
     max_num_generations: int = 20,
     num_reflections: int = 5,
     reload_ideas: bool = True,
+    *,
+    on_event=None,
+    should_stop=None,
 ) -> List[Dict]:
-    idea_str_archive = []
-    # load ideas from file
+    ideas = []
     if reload_ideas and osp.exists(idea_fname):
-        with open(idea_fname, "r") as f:
-            idea_str_content = json.load(f)
-            for idea in idea_str_content:
-                idea_str_archive.append(json.dumps(idea))
-            print(f"Loaded {len(idea_str_archive)} ideas from {idea_fname}")
+        with open(idea_fname, "r", encoding="utf-8") as f:
+            ideas = json.load(f)
+        print(f"Loaded {len(ideas)} ideas from {idea_fname}")
     else:
         print(f"No ideas found in {idea_fname}. Starting from scratch.")
 
-    for gen_idx in range(max_num_generations):
-        print()
-        print(f"Generating proposal {gen_idx + 1}/{max_num_generations}")
+    def persist(values):
+        staging = str(idea_fname) + ".pending"
         try:
-            prev_ideas_string = "\n\n".join(idea_str_archive)
+            with open(staging, "w", encoding="utf-8") as f:
+                json.dump(values, f, indent=4, ensure_ascii=False)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(staging, idea_fname)
+        finally:
+            if osp.exists(staging):
+                os.unlink(staging)
 
+    for gen_idx in range(max_num_generations):
+        check_stop(should_stop)
+        attempt = gen_idx + 1
+        emit(on_event, "attempt_started", "generation", attempt=attempt)
+        print(f"\nGenerating proposal {attempt}/{max_num_generations}")
+        finalized = False
+        try:
+            prev_ideas_string = "\n\n".join(json.dumps(idea) for idea in ideas)
             last_tool_results = ""
-            idea_finalized = False
             msg_history = []
-
             for reflection_round in range(num_reflections):
+                check_stop(should_stop)
+                round_number = reflection_round + 1
                 if reflection_round == 0:
-                    # Use the initial idea generation prompt
                     prompt_text = idea_generation_prompt.format(
                         workshop_description=workshop_description,
                         prev_ideas_string=prev_ideas_string,
                     )
                 else:
-                    # Use the reflection prompt, including tool results if any
                     prompt_text = build_reflection_prompt(
                         reflection_round, num_reflections, last_tool_results
                     )
-
-                response_text, msg_history = get_response_from_llm(
-                    prompt=prompt_text,
-                    client=client,
-                    model=model,
-                    system_message=system_prompt,
-                    msg_history=msg_history,
-                )
-
-                # Parse the LLM's response
+                emit(on_event, "round_started", "generation", attempt=attempt, round=round_number)
+                try:
+                    response_text, msg_history = get_response_from_llm(
+                        prompt=prompt_text,
+                        client=client,
+                        model=model,
+                        system_message=system_prompt,
+                        msg_history=msg_history,
+                    )
+                finally:
+                    emit(on_event, "call_finished", "generation", attempt=attempt, round=round_number)
+                check_stop(should_stop)
                 try:
                     action, arguments_json = parse_action_response(
                         response_text, set(tools_dict) | {"FinalizeIdea"}
                     )
                     print(f"Action: {action}")
                     print(f"Arguments: {json.dumps(arguments_json)}")
-
-                    # Process the action and arguments
                     if action in tools_dict:
-                        tool = tools_dict[action]
-                        # The helper already parsed a JSON object; use it directly.
+                        emit(on_event, "search_started", "generation", attempt=attempt, round=round_number)
                         try:
-                            result = tool.use_tool(**arguments_json)
-                            last_tool_results = result
+                            last_tool_results = tools_dict[action].use_tool(**arguments_json)
+                        except Cancelled:
+                            raise
                         except Exception as e:
                             last_tool_results = f"Error using tool {action}: {str(e)}"
+                        finally:
+                            emit(on_event, "call_finished", "generation", attempt=attempt, round=round_number)
+                        check_stop(should_stop)
                     elif action == "FinalizeIdea":
                         idea = arguments_json.get("idea")
-                        if not idea:
-                            raise ValueError("Missing 'idea' in arguments.")
-
-                        # Append the idea to the archive
-                        idea_str_archive.append(json.dumps(idea))
+                        if not isinstance(idea, dict):
+                            with open(str(idea_fname) + ".malformed.jsonl", "a", encoding="utf-8") as f:
+                                f.write(json.dumps(arguments_json, ensure_ascii=False) + "\n")
+                            raise ValueError("Finalized proposal must be a JSON object.")
+                        persist([*ideas, idea])
+                        ideas.append(idea)
                         print(f"Proposal finalized: {idea}")
-                        idea_finalized = True
+                        emit(on_event, "proposal_finalized", "generation", attempt=attempt, idea=idea)
+                        finalized = True
                         break
-                except Exception as e:
-                    print(
-                        f"Failed to parse LLM response. Response text:\n{response_text}"
-                    )
-                    traceback.print_exc()
-                    break  # Exit the loop if parsing fails
-
-            if idea_finalized:
-                continue  # Move to the next idea
-
-        except Exception as e:
+                except Cancelled:
+                    raise
+                except Exception:
+                    print(f"Failed to use LLM response. Response text:\n{response_text}")
+                    raise
+            if not finalized:
+                emit(on_event, "attempt_failed", "generation", attempt=attempt,
+                     code="rounds_exhausted", message="No proposal was finalized within the configured rounds.")
+        except Cancelled:
+            raise
+        except Exception:
             print("Failed to generate proposal:")
             traceback.print_exc()
-            continue
-
-    # Save ideas
-    ideas = [json.loads(idea_str) for idea_str in idea_str_archive]
-
-    with open(idea_fname, "w") as f:
-        json.dump(ideas, f, indent=4)
+            emit(on_event, "attempt_failed", "generation", attempt=attempt,
+                 code="generation_error", message="This attempt failed. Open technical details for the recorded error.")
+    persist(ideas)
     print(f"Stored {len(ideas)} ideas in {idea_fname}")
     return ideas
 

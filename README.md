@@ -60,6 +60,94 @@ pip install -r requirements.txt
 
 Installation usually takes no more than one hour.
 
+### AI-Scientist Studio: local browser application
+
+Studio provides **Ideas**, **Experiments**, **Results**, and a read-only **Models**
+view. It runs on this PC at **http://127.0.0.1:8765** and serves the built React
+application and Python API from the same origin. It does not change the research
+engine's hardware or model requirements.
+
+From the repository root, using the existing Python 3.11 environment and Node:
+
+```powershell
+# Optional UI dependencies; the headless research requirements are unchanged.
+uv pip install --python .\.venv\Scripts\python.exe -r requirements-ui.txt
+
+Push-Location frontend
+npm ci
+npm run build
+Pop-Location
+
+.\.venv\Scripts\python.exe -m ai_scientist.ui
+```
+
+If your Python environment has pip instead of uv, use
+`.\.venv\Scripts\python.exe -m pip install -r requirements-ui.txt` for the first
+command. The launch command prints the URL and fails clearly if UI dependencies,
+built assets, or the fixed loopback port are unavailable. There is no LAN/public
+host option.
+
+Describe a research question on **Ideas**. Example topics only fill the form.
+Generation uses `role/ideation` with the selected configuration; an attempt can
+produce no proposal. Edit and explicitly save a proposal before selecting
+**Prepare experiment**. Incomplete drafts can be saved, but cannot run. Proposal
+exports are launcher-compatible single-element JSON arrays; original generated
+JSON and unknown scientific fields are retained.
+
+Preparation displays the actual workload and exclusive output directory.
+**Start experiment** requires an explicit acknowledgment:
+**This runs generated Python code on this PC. It can read and write files
+available to your account.** Loopback HTTP access is not a sandbox. Studio does
+not upload source code, install missing tools, start models, download datasets
+implicitly through a UI control, or reroute model assignments. Generated Python
+itself executes with your account's permissions.
+
+The role preset defaults to `AI_SCIENTIST_ROLE_CONFIG`, otherwise `ais_roles.yaml`.
+The workload defaults to `bfts_config.yaml`. If present,
+`bfts_config.acceptance.yaml` is labeled **Reduced validation workload**; it is
+not a publication-quality guarantee. This UI uses the ICBINB paper workflow with
+writeup and AI-generated reviews enabled. Before execution it checks the saved
+proposal, `exp_name: run`, selected endpoint model listings, `pdflatex`, `bibtex`,
+and `pdftotext`. The existing TeX resolver honors `AI_SCIENTIST_TEX_BIN_DIR`;
+`pdftotext` must be on the Python process's PATH. Missing prerequisites block
+launch with their names. A model listing and declared capability do not prove a
+text or image generation request works.
+
+Tool availability is checked in the server's inherited environment, not across
+the whole PC. On Windows, an already-open terminal, IDE, or service manager can
+retain an old PATH even after a TeX installation is registered in Windows.
+Launch Studio from a newly opened terminal (restart its parent IDE or service
+manager if needed), or pass that launch process the existing tool directory on
+PATH. Do not assume an unavailable check means the tools need reinstalling.
+
+Only one generation or experiment job can be active. Browser refresh and
+reopening reconnect to monitoring; workers can finish while the HTTP server is
+closed. **Stop** preserves outputs and stops only the recorded worker and its
+descendants after a ten-second cooperative grace period. There is no
+computational pause/resume or automatic research restart. On server restart,
+missing worker identities become **Interrupted**, not completed.
+
+Local state is stored in `ui_data/ui.sqlite3`; immutable requests/configuration
+snapshots and private technical logs are under `ui_data/jobs/<uuid>/`. New runs
+use exclusive `experiments/ui_<uuid>/` directories. Keep both directories to
+retain saved proposals, lifecycle history, and artifacts. Configuration
+snapshots retain credential environment-variable names, not resolved key values.
+Technical logs are fetched only on request and credential values are redacted
+before browser delivery.
+
+**Results** also indexes existing immediate experiment directories without
+modifying them. Historical execution status remains **Status unavailable · Saved
+outputs**, even when papers and reviews exist. All saved PDFs stay selectable;
+figures and AI-generated reviews are shown as recorded, not proof of novelty,
+hypothesis confirmation, or acceptance. Generated tree HTML and source files
+are download-only. **Completed** means the selected pipeline stages finished.
+
+For frontend development, run the fixed-port Python API with
+`.\.venv\Scripts\python.exe -m ai_scientist.ui --development` and `npm run dev`
+inside `frontend/`. Open **http://127.0.0.1:5173**. Vite binds only to loopback,
+proxies `/api` to port 8765, and that one development Origin is explicitly
+allowed. Use the normal production launch without `--development` otherwise.
+
 ### Supported Models and API Keys
 
 #### OpenAI Models

@@ -282,11 +282,14 @@ def log_request(
         pass  # logging must never break inference
 
 
-def list_endpoint_models(endpoint_name: str) -> list[str]:
+def list_endpoint_models(
+    endpoint_name: str, *, path: str | os.PathLike | None = None,
+    timeout: float | None = None,
+) -> list[str]:
     """GET <base_url>/models; raises a clear error when unreachable."""
     import openai
 
-    cfg = load_role_config()
+    cfg = load_role_config(path)
     endpoints = cfg["endpoints"]
     if endpoint_name not in endpoints:
         raise RoleConfigError(
@@ -299,7 +302,8 @@ def list_endpoint_models(endpoint_name: str) -> list[str]:
     client = openai.OpenAI(
         base_url=base_url,
         api_key=os.environ.get(endpoint.get("api_key_env") or "") or "unused",
-        max_retries=1,
+        max_retries=0 if timeout is not None else 1,
+        timeout=timeout if timeout is not None else DEFAULT_ENDPOINT_TIMEOUT,
     )
     try:
         return [m.id for m in client.models.list().data]
@@ -307,6 +311,8 @@ def list_endpoint_models(endpoint_name: str) -> list[str]:
         raise RoleConfigError(
             f"Endpoint {endpoint_name!r} unreachable at {base_url}: {e}"
         ) from e
+    finally:
+        client.close()
 
 
 def validate_roles(path: str | os.PathLike | None = None) -> dict[str, dict]:
@@ -321,7 +327,7 @@ def validate_roles(path: str | os.PathLike | None = None) -> dict[str, dict]:
 
     def _models(name: str) -> list[str]:
         if name not in model_lists:
-            model_lists[name] = list_endpoint_models(name)
+            model_lists[name] = list_endpoint_models(name, path=path)
         return model_lists[name]
 
     validated: dict[str, dict] = {}

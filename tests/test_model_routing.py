@@ -132,7 +132,7 @@ def test_validation_requires_model_on_endpoint(role_cfg, monkeypatch):
     monkeypatch.setattr(
         model_routing,
         "list_endpoint_models",
-        lambda name: ["big-model"] if name == "spark" else ["other"],
+        lambda name, **kwargs: ["big-model"] if name == "spark" else ["other"],
     )
     with pytest.raises(model_routing.RoleConfigError, match="not served by endpoint"):
         model_routing.validate_roles()
@@ -151,7 +151,7 @@ def test_validation_checks_declared_capabilities(tmp_path, role_cfg, monkeypatch
     monkeypatch.setattr(
         model_routing,
         "list_endpoint_models",
-        lambda name: ["big-model"] if name == "spark" else ["small-model"],
+        lambda name, **kwargs: ["big-model"] if name == "spark" else ["small-model"],
     )
     with pytest.raises(model_routing.RoleConfigError, match="function_calling"):
         model_routing.validate_roles()
@@ -161,7 +161,7 @@ def test_validation_success_summary(role_cfg, monkeypatch):
     monkeypatch.setattr(
         model_routing,
         "list_endpoint_models",
-        lambda name: ["big-model", "small-model"],
+        lambda name, **kwargs: ["big-model", "small-model"],
     )
     summary = model_routing.validate_roles()
     assert summary["writeup"]["endpoint"] == "spark"

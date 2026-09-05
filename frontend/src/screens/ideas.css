@@ -1,0 +1,102 @@
+.generation-settings,
+.editor-fields {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.example-topics {
+  gap: 8px;
+}
+.example-topic {
+  max-width: 350px;
+  text-align: left;
+  white-space: normal;
+  font-size: 14px;
+}
+.proposal-grid {
+  align-items: stretch;
+}
+.proposal-card {
+  border-top: 5px solid #a8402d;
+}
+.proposal-color-1 {
+  border-top-color: #1b6c60;
+}
+.proposal-color-2 {
+  border-top-color: #6654a6;
+}
+.proposal-card h3 {
+  overflow-wrap: anywhere;
+}
+.proposal-card > .button {
+  align-self: flex-start;
+  margin-top: auto;
+}
+.proposal-excerpt {
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+.editor-list-item {
+  background: #faf7f0;
+  padding: 16px;
+}
+.editor-fields > .advanced > .stack {
+  margin-top: 16px;
+}
+.json-editor {
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 14px;
+  tab-size: 2;
+  overflow-wrap: normal;
+  white-space: pre;
+}
+.output-path {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.prerequisite-list {
+  padding-left: 24px;
+  margin: 0;
+}
+.prerequisite-list li + li {
+  margin-top: 8px;
+}
+.execution-confirmation {
+  border-color: #a8402d;
+}
+.execution-confirmation h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.execution-ack {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  line-height: 1.6;
+  font-weight: 600;
+  cursor: pointer;
+}
+.execution-ack input {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  margin-top: 3px;
+  accent-color: #a8402d;
+}
+@media (max-width: 640px) {
+  .example-topic {
+    max-width: none;
+    width: 100%;
+  }
+  .editor-list-item {
+    padding: 12px;
+  }
+  .execution-ack {
+    gap: 8px;
+  }
+}
