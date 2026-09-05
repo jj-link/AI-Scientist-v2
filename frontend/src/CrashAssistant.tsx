@@ -452,6 +452,7 @@ export default function CrashAssistant({
               className="crash-close"
               aria-label="Dismiss assistant advice"
               onClick={() => {
+                setReopen(false);
                 setHidden(true);
                 void mutate(`/api/jobs/${job.id}/diagnostic/dismiss`, {})
                   .then(refresh)
