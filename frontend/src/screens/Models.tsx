@@ -8,8 +8,10 @@ import {
   XCircle,
 } from "lucide-react";
 import {
+  mutate,
   request,
   useApi,
+  type AssistantSettings,
   type Credential,
   type ModelsCheck,
   type ModelsView,
@@ -17,6 +19,187 @@ import {
 import { ConfigSelect, ErrorNotice, PageHeading } from "../components";
 import { useStudio } from "../studio";
 import "./results.css";
+
+function CrashAssistantCard() {
+  const { bootstrap } = useStudio();
+  const settings = useApi<AssistantSettings>(
+    "/api/crash-assistant/settings",
+  );
+  const [configId, setConfigId] = useState("");
+  const [role, setRole] = useState("");
+  const [touched, setTouched] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<unknown>(null);
+  const [savedView, setSavedView] = useState<AssistantSettings | null>(null);
+  const view = useApi<ModelsView>(
+    configId ? `/api/models?config_id=${encodeURIComponent(configId)}` : null,
+  );
+  const currentView = view.data?.config_id === configId ? view.data : undefined;
+  const textRoles = (currentView?.roles ?? []).filter(
+    (candidate) =>
+      candidate.endpoint &&
+      currentView?.endpoints.find(
+        (endpoint) =>
+          endpoint.id === candidate.endpoint &&
+          endpoint.capabilities.includes("text"),
+      ),
+  );
+  const loaded = settings.data;
+  useEffect(() => {
+    if (!touched && loaded?.config_id) {
+      setConfigId(loaded.config_id);
+      setRole(loaded.role ?? "");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded?.config_id, loaded?.role]);
+  const shown = savedView ?? loaded;
+  async function save(enabled: boolean) {
+    setSaving(true);
+    setSaveError(null);
+    try {
+      const result = await mutate<AssistantSettings>(
+        "/api/crash-assistant/settings",
+        enabled
+          ? { enabled: true, config_id: configId, role }
+          : { enabled: false, config_id: null, role: null },
+        "PUT",
+      );
+      setSavedView(result);
+      settings.refresh();
+    } catch (error) {
+      setSaveError(error);
+    } finally {
+      setSaving(false);
+    }
+  }
+  const canEnable = Boolean(configId && role && textRoles.some((item) => item.name === role));
+  return (
+    <section className="card stack" aria-labelledby="assistant-heading">
+      <div className="card-header">
+        <div>
+          <h2 id="assistant-heading">Crash assistant</h2>
+          <p className="muted">
+            Saved separately from the research configuration above. When
+            enabled, a failed job sends one bounded, credential-redacted
+            Technical details excerpt to the selected endpoint for newly
+            started jobs only; redaction may not remove private research
+            content. GitHub reports are public on{" "}
+            <code>jj-link/AI-Scientist-v2</code> and require separate
+            exact-content approval.
+          </p>
+        </div>
+      </div>
+      <div className="field">
+        <label htmlFor="assistant-enabled">Enable crash assistant</label>
+        <select
+          id="assistant-enabled"
+          value={shown?.enabled ? "on" : "off"}
+          onChange={(event) => void save(event.target.value === "on")}
+          disabled={saving || !loaded}
+        >
+          <option value="off">Disabled</option>
+          <option value="on" disabled={!canEnable && !shown?.enabled}>
+            Enabled
+          </option>
+        </select>
+        {!canEnable && (
+          <small className="muted">
+            {shown?.enabled
+              ? "Disabling stays available even if the saved preset is broken."
+              : "Enable requires a preset with a role whose endpoint declares text capability. Configure one in the role configuration file first."}
+          </small>
+        )}
+      </div>
+      {canEnable || shown?.enabled ? (
+        <>
+          <div className="field">
+            <label htmlFor="assistant-preset">Preset</label>
+            <select
+              id="assistant-preset"
+              value={configId}
+              onChange={(event) => {
+                setTouched(true);
+                setConfigId(event.target.value);
+                setRole("");
+              }}
+            >
+              {bootstrap.role_configs.map((config) => (
+                <option key={config.id} value={config.id}>
+                  {config.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="field">
+            <label htmlFor="assistant-role">
+              Role — model — endpoint (text capable)
+            </label>
+            <select
+              id="assistant-role"
+              value={role}
+              onChange={(event) => {
+                setTouched(true);
+                setRole(event.target.value);
+              }}
+            >
+              {!role && <option value="">Select a text role</option>}
+              {textRoles.map((candidate) => (
+                <option key={candidate.name} value={candidate.name}>
+                  {candidate.name} — {candidate.model || "model not set"} —{" "}
+                  {candidate.endpoint}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="toolbar">
+            <button
+              className="button primary"
+              onClick={() => void save(true)}
+              disabled={saving || !canEnable}
+            >
+              Save assistant settings
+            </button>
+            <button
+              className="button secondary"
+              onClick={() => void save(false)}
+              disabled={saving}
+            >
+              Disable
+            </button>
+          </div>
+        </>
+      ) : null}
+      <ErrorNotice error={saveError} />
+      {shown && (
+        <dl className="results-record metadata">
+          <dt>Saved assignment</dt>
+          <dd>
+            {shown.enabled && shown.config_id
+              ? `${shown.role} · ${shown.model} · ${shown.endpoint}`
+              : "Disabled"}
+          </dd>
+          <dt>Effective limits</dt>
+          <dd>
+            {shown.enabled && shown.max_tokens
+              ? `${shown.max_tokens.toLocaleString()} tokens · ${shown.timeout} s timeout`
+              : "Not applicable"}
+          </dd>
+          <dt>Credential</dt>
+          <dd>
+            {shown.credential ? (
+              <>
+                <code>{shown.credential.env}</code> ·{" "}
+                {shown.credential.present ? "Value present" : "Value not present"}
+              </>
+            ) : (
+              "None"
+            )}
+          </dd>
+        </dl>
+      )}
+    </section>
+  );
+}
 
 function CredentialState({ credential }: { credential: Credential }) {
   return (
@@ -39,6 +222,7 @@ function EndpointUrl({ value }: { value: string }) {
     const parsed = new URL(value);
     if (parsed.protocol === "http:" || parsed.protocol === "https:") {
       parsed.username = "";
+      <CrashAssistantCard />
       parsed.password = "";
       parsed.search = "";
       parsed.hash = "";
@@ -117,6 +301,8 @@ export default function Models() {
         <p>
           Inspect model assignments and declared capabilities. Studio does not
           edit configuration files, start models, or change server routes.
+          Crash assistant settings below are saved on the server; they do not
+          change this page's read-only YAML view or research routes.
         </p>
       </PageHeading>
       <div className="card stack">
@@ -136,6 +322,7 @@ export default function Models() {
           </button>
         </div>
       </div>
+      <CrashAssistantCard />
       <ErrorNotice error={error} />
       {error != null && (
         <div className="notice">
@@ -202,9 +389,6 @@ export default function Models() {
                           ) : (
                             "Not specified"
                           )}
-                        </td>
-                        <td>{role.timeout} seconds</td>
-                        <td>
                           {role.requires.length
                             ? role.requires.join(", ")
                             : "None declared"}

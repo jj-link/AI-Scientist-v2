@@ -51,6 +51,30 @@ class Store:
                     type TEXT NOT NULL, phase TEXT, data TEXT NOT NULL
                 );
                 CREATE INDEX IF NOT EXISTS events_by_job ON events(job_id, sequence);
+                CREATE TABLE IF NOT EXISTS crash_assistant_settings (
+                    id INTEGER PRIMARY KEY CHECK(id=1),
+                    enabled INTEGER NOT NULL,
+                    assignment TEXT,
+                    updated_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS job_diagnostics (
+                    job_id TEXT PRIMARY KEY,
+                    state TEXT NOT NULL,
+                    assignment TEXT NOT NULL,
+                    result TEXT,
+                    error TEXT,
+                    owner TEXT,
+                    dismissed INTEGER NOT NULL DEFAULT 0,
+                    draft_revision INTEGER NOT NULL DEFAULT 0,
+                    draft_title TEXT,
+                    draft_body TEXT,
+                    issue_state TEXT NOT NULL DEFAULT 'not_published',
+                    issue_url TEXT,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS diagnostics_by_state
+                    ON job_diagnostics(state, created_at);
             """)
 
     @contextmanager
@@ -110,6 +134,15 @@ class Store:
             run_id = "ui_" + id if kind == "experiment" else None
             db.execute("INSERT INTO jobs(id,request_id,kind,state,phase,created_at,updated_at,run_id,request) VALUES(?,?,?,'starting','preparing',?,?,?,?)",
                        (id, request_id, kind, stamp, stamp, run_id, json.dumps(request)))
+            setting = db.execute(
+                "SELECT assignment FROM crash_assistant_settings WHERE id=1 AND enabled=1"
+            ).fetchone()
+            if setting and setting["assignment"]:
+                db.execute(
+                    "INSERT INTO job_diagnostics(job_id,state,assignment,created_at,updated_at) "
+                    "VALUES(?,'watching',?,?,?)",
+                    (id, setting["assignment"], stamp, stamp),
+                )
             return self.job_record(db.execute("SELECT * FROM jobs WHERE id=?", (id,)).fetchone())
 
     def get_job(self, id):
@@ -147,6 +180,255 @@ class Store:
                 fields["state"] = "stopping"
             db.execute("UPDATE jobs SET " + ",".join(f"{key}=?" for key in fields) + " WHERE id=?", (*fields.values(), id))
         return self.get_job(id)
+
+    @staticmethod
+    def diagnostic_record(row):
+        if row is None:
+            return None
+        result = dict(row)
+        for key in ("assignment", "result", "error", "owner"):
+            result[key] = json.loads(result[key]) if result[key] is not None else None
+        result["dismissed"] = bool(result["dismissed"])
+        return result
+
+    def assistant_settings(self):
+        with self.connection() as db:
+            row = db.execute(
+                "SELECT enabled,assignment,updated_at FROM crash_assistant_settings WHERE id=1"
+            ).fetchone()
+        if row is None:
+            return {"enabled": False, "assignment": None, "updated_at": None}
+        return {
+            "enabled": bool(row["enabled"]),
+            "assignment": json.loads(row["assignment"]) if row["assignment"] else None,
+            "updated_at": row["updated_at"],
+        }
+
+    def save_assistant_settings(self, enabled: bool, assignment: dict | None = None):
+        stamp = now()
+        with self.connection() as db:
+            db.execute("BEGIN IMMEDIATE")
+            current = db.execute(
+                "SELECT assignment FROM crash_assistant_settings WHERE id=1"
+            ).fetchone()
+            serialized = (
+                json.dumps(dict(assignment), separators=(",", ":"))
+                if assignment is not None
+                else (current["assignment"] if current else None)
+            )
+            if enabled and serialized is None:
+                raise ValueError("Enabling crash analysis requires a model assignment.")
+            db.execute(
+                "INSERT INTO crash_assistant_settings(id,enabled,assignment,updated_at) VALUES(1,?,?,?) "
+                "ON CONFLICT(id) DO UPDATE SET enabled=excluded.enabled,"
+                "assignment=excluded.assignment,updated_at=excluded.updated_at",
+                (int(enabled), serialized, stamp),
+            )
+            if not enabled:
+                db.execute(
+                    "UPDATE job_diagnostics SET state='skipped',owner=NULL,updated_at=? "
+                    "WHERE state IN ('watching','pending','analyzing')",
+                    (stamp,),
+                )
+        return self.assistant_settings()
+
+    def get_diagnostic(self, job_id):
+        with self.connection() as db:
+            return self.diagnostic_record(
+                db.execute("SELECT * FROM job_diagnostics WHERE job_id=?", (job_id,)).fetchone()
+            )
+
+    def scan_diagnostics(self):
+        stamp = now()
+        with self.connection() as db:
+            db.execute("BEGIN IMMEDIATE")
+            rows = db.execute(
+                "SELECT d.job_id,j.state,j.error,j.result FROM job_diagnostics d "
+                "JOIN jobs j ON j.id=d.job_id WHERE d.state='watching'"
+            ).fetchall()
+            for row in rows:
+                error = json.loads(row["error"]) if row["error"] else None
+                result = json.loads(row["result"]) if row["result"] else None
+                failed_attempts = result.get("failed_attempts") if isinstance(result, dict) else None
+                failed_attempts = failed_attempts if type(failed_attempts) is int and failed_attempts > 0 else 0
+                if row["state"] in ("failed", "interrupted") or (
+                    row["state"] == "partial" and (error is not None or failed_attempts)
+                ):
+                    next_state = "pending"
+                elif row["state"] in ("completed", "stopped", "partial"):
+                    next_state = "skipped"
+                else:
+                    continue
+                db.execute(
+                    "UPDATE job_diagnostics SET state=?,updated_at=? "
+                    "WHERE job_id=? AND state='watching'",
+                    (next_state, stamp, row["job_id"]),
+                )
+
+    def claim_diagnostic(self, owner: dict):
+        stamp = now()
+        serialized = json.dumps(owner, separators=(",", ":"))
+        with self.connection() as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = db.execute(
+                "SELECT job_id FROM job_diagnostics WHERE state='pending' "
+                "ORDER BY created_at LIMIT 1"
+            ).fetchone()
+            if row is None:
+                return None
+            changed = db.execute(
+                "UPDATE job_diagnostics SET state='analyzing',owner=?,updated_at=? "
+                "WHERE job_id=? AND state='pending'",
+                (serialized, stamp, row["job_id"]),
+            ).rowcount
+            if not changed:
+                return None
+            return self.diagnostic_record(
+                db.execute("SELECT * FROM job_diagnostics WHERE job_id=?", (row["job_id"],)).fetchone()
+            )
+
+    def finish_diagnostic(self, job_id, token: str, *, result=None, error=None):
+        stamp = now()
+        state = "ready" if result is not None else "unavailable"
+        draft = result.get("issue") if isinstance(result, dict) else None
+        with self.connection() as db:
+            changed = db.execute(
+                "UPDATE job_diagnostics SET state=?,result=?,error=?,owner=NULL,"
+                "draft_revision=?,draft_title=?,draft_body=?,updated_at=? "
+                "WHERE job_id=? AND state='analyzing' "
+                "AND json_extract(owner,'$.token')=?",
+                (
+                    state,
+                    json.dumps(result, separators=(",", ":")) if result is not None else None,
+                    json.dumps(error, separators=(",", ":")) if error is not None else None,
+                    1 if draft else 0,
+                    draft.get("title") if draft else None,
+                    draft.get("body") if draft else None,
+                    stamp,
+                    job_id,
+                    token,
+                ),
+            ).rowcount
+        return bool(changed)
+
+    def abandon_diagnostic(self, job_id, token: str):
+        return self.finish_diagnostic(
+            job_id,
+            token,
+            error={
+                "code": "analysis_interrupted",
+                "message": "Crash analysis was interrupted before a result was saved.",
+            },
+        )
+
+    def recover_diagnostic(self, job_id, state: str, error: dict):
+        with self.connection() as db:
+            db.execute(
+                "UPDATE job_diagnostics SET state=?,error=?,owner=NULL,updated_at=? "
+                "WHERE job_id=?",
+                (state, json.dumps(error, separators=(",", ":")), now(), job_id),
+            )
+
+    def diagnostics_in_states(self, states):
+        marks = ",".join("?" for _ in states)
+        with self.connection() as db:
+            return [
+                self.diagnostic_record(row)
+                for row in db.execute(
+                    f"SELECT * FROM job_diagnostics WHERE state IN ({marks})",
+                    tuple(states),
+                )
+            ]
+
+    def dismiss_diagnostic(self, job_id):
+        with self.connection() as db:
+            changed = db.execute(
+                "UPDATE job_diagnostics SET dismissed=1,updated_at=? WHERE job_id=?",
+                (now(), job_id),
+            ).rowcount
+        if not changed:
+            raise KeyError("Diagnostic not found")
+        return self.get_diagnostic(job_id)
+
+    def save_issue_draft(self, job_id, expected_revision: int, title: str, body: str):
+        with self.connection() as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = db.execute(
+                "SELECT state,issue_state,draft_revision FROM job_diagnostics WHERE job_id=?",
+                (job_id,),
+            ).fetchone()
+            if row is None:
+                raise KeyError("Diagnostic not found")
+            if row["state"] != "ready" or row["issue_state"] != "not_published":
+                raise Conflict({"message": "This issue draft can no longer be edited."})
+            if row["draft_revision"] != expected_revision:
+                raise Conflict({"message": "The issue draft changed; review the current revision.",
+                                "revision": row["draft_revision"]})
+            db.execute(
+                "UPDATE job_diagnostics SET draft_revision=draft_revision+1,"
+                "draft_title=?,draft_body=?,updated_at=? WHERE job_id=?",
+                (title, body, now(), job_id),
+            )
+        return self.get_diagnostic(job_id)
+
+    def claim_issue(self, job_id, revision: int, owner: dict):
+        with self.connection() as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = db.execute(
+                "SELECT * FROM job_diagnostics WHERE job_id=?", (job_id,)
+            ).fetchone()
+            diagnostic = self.diagnostic_record(row)
+            if diagnostic is None:
+                raise KeyError("Diagnostic not found")
+            if diagnostic["issue_state"] == "published":
+                return diagnostic, False
+            if diagnostic["issue_state"] != "not_published":
+                raise Conflict({"message": "Issue publication is already started or requires manual review."})
+            if diagnostic["draft_revision"] != revision:
+                raise Conflict({"message": "The issue draft changed; review the current revision.",
+                                "revision": diagnostic["draft_revision"]})
+            db.execute(
+                "UPDATE job_diagnostics SET issue_state='publishing',owner=?,updated_at=? "
+                "WHERE job_id=? AND issue_state='not_published'",
+                (json.dumps(owner, separators=(",", ":")), now(), job_id),
+            )
+        return self.get_diagnostic(job_id), True
+
+    def finish_issue(self, job_id, token: str, state: str, *, url=None, error=None):
+        with self.connection() as db:
+            changed = db.execute(
+                "UPDATE job_diagnostics SET issue_state=?,issue_url=?,error=?,owner=NULL,updated_at=? "
+                "WHERE job_id=? AND issue_state='publishing' "
+                "AND json_extract(owner,'$.token')=?",
+                (
+                    state,
+                    url,
+                    json.dumps(error, separators=(",", ":")) if error is not None else None,
+                    now(),
+                    job_id,
+                    token,
+                ),
+            ).rowcount
+        return bool(changed)
+
+    def diagnostics_by_issue_state(self, states):
+        marks = ",".join("?" for _ in states)
+        with self.connection() as db:
+            return [
+                self.diagnostic_record(row)
+                for row in db.execute(
+                    f"SELECT * FROM job_diagnostics WHERE issue_state IN ({marks})",
+                    tuple(states),
+                )
+            ]
+
+    def recover_issue(self, job_id, state: str, error: dict):
+        with self.connection() as db:
+            db.execute(
+                "UPDATE job_diagnostics SET issue_state=?,error=?,owner=NULL,updated_at=? "
+                "WHERE job_id=? AND issue_state='publishing'",
+                (state, json.dumps(error, separators=(",", ":")), now(), job_id),
+            )
 
     def add_event(self, id, type, phase=None, data=None):
         stamp = now()

@@ -262,11 +262,11 @@ def redact(text: str, secrets: set[str]) -> str:
     return text
 
 
-def log_preview(directory: Path) -> str:
+def log_preview(directory: Path, *, extra_secrets: set[str] | None = None) -> str:
     path = directory / "technical.log"
     if not path.is_file():
         return "No technical log is available yet."
-    secrets = credential_values(directory)
+    secrets = credential_values(directory) | {value for value in (extra_secrets or ()) if value}
     # Read overlap to avoid displaying the suffix of a credential at the tail boundary.
     overlap = max((len(value.encode("utf-8")) for value in secrets), default=0)
     with path.open("rb") as handle:

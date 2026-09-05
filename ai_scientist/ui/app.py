@@ -1,23 +1,29 @@
 """Loopback-only HTTP boundary for AI-Scientist Studio."""
 from __future__ import annotations
 
+import asyncio
 from contextlib import asynccontextmanager
 import json
 import logging
 from pathlib import Path
 import secrets
 import threading
+from uuid import uuid4
 
+import psutil
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, StreamingResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from . import diagnostics
 from .artifacts import artifact_file, list_runs, run_detail
-from .configs import Configs
-from .schemas import ExperimentRequest, IdeaJobRequest, IdeaUpdate, ModelCheck
+from .configs import Configs, assistant_settings_view
+from .diagnostics import CrashAssistant, PublishUnknown, PublishUnavailable, REPOSITORY, sanitize_text
+from .schemas import AssistantSettingsUpdate, ExperimentRequest, IdeaJobRequest, IdeaUpdate, IssueDraftUpdate, IssuePublish, ModelCheck
 from .store import Conflict, Store
-from .worker import Supervisor, log_download, log_preview, now, write_json
+from .worker import Supervisor, identity, log_download, log_preview, now, write_json
+
 
 HOSTS = frozenset({"127.0.0.1:8765", "localhost:8765"})
 ORIGINS = frozenset({"http://127.0.0.1:8765", "http://localhost:8765"})
@@ -96,20 +102,25 @@ def create_app(root: Path | None = None, *, development: bool = False) -> FastAP
     request_token = secrets.token_urlsafe(32)
     launch_lock = threading.RLock()
     assets = (root / "frontend" / "dist").resolve()
+    assistant = CrashAssistant(store, configs)
 
     @asynccontextmanager
     async def lifespan(app):
         supervisor.start()
+        await assistant.start()
         try:
             yield
         finally:
+            await assistant.close()
             supervisor.close()
 
     app = FastAPI(title="AI-Scientist Studio", docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
     app.state.store = store
     app.state.configs = configs
     app.state.supervisor = supervisor
+    app.state.crash_assistant = assistant
     app.add_middleware(LocalBoundary, token=request_token, development=development)
+
 
     @app.exception_handler(Conflict)
     async def conflict_error(request, exc):
@@ -264,6 +275,104 @@ def create_app(root: Path | None = None, *, development: bool = False) -> FastAP
         with launch_lock:
             store.get_job(job_id)
             return public_job(supervisor.request_stop(job_id))
+
+    def public_diagnostic(diagnostic: dict | None) -> dict | None:
+        if diagnostic is None:
+            return None
+        draft = None
+        if diagnostic.get("draft_title") is not None and diagnostic.get("draft_body") is not None:
+            draft = {"revision": diagnostic["draft_revision"], "title": diagnostic["draft_title"],
+                     "body": diagnostic["draft_body"], "repository": REPOSITORY}
+        return {
+            "job_id": diagnostic["job_id"], "state": diagnostic["state"],
+            "result": diagnostic.get("result"), "error": diagnostic.get("error"),
+            "dismissed": diagnostic["dismissed"], "draft": draft,
+            "issue": {"state": diagnostic["issue_state"], "url": diagnostic["issue_url"]},
+        }
+
+    def editable_draft(diagnostic: dict) -> dict:
+        if (diagnostic is None or diagnostic["state"] != "ready"
+                or diagnostic.get("draft_title") is None or diagnostic.get("draft_body") is None):
+            raise HTTPException(409, detail={"message": "This diagnosis has no editable issue draft."})
+        return diagnostic
+
+    @app.get("/api/crash-assistant/settings")
+    def read_assistant_settings():
+        return assistant_settings_view(store.assistant_settings())
+
+    @app.put("/api/crash-assistant/settings")
+    async def save_assistant_settings(body: AssistantSettingsUpdate):
+        if body.enabled:
+            try:
+                snapshot = dict(configs.diagnostic_assignment(body.config_id, body.role))
+            except KeyError:
+                raise HTTPException(404, detail={"message": "The selected configuration or role was not found."}) from None
+            saved = store.save_assistant_settings(True, snapshot)
+        else:
+            saved = store.save_assistant_settings(False)
+            await assistant.cancel_active()
+        return assistant_settings_view(saved)
+
+    @app.get("/api/jobs/{job_id}/diagnostic")
+    def read_diagnostic(job_id: str):
+        store.get_job(job_id)
+        return {"diagnostic": public_diagnostic(store.get_diagnostic(job_id))}
+
+    @app.post("/api/jobs/{job_id}/diagnostic/dismiss")
+    def dismiss_diagnostic(job_id: str):
+        store.get_job(job_id)
+        if store.get_diagnostic(job_id) is None:
+            raise KeyError("Diagnostic not found")
+        return {"diagnostic": public_diagnostic(store.dismiss_diagnostic(job_id))}
+
+    @app.post("/api/jobs/{job_id}/diagnostic/draft")
+    def save_issue_draft(job_id: str, body: IssueDraftUpdate):
+        store.get_job(job_id)
+        diagnostic = editable_draft(store.get_diagnostic(job_id))
+        secrets = diagnostics.result_secrets(store, job_id, diagnostic.get("assignment") or {})
+        scrubbed = lambda value: sanitize_text(value, secrets, str(store.root), str(Path.home())).strip()
+        title, issue_body = scrubbed(body.title), sanitize_text(body.body, secrets, str(store.root), str(Path.home()))
+        if not title or not issue_body.strip() or len(title) > 256 or len(issue_body) > 12000:
+            raise HTTPException(422, detail={"message": "The reviewed draft is empty or oversized after credential redaction."})
+        saved = store.save_issue_draft(job_id, body.expected_revision, title, issue_body)
+        return {"diagnostic": public_diagnostic(saved)}
+
+    @app.post("/api/jobs/{job_id}/diagnostic/issue")
+    async def publish_issue(job_id: str, body: IssuePublish):
+        store.get_job(job_id)
+        diagnostic = editable_draft(store.get_diagnostic(job_id))
+        if diagnostic["issue_state"] == "published":
+            # Idempotent: the exact reviewed revision is already public.
+            return {"diagnostic": public_diagnostic(diagnostic)}
+        if diagnostic["issue_state"] != "not_published" or diagnostic["draft_revision"] != body.revision:
+            raise Conflict({"message": "The issue draft changed or is no longer publishable; review the current revision.",
+                            "revision": diagnostic["draft_revision"]})
+        secrets = diagnostics.result_secrets(store, job_id, diagnostic.get("assignment") or {})
+        scrubbed = lambda value: sanitize_text(value, secrets, str(store.root), str(Path.home())).strip()
+        title, issue_body = scrubbed(diagnostic["draft_title"]), sanitize_text(diagnostic["draft_body"], secrets, str(store.root), str(Path.home()))
+        if (title, issue_body) != (diagnostic["draft_title"].strip(), diagnostic["draft_body"]):
+            saved = store.save_issue_draft(job_id, body.revision, title, issue_body)
+            raise Conflict({"message": "A newly recognized credential changed this draft. Review the updated revision.",
+                            "revision": saved["draft_revision"]})
+        try:
+            await diagnostics.preflight_gh()
+        except diagnostics.PublishUnavailable as exc:
+            raise HTTPException(503, detail={"message": str(exc)}) from None
+        owner = {**identity(psutil.Process()), "token": str(uuid4())}
+        claimed, proceed = store.claim_issue(job_id, body.revision, owner)
+        if not proceed:
+            return {"diagnostic": public_diagnostic(claimed)}
+        token = owner["token"]
+        try:
+            url = await diagnostics.create_issue(claimed["draft_title"], claimed["draft_body"])
+        except asyncio.CancelledError:
+            await asyncio.to_thread(store.finish_issue, job_id, token, "unknown", error=dict(zip(("code", "message"), diagnostics.ISSUE_UNKNOWN)))
+            raise
+        except PublishUnknown:
+            await asyncio.to_thread(store.finish_issue, job_id, token, "unknown", error=dict(zip(("code", "message"), diagnostics.ISSUE_UNKNOWN)))
+        else:
+            await asyncio.to_thread(store.finish_issue, job_id, token, "published", url=url)
+        return {"diagnostic": public_diagnostic(store.get_diagnostic(job_id))}
 
     @app.get("/api/runs")
     def runs():

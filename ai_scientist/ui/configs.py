@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import re
 import shutil
+from types import MappingProxyType
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import yaml
@@ -217,6 +218,62 @@ class Configs:
             return value
         return scrub(view)
 
+    def diagnostic_assignment(self, config_id: str, role: str) -> dict:
+        """Validate and snapshot one explicit text assignment without probing it."""
+        cfg = _load(self._path("role", config_id))
+        _environment_credentials_only(cfg)
+        endpoints = cfg.get("endpoints")
+        roles = cfg.get("roles")
+        if not isinstance(endpoints, dict) or not isinstance(roles, dict):
+            raise ValueError("Role configuration requires endpoints and roles mappings.")
+        selected = roles.get(role)
+        if not isinstance(role, str) or not role.strip() or not isinstance(selected, dict):
+            raise ValueError("The selected crash-assistant role is not configured.")
+        endpoint_name = selected.get("endpoint")
+        endpoint = endpoints.get(endpoint_name) if isinstance(endpoint_name, str) else None
+        if not endpoint_name or not isinstance(endpoint, dict):
+            raise ValueError("The selected crash-assistant endpoint is not configured.")
+        model = selected.get("model")
+        if not isinstance(model, str) or not model.strip():
+            raise ValueError("The selected crash-assistant model is not configured.")
+        base_url = endpoint.get("base_url")
+        if not isinstance(base_url, str) or not _url(base_url):
+            raise ValueError("The selected crash-assistant endpoint URL is invalid.")
+        if "text" not in _strings(endpoint.get("provides")):
+            raise ValueError("The selected endpoint does not declare text capability.")
+        max_tokens = selected["max_tokens"] if "max_tokens" in selected else 4096
+        if type(max_tokens) is not int or max_tokens <= 0:
+            raise ValueError("The crash-assistant token budget must be a positive integer.")
+        max_tokens = min(max_tokens, 32768)
+        temperature = selected["temperature"] if "temperature" in selected else 0.2
+        if type(temperature) not in (int, float) or not math.isfinite(temperature) or not 0 <= temperature <= 2:
+            raise ValueError("The crash-assistant temperature must be between 0 and 2.")
+        timeout = selected.get("timeout", endpoint.get("timeout", model_routing.DEFAULT_ENDPOINT_TIMEOUT))
+        if type(timeout) not in (int, float) or not math.isfinite(timeout) or timeout <= 0:
+            raise ValueError("The crash-assistant timeout must be a positive number.")
+        timeout = min(float(timeout), 120.0)
+        credential_envs: set[str] = set()
+        def collect(value: object) -> None:
+            if isinstance(value, dict):
+                for key, item in value.items():
+                    if isinstance(key, str) and key.endswith("_env") and isinstance(item, str) and _ENV_NAME.fullmatch(item):
+                        credential_envs.add(item)
+                    collect(item)
+            elif isinstance(value, list):
+                for item in value:
+                    collect(item)
+        collect(cfg)
+        api_key_env = selected.get("api_key_env", endpoint.get("api_key_env"))
+        if api_key_env is not None and (not isinstance(api_key_env, str) or not _ENV_NAME.fullmatch(api_key_env)):
+            raise ValueError("The crash-assistant credential must name an environment variable.")
+        assignment = {
+            "config_id": config_id, "role": role, "endpoint": endpoint_name,
+            "base_url": base_url, "model": model.strip(), "api_key_env": api_key_env,
+            "max_tokens": max_tokens, "temperature": float(temperature), "timeout": timeout,
+            "credential_envs": tuple(sorted(credential_envs)),
+        }
+        return MappingProxyType(assignment)
+
     def check(self, config_id: str) -> dict:
         path = self.role_path(config_id)
         view = self.models(config_id)
@@ -310,3 +367,36 @@ class Configs:
             if not result["ok"] and not errors:
                 errors.append("Role assignments must reference configured endpoints and served model IDs.")
         return errors
+
+def assistant_settings_view(saved: dict) -> dict:
+    """Safe display metadata for saved assistant settings; never base URLs or values."""
+    assignment = saved.get("assignment") if isinstance(saved.get("assignment"), dict) else None
+    if assignment is None:
+        return {"enabled": False, "config_id": None, "role": None, "model": None, "endpoint": None,
+                "max_tokens": None, "timeout": None, "credential": None, "repository": "jj-link/AI-Scientist-v2"}
+    view = {
+        "enabled": bool(saved.get("enabled")),
+        "config_id": assignment.get("config_id"),
+        "role": assignment.get("role"),
+        "model": assignment.get("model"),
+        "endpoint": assignment.get("endpoint"),
+        "max_tokens": assignment.get("max_tokens"),
+        "timeout": assignment.get("timeout"),
+        "credential": _credential(assignment.get("api_key_env")),
+        "repository": "jj-link/AI-Scientist-v2",
+    }
+    secrets = {os.environ.get(name, "") for name in assignment.get("credential_envs", []) if isinstance(name, str)}
+    def scrub(value):
+        if isinstance(value, str):
+            for secret in secrets:
+                if secret:
+                    value = value.replace(secret, "[redacted]")
+            return value
+        if isinstance(value, list):
+            return [scrub(item) for item in value]
+        if isinstance(value, dict):
+            return {key: (item if key == "credential" else scrub(item)) for key, item in value.items()}
+        return value
+    return scrub(view)
+
+

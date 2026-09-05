@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import CrashAssistant from "./CrashAssistant";
 import {
   CheckCircle2,
   Circle,
@@ -272,6 +273,7 @@ export default function JobMonitor({
           </div>
         </div>
       )}
+      <CrashAssistant job={job} onOpenLog={() => setLogOpen(true)} />
       {job.kind === "experiment" && (
         <ol className="timeline" aria-label="Pipeline phases">
           {phases.map(([key, label]) => {

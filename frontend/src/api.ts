@@ -172,6 +172,54 @@ export interface ModelsCheck {
     error: string | null;
   }[];
 }
+export interface AssistantSettings {
+  enabled: boolean;
+  config_id: string | null;
+  role: string | null;
+  model: string | null;
+  endpoint: string | null;
+  max_tokens: number | null;
+  timeout: number | null;
+  credential: Credential | null;
+  repository: string;
+}
+export interface DiagnosticAdvice {
+  classification: "user_action" | "bug" | "uncertain";
+  summary: string;
+  evidence: string[];
+  steps: string[];
+  issue: { title: string; body: string } | null;
+}
+export interface DiagnosticDraft {
+  revision: number;
+  title: string;
+  body: string;
+  repository: string;
+}
+export type DiagnosticState =
+  | "watching"
+  | "pending"
+  | "analyzing"
+  | "ready"
+  | "unavailable"
+  | "skipped";
+export type IssueState =
+  | "not_published"
+  | "publishing"
+  | "published"
+  | "unknown";
+export interface Diagnostic {
+  job_id: string;
+  state: DiagnosticState;
+  result: DiagnosticAdvice | null;
+  error: { code: string; message: string } | null;
+  dismissed: boolean;
+  draft: DiagnosticDraft | null;
+  issue: { state: IssueState; url: string | null };
+}
+export interface DiagnosticEnvelope {
+  diagnostic: Diagnostic | null;
+}
 
 let token = "";
 export function setRequestToken(value: string) {
