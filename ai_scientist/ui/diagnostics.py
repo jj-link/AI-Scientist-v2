@@ -298,12 +298,16 @@ class CrashAssistant:
         return json.dumps(payload, ensure_ascii=False)
 
     async def _complete(self, assignment: dict, user_json: str) -> str:
-        client = AsyncOpenAI(
-            base_url=assignment["base_url"],
-            api_key=os.environ.get(assignment.get("api_key_env") or "") or "unused",
-            timeout=assignment["timeout"],
-            max_retries=0,
-        )
+        if assignment.get("provider") == "openai-codex":
+            from ai_scientist.codex_provider import CodexAsyncClient
+            client = CodexAsyncClient(timeout=assignment["timeout"])
+        else:
+            client = AsyncOpenAI(
+                base_url=assignment["base_url"],
+                api_key=os.environ.get(assignment.get("api_key_env") or "") or "unused",
+                timeout=assignment["timeout"],
+                max_retries=0,
+            )
         try:
             response = await asyncio.wait_for(
                 client.chat.completions.create(

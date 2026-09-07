@@ -89,9 +89,13 @@ export function PageHeading({
 export function ConfigSelect({
   id = "role-config",
   label = "Role configuration",
+  disabled,
+  onBeforeChange,
 }: {
   id?: string;
   label?: string;
+  disabled?: boolean;
+  onBeforeChange?: (nextId: string) => boolean;
 }) {
   const { bootstrap, roleConfigId, setRoleConfigId } = useStudio();
   return (
@@ -100,7 +104,15 @@ export function ConfigSelect({
       <select
         id={id}
         value={roleConfigId}
-        onChange={(event) => setRoleConfigId(event.target.value)}
+        disabled={disabled}
+        onChange={(event) => {
+          const nextId = event.target.value;
+          if (onBeforeChange && !onBeforeChange(nextId)) {
+            event.target.value = roleConfigId;
+            return;
+          }
+          setRoleConfigId(nextId);
+        }}
       >
         {bootstrap.role_configs.map((config) => (
           <option key={config.id} value={config.id}>

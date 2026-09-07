@@ -27,6 +27,11 @@ endpoints:
     api_key_env: SPARK_MODEL_API_KEY   # optional for keyless servers
     provides: [text, vision, function_calling]
 
+  codex:
+    label: Codex (ChatGPT)
+    provider: openai-codex
+    provides: [text, vision, function_calling]
+
 roles:
   # ---- High-intelligence / nuanced work: Spark model by default ----
 

@@ -1,4 +1,4 @@
-"""Read-only configuration discovery and explicit, bounded availability checks."""
+"""Configuration discovery, safe preset editing, and bounded availability checks."""
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
@@ -9,16 +9,42 @@ import os
 from pathlib import Path
 import re
 import shutil
+import stat
 from types import MappingProxyType
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import yaml
+
+import io
+
+from ruamel.yaml import YAML as _RoundTripYAML
+from ruamel.yaml.error import YAMLError as _RuamelYAMLError
+from ruamel.yaml.comments import CommentedMap as _CommentedMap
+from filelock import FileLock, Timeout as _LockTimeout
+import uuid as _uuid
 
 from ai_scientist import model_routing
 from ai_scientist.utils.latex import resolve_tex_tool
 
 _PROBE_TIMEOUT = 5.0
 _SECRET_KEY = re.compile(r"(?:api[_-]?key|token|secret|password|passwd|authorization|credential|signature)", re.I)
+class InvalidConfiguration(ValueError):
+    """Field-specific validation failure with browser-safe messages."""
+
+    def __init__(self, message: str, errors: list[dict]):
+        super().__init__(message)
+        self.errors = errors
+
+
+class EditorConflict(Exception):
+    """Optimistic-concurrency failure; revision changed or lock busy."""
+
+    def __init__(self, message: str, errors: list[dict]):
+        super().__init__(message)
+        self.message = message
+        self.errors = errors
+
+
 _ENV_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*\Z")
 _REQUIRED_ROLES = ("ideation", "experiment_code", "experiment_feedback", "visual_feedback",
                    "findings_synthesis", "tree_scoring", "plot_generation", "citation",
@@ -52,7 +78,9 @@ def _url(value: object) -> str:
         return ""
 
 
-def _credential(value: object) -> dict:
+def _credential(value: object, *, provider: str = "openai") -> dict:
+    if provider == model_routing.CODEX_PROVIDER:
+        return {"env": None, "present": False, "method": "codex"}
     name = value if isinstance(value, str) and _ENV_NAME.fullmatch(value) else None
     return {"env": name, "present": bool(name and os.environ.get(name))}
 
@@ -130,6 +158,9 @@ class Configs:
         _environment_credentials_only(cfg)
         if not isinstance(cfg.get("endpoints"), dict) or not isinstance(cfg.get("roles"), dict):
             raise ValueError("Role configuration requires endpoints and roles mappings.")
+        conflicts = self._provider_conflicts(cfg["roles"], cfg["endpoints"])
+        if conflicts:
+            raise InvalidConfiguration("The provider settings are invalid.", conflicts)
         return path
 
     def bfts_path(self, config_id: str) -> Path:
@@ -171,6 +202,339 @@ class Configs:
         return {"role_configs": role_options, "bfts_configs": bfts_options,
                 "selected_role_config_id": selected_role, "selected_bfts_config_id": selected_bfts}
 
+    # Editable fields are exactly these; anything else the YAML preserved verbatim.
+    _ROLE_FIELDS = ("endpoint", "model", "max_tokens", "temperature", "timeout", "api_key_env")
+    _ENDPOINT_FIELDS = ("base_url", "api_key_env", "timeout")
+
+    def _read_role_bytes(self, config_id: str) -> tuple[Path, bytes]:
+        """Resolved path plus the exact bytes a revision digest covers.
+
+        Missing, unreadable, or non-YAML mappings surface as safe ValueError
+        subclasses; the selected preset is never created or repaired here.
+        """
+        path = self._path("role", config_id)
+        data = path.read_bytes()
+        return path, data
+
+    def editor(self, config_id: str) -> dict:
+        """Lossless editable projection: configured values or None, never a default."""
+        _, data = self._read_role_bytes(config_id)
+        return self._editor_view(config_id, data)
+
+    def _editor_tree(self, data: bytes) -> dict:
+        try:
+            tree = self._roundtrip_loader().load(data.decode("utf-8"))
+        except (UnicodeError, _RuamelYAMLError) as exc:
+            raise InvalidConfiguration("The selected configuration could not be parsed safely.", []) from exc
+        if not isinstance(tree, dict):
+            raise InvalidConfiguration("The selected configuration must be a YAML mapping.", [])
+        seen: set[int] = set()
+        def visit(value):
+            if isinstance(value, (dict, list)):
+                if id(value) in seen or getattr(value, "merge", None):
+                    raise InvalidConfiguration("Shared YAML aliases or merge keys must be removed before editing.", [])
+                seen.add(id(value))
+                for item in value.values() if isinstance(value, dict) else value:
+                    visit(item)
+        visit(tree)
+        _environment_credentials_only(tree)
+        return tree
+
+    def _editor_view(self, config_id: str, data: bytes) -> dict:
+        cfg = self._editor_tree(data)
+        endpoints = cfg.get("endpoints")
+        roles = cfg.get("roles")
+        if not isinstance(endpoints, dict) or not isinstance(roles, dict):
+            raise InvalidConfiguration("Role configuration requires endpoints and roles mappings.", [])
+        revision = hashlib.sha256(data).hexdigest()
+        credential_envs: set[str] = set()
+        def collect(value: object) -> None:
+            if isinstance(value, dict):
+                for key, item in value.items():
+                    if isinstance(key, str) and key.endswith("_env") and isinstance(item, str) and _ENV_NAME.fullmatch(item):
+                        credential_envs.add(item)
+                    collect(item)
+            elif isinstance(value, list):
+                for item in value:
+                    collect(item)
+        collect(cfg)
+        secrets = {os.environ.get(name, "") for name in credential_envs if name}
+        secrets.discard("")
+        def guarded(value: object) -> object:
+            """Fail safely rather than return an editable redacted placeholder."""
+            if isinstance(value, str):
+                for secret in secrets:
+                    if secret in value:
+                        raise InvalidConfiguration("A configured credential value is stored in the selected preset; edit the file by hand.", [
+                            {"field": "config_id", "message": "The selected configuration stores a credential value instead of an environment-variable name.",
+                             "code": "embedded_secret"},
+                        ])
+                return value
+            if isinstance(value, list):
+                return [guarded(item) for item in value]
+            if isinstance(value, dict):
+                return {guarded(key): guarded(item) for key, item in value.items()}
+            return value
+        guarded(cfg)
+        endpoint_rows: dict[str, dict] = {}
+        for name, endpoint in endpoints.items():
+            if not isinstance(name, str) or not isinstance(endpoint, dict):
+                raise InvalidConfiguration("Each endpoint must be a named mapping.", [])
+            endpoint_rows[name] = {field: endpoint.get(field) for field in self._ENDPOINT_FIELDS}
+            endpoint_rows[name]["provides"] = _strings(endpoint.get("provides"))
+            endpoint_rows[name]["provider"] = endpoint.get("provider", "openai")
+        role_rows: dict[str, dict] = {}
+        for name, role in roles.items():
+            if not isinstance(name, str) or not isinstance(role, dict):
+                raise InvalidConfiguration("Each role must be a named mapping.", [])
+            role_rows[name] = {field: role.get(field) for field in self._ROLE_FIELDS}
+            role_rows[name]["requires"] = _strings(role.get("requires"))
+        return guarded({"config_id": config_id, "revision": revision,
+                        "roles": role_rows, "endpoints": endpoint_rows})
+
+    def _capability_conflicts(self, roles_tree: dict, endpoints_tree: dict) -> list[dict]:
+        errors: list[dict] = []
+        for name, role in roles_tree.items():
+            if not isinstance(role, dict):
+                continue
+            endpoint_name = role.get("endpoint")
+            if not isinstance(endpoint_name, str):
+                continue
+            required = set(_strings(role.get("requires")))
+            endpoint = endpoints_tree.get(endpoint_name)
+            provided = set(_strings(endpoint.get("provides"))) if isinstance(endpoint, dict) else set()
+            missing = sorted(required - provided)
+            if missing:
+                errors.append({"field": f"roles.{name}", "message": "The selected endpoint does not declare a required capability.",
+                               "code": "capability_mismatch"})
+        return errors
+
+    def _provider_conflicts(self, roles: dict, endpoints: dict) -> list[dict]:
+        errors = []
+        for name, endpoint in endpoints.items():
+            if not isinstance(endpoint, dict):
+                continue
+            provider = endpoint.get("provider", "openai")
+            if provider not in ("openai", model_routing.CODEX_PROVIDER):
+                errors.append({"field": f"endpoints.{name}.provider", "message": "Unknown endpoint provider.", "code": "invalid_provider"})
+            if provider == model_routing.CODEX_PROVIDER:
+                for field in ("base_url", "api_key_env"):
+                    if endpoint.get(field) is not None:
+                        errors.append({"field": f"endpoints.{name}.{field}", "message": "Codex manages its server address and ChatGPT credentials.", "code": "managed_by_provider"})
+        for name, role in roles.items():
+            if not isinstance(role, dict):
+                continue
+            endpoint = endpoints.get(role.get("endpoint")) if isinstance(role.get("endpoint"), str) else None
+            if isinstance(endpoint, dict) and endpoint.get("provider") == model_routing.CODEX_PROVIDER:
+                for field in ("max_tokens", "temperature", "api_key_env"):
+                    if role.get(field) is not None:
+                        errors.append({"field": f"roles.{name}.{field}", "message": "Codex manages token limits, sampling, and ChatGPT credentials. Clear this override.", "code": "managed_by_provider"})
+        return errors
+
+    def _validate_editor_patch(self, roles: dict, endpoints: dict, configured_endpoints: dict, errors: list[dict]) -> None:
+        """Field checks for submitted values before merged-file validation.
+
+        Explicit null clears the field, so only concrete values are kind-checked.
+        """
+        for name, changes in endpoints.items():
+            for field, value in changes.items():
+                if value is None and (field != "base_url" or configured_endpoints.get(name, {}).get("provider") == model_routing.CODEX_PROVIDER):
+                    continue
+                if field == "base_url":
+                    self._check_field(errors, f"endpoints.{name}.{field}", value, "url")
+                elif field == "api_key_env":
+                    self._check_field(errors, f"endpoints.{name}.{field}", value, "env")
+                elif field == "timeout":
+                    self._check_field(errors, f"endpoints.{name}.{field}", value, "duration")
+        for name, changes in roles.items():
+            for field, value in changes.items():
+                if value is None and field not in ("endpoint", "model"):
+                    continue
+                if field == "endpoint":
+                    if not isinstance(value, str) or value not in configured_endpoints:
+                        errors.append({"field": f"roles.{name}.endpoint", "message": "Role endpoint must be an existing endpoint.", "code": "invalid_endpoint_reference"})
+                elif field == "model":
+                    self._check_field(errors, f"roles.{name}.{field}", value, "model")
+                elif field == "api_key_env":
+                    self._check_field(errors, f"roles.{name}.{field}", value, "env")
+                elif field == "max_tokens":
+                    self._check_field(errors, f"roles.{name}.{field}", value, "tokens")
+                elif field == "temperature":
+                    self._check_field(errors, f"roles.{name}.{field}", value, "ratio")
+                elif field == "timeout":
+                    self._check_field(errors, f"roles.{name}.{field}", value, "duration")
+
+    def _check_field(self, errors: list[dict], field: str, value: object, kind: str) -> None:
+        if kind == "url":
+            if not isinstance(value, str) or not value:
+                errors.append({"field": field, "message": "Endpoint URL is required.", "code": "required"})
+                return
+            try:
+                parts = urlsplit(value)
+            except ValueError:
+                errors.append({"field": field, "message": "Endpoint URL is not a valid HTTP or HTTPS URL.", "code": "invalid_url"})
+                return
+            if parts.scheme not in ("http", "https") or not parts.hostname:
+                errors.append({"field": field, "message": "Endpoint URL must use HTTP or HTTPS with a hostname.", "code": "invalid_url"})
+                return
+            try:
+                if parts.port is not None and not 1 <= parts.port <= 65535:
+                    raise ValueError
+            except ValueError:
+                errors.append({"field": field, "message": "Endpoint URL port is out of range.", "code": "invalid_url"})
+                return
+            if parts.username is not None or parts.password is not None or parts.fragment:
+                errors.append({"field": field, "message": "Endpoint URL must not contain credentials or a fragment.", "code": "credential_bearing"})
+                return
+            if any(_SECRET_KEY.search(k) for k, _ in parse_qsl(parts.query)):
+                errors.append({"field": field, "message": "Endpoint URL must not contain credential-bearing query fields.", "code": "credential_bearing"})
+        elif kind == "env":
+            if not isinstance(value, str) or not _ENV_NAME.fullmatch(value):
+                errors.append({"field": field, "message": "Credential must name an environment variable.", "code": "invalid_env_name"})
+        elif kind == "model":
+            if not isinstance(value, str) or not value.strip() or value != value.strip():
+                errors.append({"field": field, "message": "Model identifier is required.", "code": "required"})
+        elif kind == "tokens":
+            if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+                errors.append({"field": field, "message": "Output token limit must be a positive whole number.", "code": "invalid_number"})
+        elif kind == "ratio":
+            if not isinstance(value, (int, float)) or isinstance(value, bool) or not math.isfinite(value) or not 0 <= value <= 2:
+                errors.append({"field": field, "message": "Temperature must be a number between 0 and 2.", "code": "invalid_number"})
+        elif kind == "duration":
+            if not isinstance(value, (int, float)) or isinstance(value, bool) or not math.isfinite(value) or value <= 0:
+                errors.append({"field": field, "message": "Timeout must be a positive number of seconds.", "code": "invalid_number"})
+
+    def _apply_patch(self, patch: dict, target: dict, errors: list[dict], prefix: str, fields: tuple[str, ...]) -> None:
+        for name, changes in patch.items():
+            entry = target.get(name) if isinstance(name, str) else None
+            if not isinstance(entry, dict) or not isinstance(changes, dict):
+                continue
+            for field, value in changes.items():
+                if field not in fields:
+                    errors.append({"field": f"{prefix}.{name}.{field}", "message": "Unknown field.", "code": "unknown_field"})
+                    continue
+                if value is None:
+                    entry.pop(field, None)
+                else:
+                    entry[field] = value
+
+    def _roundtrip_loader(self) -> _RoundTripYAML:
+        loader = _RoundTripYAML(typ="rt", pure=False)
+        loader.preserve_quotes = True
+        return loader
+
+    _LOCK_SUFFIX = ".studio.lock"
+
+    def save_editor(self, config_id: str, expected_revision: str, roles: dict, endpoints: dict) -> dict:
+        """Apply a validated patch and atomically rewrite the selected preset."""
+        if not isinstance(roles, dict) or not isinstance(endpoints, dict):
+            raise InvalidConfiguration("Only listed role and endpoint entries may be edited.", [])
+        if not any(roles.values()) and not any(endpoints.values()):
+            raise InvalidConfiguration("Submit at least one changed field.", [])
+        path = self._path("role", config_id)
+        lock_path = path.with_name(f".{path.name}{self._LOCK_SUFFIX}")
+        lock = FileLock(str(lock_path), timeout=3)
+        try:
+            with lock:
+                return self._save_editor_locked(config_id, path, expected_revision, roles, endpoints)
+        except _LockTimeout as exc:
+            raise EditorConflict("Another Studio save is in progress; try again.", [
+                {"field": "expected_revision", "message": "Another save is in progress. Wait a moment and retry.", "code": "locked"}])
+
+    def _save_editor_locked(self, config_id: str, path: Path, expected_revision: str, roles: dict, endpoints: dict) -> dict:
+        data = path.read_bytes()
+        revision = hashlib.sha256(data).hexdigest()
+        if revision != expected_revision:
+            raise EditorConflict("The configuration changed elsewhere. Reload before saving.", [
+                {"field": "expected_revision", "message": "The configuration was modified while you were editing. Reload to continue.", "code": "configuration_changed"},
+            ])
+        errors: list[dict] = []
+        before = self._editor_view(config_id, data)
+        tree = self._editor_tree(data)
+        roles_tree = tree.get("roles", None)
+        endpoints_tree = tree.get("endpoints", None)
+        if not isinstance(endpoints_tree, dict) or not isinstance(roles_tree, dict):
+            raise InvalidConfiguration("Role configuration requires endpoints and roles mappings.", [])
+        unknown_endpoint = [name for name in endpoints if not (isinstance(name, str) and name in endpoints_tree)]
+        unknown_role = [name for name in roles if not (isinstance(name, str) and name in roles_tree)]
+        for name in unknown_endpoint:
+            errors.append({"field": f"endpoints.{name}", "message": "Unknown endpoint.", "code": "unknown_entry"})
+        for name in unknown_role:
+            errors.append({"field": f"roles.{name}", "message": "Unknown role.", "code": "unknown_entry"})
+        self._validate_editor_patch(roles, endpoints, endpoints_tree, errors)
+        self._apply_patch(roles, roles_tree, errors, "roles", self._ROLE_FIELDS)
+        self._apply_patch(endpoints, endpoints_tree, errors, "endpoints", self._ENDPOINT_FIELDS)
+        if errors:
+            raise InvalidConfiguration("The change was rejected.", errors)
+        self._validate_editor_patch(roles_tree, endpoints_tree, endpoints_tree, errors)
+        for name, role in roles_tree.items():
+            for field in ("endpoint", "model"):
+                if field not in role:
+                    errors.append({"field": f"roles.{name}.{field}", "message": "This field is required.", "code": "required"})
+        for name, endpoint in endpoints_tree.items():
+            if "base_url" not in endpoint and endpoint.get("provider") != model_routing.CODEX_PROVIDER:
+                errors.append({"field": f"endpoints.{name}.base_url", "message": "Endpoint URL is required.", "code": "required"})
+        errors.extend(self._capability_conflicts(roles_tree, endpoints_tree))
+        errors.extend(self._provider_conflicts(roles_tree, endpoints_tree))
+        if errors:
+            raise InvalidConfiguration("The change was rejected.", errors)
+        stream = io.StringIO()
+        self._roundtrip_loader().dump(tree, stream)
+        rendered = stream.getvalue().encode("utf-8")
+        result = self._editor_view(config_id, rendered)
+        if result["roles"] == before["roles"] and result["endpoints"] == before["endpoints"]:
+            return before
+        mode = stat.S_IMODE(path.stat().st_mode)
+        if not mode & (stat.S_IWUSR | stat.S_IWGRP | stat.S_IWOTH):
+            raise PermissionError("The selected preset is read-only.")
+        staged = path.with_name(f".{path.name}.{_uuid.uuid4().hex}.new")
+        try:
+            with staged.open("xb") as handle:
+                handle.write(rendered)
+                handle.flush()
+                os.fsync(handle.fileno())
+            staged.chmod(mode)
+            recheck = path.read_bytes()
+            if hashlib.sha256(recheck).hexdigest() != revision:
+                raise EditorConflict("The configuration changed externally during saving. Reload to continue.", [
+                    {"field": "expected_revision", "message": "The configuration was modified while you were editing. Reload to continue.", "code": "configuration_changed"},
+                ])
+            staged.replace(path)
+        finally:
+            staged.unlink(missing_ok=True)
+        return result
+
+    def endpoint_models(self, config_id: str, endpoint: str) -> dict:
+        """List models one configured endpoint currently advertises.
+
+        Read-only and bounded like check(); never probes another preset.
+        """
+        view = self.models(config_id)
+        row = next((row for row in view["endpoints"] if row["id"] == endpoint), None)
+        if row is None:
+            raise KeyError("Unknown endpoint.")
+        result = {"config_id": config_id, "endpoint": endpoint, "checked_at": _now(),
+                  "ok": False, "models": [], "error": None}
+        try:
+            available = model_routing.list_endpoint_models(
+                endpoint, path=self._path("role", config_id), timeout=_PROBE_TIMEOUT)
+            names = _strings(available)
+            secrets = {os.environ.get(row["credential"]["env"], "") for row in view["endpoints"] + view["roles"]
+                       if row["credential"]["env"]}
+            result["models"] = list(dict.fromkeys(
+                name for name in names if name.strip() and not any(secret and secret in name for secret in secrets)
+            ))
+            result["ok"] = True
+        except Exception:
+            # SDK exception strings may contain authorization headers or raw URLs.
+            result["error"] = (
+                "Codex model listing failed. Check Codex sign-in above and retry."
+                if row.get("provider") == model_routing.CODEX_PROVIDER else
+                "Model listing failed. Check the endpoint, credentials, and server availability."
+            )
+        result["checked_at"] = _now()
+        return result
+
     def models(self, config_id: str) -> dict:
         # Do not use describe_assignment/parse_model: they probe or use global selection.
         cfg = _load(self._path("role", config_id))
@@ -183,10 +547,12 @@ class Configs:
         for name, endpoint in endpoints.items():
             if not isinstance(name, str) or not isinstance(endpoint, dict):
                 raise ValueError("Each endpoint must be a named mapping.")
-            endpoint_rows.append({"id": name, "label": name, "url": _url(endpoint.get("base_url")),
+            label = endpoint.get("label")
+            endpoint_rows.append({"id": name, "label": label if isinstance(label, str) and label.strip() else name,
+                "url": _url(model_routing.endpoint_base_url(endpoint)), "provider": endpoint.get("provider", "openai"),
                 "timeout": _number(endpoint.get("timeout"), model_routing.DEFAULT_ENDPOINT_TIMEOUT),
                 "capabilities": _strings(endpoint.get("provides")),
-                "credential": _credential(endpoint.get("api_key_env"))})
+                "credential": _credential(endpoint.get("api_key_env"), provider=endpoint.get("provider", "openai"))})
         for name, role in roles.items():
             if not isinstance(name, str) or not isinstance(role, dict):
                 raise ValueError("Each role must be a named mapping.")
@@ -196,11 +562,13 @@ class Configs:
             role_rows.append({"name": name, "endpoint": endpoint_name if isinstance(endpoint_name, str) else None,
                 "model": role.get("model") if isinstance(role.get("model"), str) else None,
                 "max_tokens": _number(role.get("max_tokens")),
-                "effective_max_tokens": (_number(role.get("max_tokens")) or 4096) if name == "ideation" else None,
+                "effective_max_tokens": ((_number(role.get("max_tokens")) or 4096) if name == "ideation" else None)
+                    if endpoint.get("provider") != model_routing.CODEX_PROVIDER else None,
                 "timeout": _number(role.get("timeout"), _number(endpoint.get("timeout"),
                     model_routing.DEFAULT_ENDPOINT_TIMEOUT)),
                 "requires": _strings(role.get("requires")),
-                "credential": _credential(role.get("api_key_env") or endpoint.get("api_key_env"))})
+                "credential": _credential(role.get("api_key_env") or endpoint.get("api_key_env"),
+                                          provider=endpoint.get("provider", "openai"))})
         view = {"config_id": config_id, "roles": role_rows, "endpoints": endpoint_rows}
         # Also remove any configured credential value accidentally embedded in a display field.
         secrets = {os.environ.get(row["credential"]["env"], "") for row in endpoint_rows + role_rows
@@ -236,7 +604,9 @@ class Configs:
         model = selected.get("model")
         if not isinstance(model, str) or not model.strip():
             raise ValueError("The selected crash-assistant model is not configured.")
-        base_url = endpoint.get("base_url")
+        model_routing.validate_provider_settings(endpoint, selected)
+        provider = model_routing.endpoint_provider(endpoint)
+        base_url = model_routing.endpoint_base_url(endpoint)
         if not isinstance(base_url, str) or not _url(base_url):
             raise ValueError("The selected crash-assistant endpoint URL is invalid.")
         if "text" not in _strings(endpoint.get("provides")):
@@ -266,10 +636,13 @@ class Configs:
         api_key_env = selected.get("api_key_env", endpoint.get("api_key_env"))
         if api_key_env is not None and (not isinstance(api_key_env, str) or not _ENV_NAME.fullmatch(api_key_env)):
             raise ValueError("The crash-assistant credential must name an environment variable.")
+        if provider == model_routing.CODEX_PROVIDER:
+            max_tokens = None
+            temperature = None
         assignment = {
             "config_id": config_id, "role": role, "endpoint": endpoint_name,
-            "base_url": base_url, "model": model.strip(), "api_key_env": api_key_env,
-            "max_tokens": max_tokens, "temperature": float(temperature), "timeout": timeout,
+            "base_url": base_url, "provider": provider, "model": model.strip(), "api_key_env": api_key_env,
+            "max_tokens": max_tokens, "temperature": float(temperature) if temperature is not None else None, "timeout": timeout,
             "credential_envs": tuple(sorted(credential_envs)),
         }
         return MappingProxyType(assignment)
@@ -382,7 +755,8 @@ def assistant_settings_view(saved: dict) -> dict:
         "endpoint": assignment.get("endpoint"),
         "max_tokens": assignment.get("max_tokens"),
         "timeout": assignment.get("timeout"),
-        "credential": _credential(assignment.get("api_key_env")),
+        "provider": assignment.get("provider", "openai"),
+        "credential": _credential(assignment.get("api_key_env"), provider=assignment.get("provider", "openai")),
         "repository": "jj-link/AI-Scientist-v2",
     }
     secrets = {os.environ.get(name, "") for name in assignment.get("credential_envs", []) if isinstance(name, str)}

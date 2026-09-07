@@ -2,6 +2,9 @@
 anthropic
 backoff
 openai
+# Codex OAuth: encrypted OS credential storage and cross-process token refresh.
+keyring>=25,<26
+filelock>=3.16,<4
 # Viz
 matplotlib
 pypdf

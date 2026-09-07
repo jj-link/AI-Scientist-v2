@@ -1100,3 +1100,341 @@ dialog::backdrop {
     scroll-behavior: auto !important;
   }
 }
+
+
+.models-content {
+  margin-top:32px;
+}
+
+.models-content table {
+  width:100%;
+  border-collapse:collapse;
+  background:#fff;
+  font-size:14px;
+}
+
+.models-content th,.models-content td {
+  text-align:left;
+  vertical-align:top;
+  padding:16px;
+  border-bottom:1px solid #ddd7cc;
+  overflow-wrap:anywhere;
+}
+
+.models-content thead th {
+  background:#f1edf8;
+  color:#403657;
+  font-weight:600;
+}
+
+.models-content .table-wrap {
+  overflow-x:auto;
+  border:1px solid #ddd7cc;
+  border-radius:12px;
+}
+
+
+.models-content td code,.models-content th code,.models-content td .metadata {
+  display:block;
+  margin-top:8px;
+}
+
+
+.models-check-result .badge {
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+}
+
+.models-check-result {
+  padding:24px 0;
+  border-top:1px solid #ddd7cc;
+}
+
+.models-check-result h3 {
+  margin:0;
+}
+
+.models-check-result .table-wrap {
+  margin:16px 0;
+}
+
+.models-check-result table {
+  min-width:560px;
+}
+
+.models-content .badge {
+  white-space:normal;
+}
+
+@media(max-width:640px) {
+  .models-check-result .card-header {
+    align-items:flex-start;
+    flex-direction:column;
+    gap:12px;
+  }
+}
+
+.models-page .editor-grid {
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(min(100%,320px),1fr));
+  gap:24px;
+  align-items:start;
+}
+
+.models-page .editor-card legend {
+  padding:0 8px;
+  font-weight:600;
+}
+
+.models-page .editor-entry {
+  font-size:15px;
+}
+
+.models-page .field-row {
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));
+  gap:16px;
+}
+
+@media(max-width:899px) {
+  .models-page .editor-grid,.models-page .field-row {
+    grid-template-columns:1fr;
+  }
+}
+
+.models-page .models-preset {
+  display:flex;
+  align-items:flex-end;
+  gap:20px;
+  padding:20px;
+}
+
+.models-preset>.field {
+  flex:1;
+  margin:0;
+}
+
+.models-role-list {
+  display:grid;
+  gap:12px;
+}
+
+.models-role {
+  min-width:0;
+  margin:0;
+  padding:16px;
+  border:1px solid var(--border);
+  border-radius:12px;
+  background:#fff;
+}
+
+.models-role-primary {
+  display:grid;
+  grid-template-columns:minmax(120px,.8fr) minmax(0,1fr) minmax(0,1.6fr) auto;
+  gap:16px;
+  align-items:start;
+}
+
+.models-role-name {
+  min-width:0;
+  padding-top:2px;
+}
+
+.models-role-name h3 {
+  font-size:16px;
+  margin:0 0 4px;
+}
+
+.models-role-name .metadata {
+  display:block;
+  font-size:12px;
+}
+
+.models-page .models-content .field {
+  margin-bottom:0;
+}
+
+.models-role-primary label {
+  font-size:13px;
+  margin-bottom:6px;
+}
+
+.models-role-primary input,.models-role-primary select {
+  padding:10px 12px;
+  min-height:44px;
+  font-size:14px;
+}
+
+.models-advanced-toggle {
+  margin-top:26px;
+  padding:10px 12px;
+  font-size:13px;
+}
+
+.models-advanced-toggle[aria-expanded=true] svg {
+  transform:rotate(180deg);
+}
+
+.models-role-advanced:not([hidden]) {
+  display:grid;
+  gap:20px;
+  margin-top:20px;
+  padding-top:20px;
+  border-top:1px solid var(--border);
+}
+
+.models-role-advanced>.field {
+  max-width:640px;
+}
+
+.models-page .field[data-changed=true]>label:after {
+  content:"Edited";
+  display:inline-block;
+  margin-left:8px;
+  color:#76551e;
+  font-size:11px;
+  font-weight:600;
+}
+
+.models-page .field[data-changed=true]>input,.models-page .field[data-changed=true]>select {
+  background:#fffaf0;
+  border-color:#a88548;
+}
+
+.models-page .field>[aria-invalid=true] {
+  border-color:var(--primary);
+}
+
+.models-content input,.models-content select,.models-content button {
+  scroll-margin-block:24px 220px;
+}
+
+.models-savebar {
+  position:sticky;
+  bottom:16px;
+  z-index:15;
+  padding:16px 20px;
+  border:1px solid var(--border);
+  border-radius:12px;
+  background:#fff;
+  box-shadow:0 4px 24px #4c392c20;
+}
+
+.models-savebar[data-dirty=true] {
+  border-color:#a88548;
+}
+
+.models-save-main {
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto auto;
+  align-items:center;
+  gap:12px 20px;
+}
+
+.models-save-context {
+  display:grid;
+  min-width:0;
+  font-size:14px;
+}
+
+.models-save-context>span {
+  font-size:12px;
+}
+
+.models-save-status {
+  margin:0;
+  font-size:14px;
+  color:var(--muted);
+}
+
+.models-savebar[data-dirty=true] .models-save-status {
+  color:#76551e;
+  font-weight:600;
+}
+
+.models-save-buttons {
+  display:flex;
+  gap:8px;
+}
+
+.models-save-feedback {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom:16px;
+  padding-bottom:16px;
+  border-bottom:1px solid var(--border);
+}
+
+.models-save-feedback p {
+  margin:0;
+}
+
+@media(max-width:1199px) {
+  .models-role-primary {
+    grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto;
+  }
+  .models-role-name {
+    grid-column:1 / -1;
+  }
+  .models-save-main {
+    grid-template-columns:minmax(0,1fr) auto;
+    row-gap:4px;
+  }
+  .models-save-status {
+    grid-column:1;
+    grid-row:2;
+  }
+  .models-save-buttons {
+    grid-column:2;
+    grid-row:1 / 3;
+  }
+}
+
+@media(min-width:640px) {
+  .models-page .models-role-advanced .field-row {
+    grid-template-columns:repeat(3,minmax(0,1fr));
+  }
+}
+
+@media(max-width:639px) {
+  .models-page .models-preset,.models-save-feedback {
+    flex-direction:column;
+    align-items:stretch;
+  }
+  .models-role-primary,.models-save-main {
+    grid-template-columns:minmax(0,1fr);
+  }
+  .models-role-name {
+    grid-column:auto;
+  }
+  .models-advanced-toggle {
+    margin-top:0;
+  }
+  .models-savebar {
+    bottom:8px;
+    padding:12px;
+  }
+  .models-save-buttons {
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    grid-column:1;
+    grid-row:auto;
+    margin-top:8px;
+  }
+  .models-save-buttons .button {
+    padding:10px 8px;
+    font-size:14px;
+  }
+  .models-save-buttons svg {
+    display:none;
+  }
+}
+
+.models-discovery-row{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-top:8px}
+.models-discover-button{padding:8px 12px;font-size:13px;white-space:nowrap}
+.models-discover-button[disabled]{opacity:.6}
+.models-discovery-row .metadata{display:block;margin:0}
+@media(max-width:900px){.models-discovery-row{flex-direction:column;align-items:flex-start;gap:8px}}

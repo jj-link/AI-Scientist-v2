@@ -16,11 +16,13 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, StreamingResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from ai_scientist.codex_auth import CodexAuthError, get_auth
 from . import diagnostics
 from .artifacts import artifact_file, list_runs, run_detail
-from .configs import Configs, assistant_settings_view
+from .configs import Configs, EditorConflict, InvalidConfiguration, assistant_settings_view
 from .diagnostics import CrashAssistant, PublishUnknown, PublishUnavailable, REPOSITORY, sanitize_text
-from .schemas import AssistantSettingsUpdate, ExperimentRequest, IdeaJobRequest, IdeaUpdate, IssueDraftUpdate, IssuePublish, ModelCheck
+from .schemas import AssistantSettingsUpdate, EndpointModelsRequest, ExperimentRequest, ModelConfigUpdate, IdeaJobRequest, IdeaUpdate, IssueDraftUpdate, IssuePublish, ModelCheck
+from .schemas import Request as ProviderAction
 from .store import Conflict, Store
 from .worker import Supervisor, identity, log_download, log_preview, now, write_json
 
@@ -103,6 +105,7 @@ def create_app(root: Path | None = None, *, development: bool = False) -> FastAP
     launch_lock = threading.RLock()
     assets = (root / "frontend" / "dist").resolve()
     assistant = CrashAssistant(store, configs)
+    codex_auth = get_auth()
 
     @asynccontextmanager
     async def lifespan(app):
@@ -112,6 +115,7 @@ def create_app(root: Path | None = None, *, development: bool = False) -> FastAP
             yield
         finally:
             await assistant.close()
+            await asyncio.to_thread(codex_auth.close)
             supervisor.close()
 
     app = FastAPI(title="AI-Scientist Studio", docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
@@ -119,8 +123,29 @@ def create_app(root: Path | None = None, *, development: bool = False) -> FastAP
     app.state.configs = configs
     app.state.supervisor = supervisor
     app.state.crash_assistant = assistant
+    app.state.codex_auth = codex_auth
     app.add_middleware(LocalBoundary, token=request_token, development=development)
 
+
+    @app.exception_handler(CodexAuthError)
+    async def codex_auth_error(request, exc):
+        return JSONResponse({"detail": {"message": str(exc)}}, status_code=503)
+
+    @app.get("/api/providers/codex")
+    def codex_status():
+        return codex_auth.status()
+
+    @app.post("/api/providers/codex/login")
+    def codex_login(body: ProviderAction):
+        return codex_auth.begin_login()
+
+    @app.post("/api/providers/codex/cancel")
+    def codex_cancel(body: ProviderAction):
+        return codex_auth.cancel_login()
+
+    @app.post("/api/providers/codex/logout")
+    def codex_logout(body: ProviderAction):
+        return codex_auth.logout()
 
     @app.exception_handler(Conflict)
     async def conflict_error(request, exc):
@@ -136,6 +161,10 @@ def create_app(root: Path | None = None, *, development: bool = False) -> FastAP
     @app.exception_handler(FileNotFoundError)
     async def missing_file(request, exc):
         return JSONResponse({"detail": {"message": "The requested output is not available."}}, status_code=404)
+
+    @app.exception_handler(InvalidConfiguration)
+    async def invalid_configuration(request, exc):
+        return JSONResponse({"detail": {"message": str(exc), "errors": exc.errors}}, status_code=422)
 
     @app.exception_handler(ValueError)
     async def value_error(request, exc):
@@ -394,6 +423,42 @@ def create_app(root: Path | None = None, *, development: bool = False) -> FastAP
     @app.post("/api/models/check")
     def model_check(body: ModelCheck):
         return configs.check(body.config_id)
+
+    @app.post("/api/models/endpoint-models")
+    def endpoint_models(body: EndpointModelsRequest):
+        try:
+            return configs.endpoint_models(body.config_id, body.endpoint)
+        except KeyError:
+            raise HTTPException(404, detail={"message": "The selected configuration was not found."}) from None
+
+    @app.get("/api/models/editor")
+    def read_editor(config_id: str):
+        try:
+            return configs.editor(config_id)
+        except FileNotFoundError:
+            raise HTTPException(404, detail={"message": "The selected preset no longer exists."}) from None
+        except OSError:
+            raise HTTPException(503, detail={"message": "The selected preset is not readable. Check file permissions and retry."}) from None
+
+    @app.patch("/api/models/editor")
+    def update_editor(body: ModelConfigUpdate):
+        with launch_lock:
+            try:
+                return configs.save_editor(body.config_id, body.expected_revision,
+                                           {name: patch.model_dump(exclude_none=False, exclude_unset=True)
+                                            for name, patch in body.roles.items()},
+                                           {name: patch.model_dump(exclude_none=False, exclude_unset=True)
+                                            for name, patch in body.endpoints.items()})
+            except InvalidConfiguration as exc:
+                raise HTTPException(422, detail={"message": exc.args[0], "errors": exc.errors}) from None
+            except EditorConflict as exc:
+                raise HTTPException(409, detail={"message": exc.message, "errors": exc.errors}) from None
+            except KeyError:
+                raise HTTPException(404, detail={"message": "The selected configuration was not found."}) from None
+            except FileNotFoundError:
+                raise HTTPException(404, detail={"message": "The selected preset no longer exists."}) from None
+            except OSError:
+                raise HTTPException(503, detail={"message": "The preset could not be saved. Check write permissions and file locks, then retry. Your edits are retained."}) from None
 
     @app.get("/{path:path}")
     def frontend(path: str, request: Request):

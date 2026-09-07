@@ -126,7 +126,18 @@ export interface RunDetail extends Run {
 }
 export interface Credential {
   env: string | null;
+  method?: "codex";
   present: boolean;
+}
+export interface CodexStatus {
+  connected: boolean;
+  pending: boolean;
+  error: string | null;
+  expires_at: number | null;
+}
+export interface CodexLogin {
+  authorization_url: string;
+  expires_at: number;
 }
 export interface ModelRole {
   name: string;
@@ -141,6 +152,7 @@ export interface ModelRole {
 export interface ModelEndpoint {
   id: string;
   label: string;
+  provider: "openai" | "openai-codex";
   url: string;
   timeout: number;
   capabilities: string[];
@@ -172,8 +184,58 @@ export interface ModelsCheck {
     error: string | null;
   }[];
 }
+export interface EndpointModels {
+  config_id: string;
+  endpoint: string;
+  checked_at: string;
+  ok: boolean;
+  models: string[];
+  error: string | null;
+}
+export interface ModelConfigEditorRole {
+  endpoint: string | null;
+  model: string | null;
+  max_tokens: number | null;
+  temperature: number | null;
+  timeout: number | null;
+  api_key_env: string | null;
+  requires: string[];
+}
+export interface ModelConfigEditorEndpoint {
+  provider: "openai" | "openai-codex";
+  base_url: string | null;
+  api_key_env: string | null;
+  timeout: number | null;
+  provides: string[];
+}
+export interface ModelConfigEditor {
+  config_id: string;
+  revision: string;
+  roles: Record<string, ModelConfigEditorRole>;
+  endpoints: Record<string, ModelConfigEditorEndpoint>;
+}
+export interface ModelRolePatch {
+  endpoint?: string | null;
+  model?: string | null;
+  max_tokens?: number | null;
+  temperature?: number | null;
+  timeout?: number | null;
+  api_key_env?: string | null;
+}
+export interface ModelEndpointPatch {
+  base_url?: string | null;
+  api_key_env?: string | null;
+  timeout?: number | null;
+}
+export interface ModelConfigUpdate {
+  config_id: string;
+  expected_revision: string;
+  roles: Record<string, ModelRolePatch>;
+  endpoints: Record<string, ModelEndpointPatch>;
+}
 export interface AssistantSettings {
   enabled: boolean;
+  provider?: "openai" | "openai-codex";
   config_id: string | null;
   role: string | null;
   model: string | null;
@@ -281,7 +343,20 @@ export function mutate<T>(
 ): Promise<T> {
   return request<T>(path, { method, body: JSON.stringify(body) });
 }
+/** Probe one configured endpoint's model listing on demand. */
+export function discoverEndpointModels(
+  configId: string,
+  endpoint: string,
+  signal?: AbortSignal,
+): Promise<EndpointModels> {
+  return request<EndpointModels>("/api/models/endpoint-models", {
+    method: "POST",
+    body: JSON.stringify({ config_id: configId, endpoint }),
+    signal,
+  });
+}
 export function artifactUrl(
+
   runId: string,
   artifactId: string,
   download = false,

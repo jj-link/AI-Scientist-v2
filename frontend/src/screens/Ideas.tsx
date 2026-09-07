@@ -302,8 +302,9 @@ export default function Ideas() {
             {ideation ? (
               <p>
                 {ideation.model || "No model assigned"} ·{" "}
-                {ideation.endpoint || "No endpoint assigned"} · Effective token
-                budget: {ideation.effective_max_tokens ?? "not specified"}
+                {models.data?.endpoints.find((endpoint) => endpoint.id === ideation.endpoint)?.label || ideation.endpoint || "No endpoint assigned"} · Effective token
+                budget: {models.data?.endpoints.find((endpoint) => endpoint.id === ideation.endpoint)?.provider === "openai-codex"
+                  ? "managed by Codex" : ideation.effective_max_tokens ?? "not specified"}
               </p>
             ) : (
               <p>

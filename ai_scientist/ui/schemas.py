@@ -65,6 +65,11 @@ class ModelCheck(Request):
     config_id: str
 
 
+class EndpointModelsRequest(Request):
+    config_id: str
+    endpoint: str
+
+
 class AssistantSettingsUpdate(Request):
     enabled: bool = Field(strict=True)
     config_id: str | None = None
@@ -149,3 +154,25 @@ class IssuePublish(Request):
         if self.confirmed is not True:
             raise ValueError("Explicit confirmation is required to publish an issue.")
         return self
+
+
+class ModelRolePatch(Request):
+    endpoint: str | None = None
+    model: str | None = None
+    max_tokens: int | None = None
+    temperature: float | None = None
+    timeout: float | None = None
+    api_key_env: str | None = None
+
+
+class ModelEndpointPatch(Request):
+    base_url: str | None = Field(default=None, max_length=2048)
+    api_key_env: str | None = Field(default=None, max_length=256)
+    timeout: float | None = None
+
+
+class ModelConfigUpdate(Request):
+    config_id: str
+    expected_revision: str
+    roles: dict[str, ModelRolePatch] = Field(default_factory=dict)
+    endpoints: dict[str, ModelEndpointPatch] = Field(default_factory=dict)

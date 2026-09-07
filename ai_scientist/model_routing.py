@@ -34,12 +34,37 @@ DEFAULT_ROLE_CONFIG_FILENAME = "ais_roles.yaml"
 
 SELFHOSTED_PREFIX = "selfhosted/"
 ROLE_PREFIX = "role/"
+CODEX_PROVIDER = "openai-codex"
+
+
+def endpoint_provider(endpoint: dict) -> str:
+    """Resolve the transport without allowing OAuth credentials at arbitrary URLs."""
+    provider = endpoint.get("provider", "openai")
+    if provider not in ("openai", CODEX_PROVIDER):
+        raise RoleConfigError("Endpoint provider must be openai or openai-codex.")
+    if provider == CODEX_PROVIDER and any(endpoint.get(key) not in (None, "") for key in ("base_url", "api_key_env")):
+        raise RoleConfigError("Codex manages its server address and uses ChatGPT sign-in, not API-key overrides.")
+    return provider
+
+
+def endpoint_base_url(endpoint: dict) -> str | None:
+    if endpoint_provider(endpoint) == CODEX_PROVIDER:
+        from .codex_provider import CODEX_BASE_URL
+        return CODEX_BASE_URL
+    return endpoint.get("base_url")
+
+
+def validate_provider_settings(endpoint: dict, settings: dict) -> None:
+    if endpoint_provider(endpoint) == CODEX_PROVIDER and any(
+        settings.get(key) is not None for key in ("max_tokens", "temperature", "api_key_env")
+    ):
+        raise RoleConfigError("Codex roles use managed token limits, sampling, and ChatGPT credentials; remove those overrides.")
 
 REQUEST_LOG_ENV = "AI_SCIENTIST_REQUEST_LOG"
 DEFAULT_REQUEST_LOG = os.path.join("logs", "model_requests.jsonl")
 
 _lock = threading.Lock()
-_cache: dict[str, tuple[float, dict]] = {}
+_cache: dict[str, tuple[tuple[int, int, int], dict]] = {}
 
 
 class RoleConfigError(ValueError):
@@ -54,7 +79,7 @@ def role_config_path() -> Path:
 
 
 def load_role_config(path: str | os.PathLike | None = None) -> dict:
-    """Load (and mtime-cache) the role configuration YAML."""
+    """Load the role YAML, invalidating cached values after file replacement."""
     cfg_path = Path(path) if path is not None else role_config_path()
     if not cfg_path.exists():
         raise RoleConfigError(
@@ -62,10 +87,11 @@ def load_role_config(path: str | os.PathLike | None = None) -> dict:
             f"{DEFAULT_ROLE_CONFIG_FILENAME} in the repository root."
         )
     key = str(cfg_path)
-    mtime = cfg_path.stat().st_mtime
+    stamp = cfg_path.stat()
+    fingerprint = (stamp.st_mtime_ns, stamp.st_ctime_ns, stamp.st_size)
     with _lock:
         cached = _cache.get(key)
-        if cached and cached[0] == mtime:
+        if cached and cached[0] == fingerprint:
             return cached[1]
     with open(cfg_path, "r", encoding="utf-8") as f:
         cfg = yaml.safe_load(f) or {}
@@ -74,7 +100,7 @@ def load_role_config(path: str | os.PathLike | None = None) -> dict:
     if "endpoints" not in cfg or not isinstance(cfg["endpoints"], dict):
         raise RoleConfigError(f"Role config {cfg_path} requires an 'endpoints' mapping.")
     with _lock:
-        _cache[key] = (mtime, cfg)
+        _cache[key] = (fingerprint, cfg)
     return cfg
 
 
@@ -204,7 +230,7 @@ DEFAULT_ENDPOINT_TIMEOUT = 600  # seconds; finite so a wedged endpoint fails
 
 
 def create_selfhosted_client(model: str, max_retries: int = 2):
-    """Create an OpenAI client for a role/ or selfhosted/ model string."""
+    """Create a chat-completion-compatible client for a configured role or endpoint."""
     import openai
 
     parsed = parse_model(model)
@@ -214,6 +240,11 @@ def create_selfhosted_client(model: str, max_retries: int = 2):
         )
     cfg = load_role_config()
     endpoint = cfg["endpoints"][parsed["endpoint"]] or {}
+    validate_provider_settings(endpoint, parsed["settings"])
+    if endpoint_provider(endpoint) == CODEX_PROVIDER:
+        from .codex_provider import CodexClient
+        return CodexClient(timeout=float(parsed["settings"].get(
+            "timeout", endpoint.get("timeout", DEFAULT_ENDPOINT_TIMEOUT))))
     # Per-role auth overrides the endpoint default; env var NAMES only.
     api_key_env = (
         parsed["settings"].get("api_key_env") or endpoint.get("api_key_env")
@@ -296,6 +327,9 @@ def list_endpoint_models(
             f"Unknown endpoint {endpoint_name!r}. Configured: {sorted(endpoints)}."
         )
     endpoint = endpoints[endpoint_name] or {}
+    if endpoint_provider(endpoint) == CODEX_PROVIDER:
+        from .codex_provider import list_models
+        return list_models(timeout=timeout if timeout is not None else DEFAULT_ENDPOINT_TIMEOUT)
     base_url = endpoint.get("base_url")
     if not base_url:
         raise RoleConfigError(f"Endpoint {endpoint_name!r} has no 'base_url'.")
@@ -343,6 +377,7 @@ def validate_roles(path: str | os.PathLike | None = None) -> dict[str, dict]:
             raise RoleConfigError(
                 f"Role {role!r} references unknown endpoint {endpoint_name!r}."
             )
+        validate_provider_settings(endpoints[endpoint_name] or {}, entry)
         available = _models(endpoint_name)
         if model_name not in available:
             raise RoleConfigError(

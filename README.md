@@ -62,8 +62,8 @@ Installation usually takes no more than one hour.
 
 ### AI-Scientist Studio: local browser application
 
-Studio provides **Ideas**, **Experiments**, **Results**, and a read-only **Models**
-view. It runs on this PC at **http://127.0.0.1:8765** and serves the built React
+Studio provides **Ideas**, **Experiments**, **Results**, and a **Models**
+configuration editor. It runs on this PC at **http://127.0.0.1:8765** and serves the built React
 application and Python API from the same origin. It does not change the research
 engine's hardware or model requirements.
 
@@ -99,7 +99,7 @@ Preparation displays the actual workload and exclusive output directory.
 **This runs generated Python code on this PC. It can read and write files
 available to your account.** Loopback HTTP access is not a sandbox. Studio does
 not upload source code, install missing tools, start models, download datasets
-implicitly through a UI control, or reroute model assignments. Generated Python
+implicitly through a UI control, or reroute model assignments automatically. Generated Python
 itself executes with your account's permissions.
 
 The role preset defaults to `AI_SCIENTIST_ROLE_CONFIG`, otherwise `ais_roles.yaml`.
@@ -112,6 +112,51 @@ and `pdftotext`. The existing TeX resolver honors `AI_SCIENTIST_TEX_BIN_DIR`;
 `pdftotext` must be on the Python process's PATH. Missing prerequisites block
 launch with their names. A model listing and declared capability do not prove a
 text or image generation request works.
+
+On **Models**, select a preset and an endpoint for each role. **Detect models**
+lists that endpoint's advertised IDs in the **Model** dropdown; **Refresh models**
+retries the listing. These are explicit, bounded requests against the selected
+preset, not generation requests. A failed or empty listing preserves the current
+assignment. **Advanced** accepts a custom model ID and token, temperature,
+timeout, and credential-environment overrides. Blank overrides inherit the
+endpoint or the calling task's settings.
+An endpoint can set a display `label` (for example, `label: Spark cluster`);
+role assignments still reference its YAML key, so labels do not change routing.
+Changing a role's endpoint clears its model selection. Choose a model for the new
+endpoint before saving; discovery does not automatically assign one.
+
+**Save configuration** patches the selected YAML file, preserving comments and
+unrelated settings. Endpoint edits must be saved before their new connection is
+probed. API-key credentials are environment-variable names only; key values are never
+editable. Shared YAML aliases/merge keys and embedded credentials block editing.
+Stale saves retain the draft and require **Reload configuration**; there is no
+force-save. Unsaved edits survive navigation within the same browser tab.
+
+Future Studio jobs and command-line reads use the saved preset. Existing Studio
+jobs retain their configuration snapshots; running command-line jobs are not
+snapshot-isolated by this editor. Crash assistant settings are saved separately:
+click **Save assistant settings** after changing its role to capture the new
+assignment. Saving a research preset never silently changes that enrollment.
+
+**Codex (ChatGPT)** uses **Sign in with ChatGPT** on the Models screen, followed
+by **Continue to ChatGPT**. Complete authorization in your browser and return to
+Studio when the card reports **Connected**. Sign-in temporarily needs loopback
+port `1455`; cancel and start a new sign-in if the attempt expires or fails.
+An available native OS credential vault is required. Tokens are stored only in
+that vault, using small entries and recoverable rotation on Windows; they never
+enter YAML, browser storage, or a plaintext fallback file. Studio and research
+workers in this checkout share the session, separately from other checkouts and
+Codex CLI sign-ins. **Disconnect** removes the checkout's locally stored session.
+
+The supplied `ais_roles.yaml` preset includes an unassigned `codex` endpoint with
+`provider: openai-codex`. Select it for a role, then **Detect models** to fetch
+your account's actual catalog. Choose a model and **Save configuration** to
+change routing; signing in alone changes no role assignments. Codex uses the
+fixed `https://chatgpt.com/backend-api/codex` service, not an editable base URL
+or API key. Token caps and sampling are provider-managed: selecting Codex clears
+token, temperature, and credential overrides in the draft and disables those
+fields. Explicit YAML overrides are rejected; ordinary caller token/sampling
+defaults are not forwarded. Request timeouts remain configurable.
 
 Tool availability is checked in the server's inherited environment, not across
 the whole PC. On Windows, an already-open terminal, IDE, or service manager can
