@@ -1,453 +1,383 @@
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type FormEvent,
-} from "react";
-import { Link } from "react-router-dom";
-import { ArrowRight, Plus, Sparkles } from "lucide-react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { ArrowRight, Download, MessageSquare, Plus, Send, Square } from "lucide-react";
 import {
   ApiError,
-  isActive,
   mutate,
+  request,
   useApi,
+  type Idea,
+  type IdeaConversation,
+  type IdeaConversationCreate,
+  type IdeaConversationMessage,
   type IdeaRecord,
-  type Job,
-  type ModelsView,
 } from "../api";
-import { ConfigSelect, ErrorNotice, PageHeading } from "../components";
+import { ErrorNotice, JsonText, PageHeading } from "../components";
 import { useStudio } from "../studio";
-import JobMonitor from "../JobMonitor";
 import "./ideas.css";
 
-type GenerationRequest = {
-  request_id: string;
-  research_question: string;
-  context: string;
-  attempts: number;
-  rounds: number;
-  role_config_id: string;
+type PendingMessage = {
+  path: string;
+  body: IdeaConversationCreate | IdeaConversationMessage;
 };
-type SavedForm = {
-  question?: string;
-  context?: string;
-  attempts?: number;
-  rounds?: number;
-  jobId?: string;
-  pending?: GenerationRequest;
-};
-const storageKey = "scientist-studio-generation";
-function storedForm(): SavedForm {
+type ConversationDraft = { message: string; pending?: PendingMessage };
+
+function readDraft(key: string): ConversationDraft {
   try {
-    return JSON.parse(localStorage.getItem(storageKey) || "{}") as SavedForm;
+    const value = JSON.parse(localStorage.getItem(key) || "null") as ConversationDraft | null;
+    if (value && typeof value.message === "string") return value;
   } catch {
-    return {};
+    // A local draft is optional; submitted conversations live on the server.
   }
-}
-const examples = [
-  "How does training-data noise affect a small neural network’s generalization?",
-  "Can a simpler regularization method improve performance on a limited dataset?",
-  "Which features make an optimization method robust across random seeds?",
-];
-function preview(value: unknown): string {
-  if (typeof value === "string") return value;
-  if (Array.isArray(value)) return value.map(preview).join(" · ");
-  if (value && typeof value === "object")
-    return Object.entries(value)
-      .map(([key, item]) => `${key}: ${preview(item)}`)
-      .join(" · ");
-  return value == null ? "" : String(value);
+  return { message: "" };
 }
 
-export default function Ideas() {
-  const { bootstrap, roleConfigId, refreshBootstrap } = useStudio();
-  const [initial] = useState(storedForm);
-  const [question, setQuestion] = useState(initial.question || "");
-  const [context, setContext] = useState(initial.context || "");
-  const [attempts, setAttempts] = useState(initial.attempts || 1);
-  const [rounds, setRounds] = useState(initial.rounds || 5);
-  const [jobId, setJobId] = useState(
-    bootstrap.active_job?.kind === "idea"
-      ? bootstrap.active_job.id
-      : initial.jobId || "",
+function writeDraft(key: string, draft: ConversationDraft) {
+  try {
+    if (!draft.message && !draft.pending) localStorage.removeItem(key);
+    else localStorage.setItem(key, JSON.stringify(draft));
+  } catch {
+    // Keep the in-memory draft when browser storage is unavailable.
+  }
+}
+
+function ideaTitle(idea: Idea) {
+  return typeof idea.Title === "string" ? idea.Title : "Untitled idea";
+}
+
+/** Show every field, including unknown structured fields, without interpreting HTML. */
+function CompleteIdea({ idea }: { idea: Idea }) {
+  return (
+    <dl className="complete-idea">
+      {Object.entries(idea).map(([key, value]) => (
+        <div key={key}>
+          <dt>{key}</dt>
+          <dd><JsonText value={value} /></dd>
+        </div>
+      ))}
+    </dl>
   );
-  const [job, setJob] = useState<Job | null>(
-    bootstrap.active_job?.kind === "idea" ? bootstrap.active_job : null,
+}
+
+function ApprovedArtifact({ record }: { record: IdeaRecord }) {
+  return (
+    <section className="card stack" aria-labelledby="approved-artifact-heading">
+      <div className="metadata">Saved artifact · Revision {record.revision}</div>
+      <h2 id="approved-artifact-heading">{ideaTitle(record.idea)}</h2>
+      <p className="muted">This is the saved backlog artifact. Discussion does not change it until you approve a complete revised design in the conversation.</p>
+      <CompleteIdea idea={record.idea} />
+      {Object.keys(record.errors).length > 0 && (
+        <div className="notice">
+          <p>This saved idea does not yet contain a complete experiment plan.</p>
+          <ul>{Object.entries(record.errors).map(([field, message]) => <li key={field}>{field}: {message}</li>)}</ul>
+        </div>
+      )}
+      <div className="actions">
+        {Object.keys(record.errors).length === 0 && (
+          <Link className="button secondary" to={`/ideas/${encodeURIComponent(record.id)}/setup`}>
+            Prepare experiment <ArrowRight size={16} aria-hidden="true" />
+          </Link>
+        )}
+        {!record.errors.Name && (
+          <a className="button secondary" href={`/api/ideas/${encodeURIComponent(record.id)}/export`} download>
+            <Download size={16} aria-hidden="true" /> Export saved idea
+          </a>
+        )}
+      </div>
+      <p className="metadata">Preparing an experiment is a separate step. Nothing runs from this conversation.</p>
+    </section>
   );
-  const [pending, setPending] = useState<GenerationRequest | undefined>(
-    initial.pending,
-  );
-  const pendingRef = useRef(pending);
-  const busyRef = useRef(false);
-  const [submitting, setSubmitting] = useState(false);
+}
+
+function ConversationWorkspace({ conversationId, seedIdea, onChange, onOpen }: {
+  conversationId: string;
+  seedIdea?: IdeaRecord;
+  onChange: () => void;
+  onOpen: (id: string) => void;
+}) {
+  const { roleConfigId } = useStudio();
+  const storageKey = `scientist-studio-idea-chat-${conversationId || (seedIdea ? `idea-${seedIdea.id}` : "new")}`;
+  const [draft, setDraft] = useState(() => readDraft(storageKey));
+  const draftRef = useRef(draft);
+  const [conversation, setConversation] = useState<IdeaConversation | null>(null);
+  const [loading, setLoading] = useState(Boolean(conversationId));
+  const [loadError, setLoadError] = useState<unknown>(null);
   const [error, setError] = useState<unknown>(null);
-  const active = isActive(job?.state) || Boolean(jobId && !job);
-  const ideas = useApi<{ ideas: IdeaRecord[] }>(
-    "/api/ideas",
-    active ? 2000 : 0,
-  );
-  const effectiveRoleId = pending?.role_config_id || roleConfigId;
-  const models = useApi<ModelsView>(
-    effectiveRoleId
-      ? `/api/models?config_id=${encodeURIComponent(effectiveRoleId)}`
-      : null,
-  );
-  const ideation = models.data?.roles.find((role) => role.name === "ideation");
+  const [submitting, setSubmitting] = useState(false);
+  const [stopping, setStopping] = useState(false);
+  const [reload, setReload] = useState(0);
+  const busy = useRef(false);
+  const mounted = useRef(true);
+  const epoch = useRef(0);
   const lastUpdate = useRef("");
-  const onUpdate = useCallback(
-    (next: Job) => {
-      setJob(next);
-      if (lastUpdate.current !== next.updated_at) {
-        lastUpdate.current = next.updated_at;
-        ideas.refresh();
-        if (!isActive(next.state)) refreshBootstrap();
-      }
-    },
-    [ideas.refresh, refreshBootstrap],
-  );
+  const discussion = useRef<HTMLDivElement>(null);
+  const running = conversation?.state === "running";
+
   useEffect(() => {
-    try {
-      localStorage.setItem(
-        storageKey,
-        JSON.stringify({ question, context, attempts, rounds, jobId, pending }),
-      );
-    } catch {
-      /* Storage may be unavailable; the server retains submitted requests. */
-    }
-  }, [question, context, attempts, rounds, jobId, pending]);
-  async function generate(event: FormEvent) {
-    event.preventDefault();
-    if (busyRef.current || active) return;
-    const payload = pendingRef.current || {
-      request_id: crypto.randomUUID(),
-      research_question: question,
-      context,
-      attempts,
-      rounds,
-      role_config_id: roleConfigId,
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
+
+  useEffect(() => {
+    const log = discussion.current;
+    if (log) log.scrollTop = log.scrollHeight;
+  }, [conversation?.messages.length]);
+
+  function updateDraft(next: ConversationDraft) {
+    draftRef.current = next;
+    setDraft(next);
+    writeDraft(storageKey, next);
+  }
+
+  useEffect(() => {
+    if (!conversationId) return;
+    const controller = new AbortController();
+    let timer: number | undefined;
+    const load = async () => {
+      const started = epoch.current;
+      try {
+        const next = await request<IdeaConversation>(`/api/idea-conversations/${encodeURIComponent(conversationId)}`, { signal: controller.signal });
+        if (controller.signal.aborted) return;
+        if (started === epoch.current && !busy.current) {
+          setConversation((previous) => !previous || next.revision >= previous.revision ? next : previous);
+          setLoadError(null);
+        }
+        if (next.state === "running") timer = window.setTimeout(load, 1000);
+      } catch (failure) {
+        if (!controller.signal.aborted) {
+          setLoadError(failure);
+          timer = window.setTimeout(load, 1000);
+        }
+      } finally {
+        if (!controller.signal.aborted) setLoading(false);
+      }
     };
-    pendingRef.current = payload;
-    setPending(payload);
-    try {
-      localStorage.setItem(
-        storageKey,
-        JSON.stringify({
-          question,
-          context,
-          attempts,
-          rounds,
-          jobId,
-          pending: payload,
-        }),
-      );
-    } catch {
-      /* Server persistence remains authoritative. */
+    void load();
+    return () => { controller.abort(); window.clearTimeout(timer); };
+  }, [conversationId, reload, running]);
+
+  useEffect(() => {
+    if (conversation && lastUpdate.current !== `${conversation.revision}:${conversation.updated_at}`) {
+      lastUpdate.current = `${conversation.revision}:${conversation.updated_at}`;
+      onChange();
     }
-    busyRef.current = true;
+  }, [conversation, onChange]);
+
+  async function send(event: FormEvent) {
+    event.preventDefault();
+    if (busy.current || (!draftRef.current.pending && (running || !draftRef.current.message.trim()))) return;
+    if (conversationId && !conversation && !draftRef.current.pending) return;
+    const pending = draftRef.current.pending || {
+      path: conversationId ? `/api/idea-conversations/${encodeURIComponent(conversationId)}/messages` : "/api/idea-conversations",
+      body: conversation ? {
+        request_id: crypto.randomUUID(),
+        expected_revision: conversation.revision,
+        message: draftRef.current.message,
+      } : {
+        request_id: crypto.randomUUID(),
+        role_config_id: roleConfigId,
+        message: draftRef.current.message,
+        ...(seedIdea ? { idea_id: seedIdea.id } : {}),
+      },
+    };
+    updateDraft({ message: draftRef.current.message, pending });
+    busy.current = true;
+    epoch.current += 1;
     setSubmitting(true);
     setError(null);
     try {
-      const result = await mutate<{ job_id: string }>(
-        "/api/idea-jobs",
-        payload,
-      );
-      setJob(null);
-      setJobId(result.job_id);
-      refreshBootstrap();
-      ideas.refresh();
+      const next = await mutate<IdeaConversation>(pending.path, pending.body);
+      writeDraft(storageKey, { message: "" });
+      if (!mounted.current) return;
+      updateDraft({ message: "" });
+      setConversation(next);
+      setLoadError(null);
+      onChange();
+      if (!conversationId) onOpen(next.id);
     } catch (failure) {
+      if (!mounted.current) return;
       setError(failure);
+      // A definite rejection can be edited. Unknown outcomes retain the exact request.
+      if (failure instanceof ApiError && failure.status >= 400 && failure.status < 500 && failure.status !== 408) {
+        updateDraft({ message: draftRef.current.message });
+      }
     } finally {
-      busyRef.current = false;
-      setSubmitting(false);
+      busy.current = false;
+      if (mounted.current) {
+        setSubmitting(false);
+        if (conversationId) setReload((value) => value + 1);
+      }
     }
   }
-  function newRequest() {
-    pendingRef.current = undefined;
-    setPending(undefined);
-    setJobId("");
-    setJob(null);
+
+  async function stop() {
+    if (busy.current || !conversationId || !running) return;
+    busy.current = true;
+    epoch.current += 1;
+    setStopping(true);
     setError(null);
+    try {
+      const next = await mutate<IdeaConversation>(`/api/idea-conversations/${encodeURIComponent(conversationId)}/stop`);
+      if (!mounted.current) return;
+      setConversation(next);
+      onChange();
+    } catch (failure) {
+      if (mounted.current) setError(failure);
+    } finally {
+      busy.current = false;
+      if (mounted.current) {
+        setStopping(false);
+        setReload((value) => value + 1);
+      }
+    }
   }
-  const finished = Boolean(job && !isActive(job.state));
-  const finalized =
-    typeof job?.result?.finalized === "number"
-      ? job.result.finalized
-      : ideas.data?.ideas.filter((idea) => idea.job_id === jobId).length || 0;
-  const attempted =
-    typeof job?.result?.attempted === "number" ? job.result.attempted : null;
-  const locked = submitting || active || Boolean(pending);
-  const conflictId =
-    error instanceof ApiError && typeof error.detail.job_id === "string"
-      ? error.detail.job_id
-      : null;
+
+  const conflict = error instanceof ApiError && error.status === 409;
   return (
-    <div className="stack">
-      <PageHeading eyebrow="Ideas" title="What do you want to investigate?" />
-      <form className="card stack" onSubmit={generate}>
-        <p className="muted">
-          Describe a question, hypothesis, or problem. You can edit the
-          proposals before running an experiment.
-        </p>
-        <label className="field" htmlFor="research-question">
-          Research question or hypothesis
-          <textarea
-            id="research-question"
-            rows={5}
-            required
-            maxLength={50000}
-            disabled={locked}
-            value={question}
-            onChange={(event) => setQuestion(event.target.value)}
-            placeholder="What would you like to investigate?"
-          />
-        </label>
-        <div className="stack example-topics">
-          <span className="metadata">
-            Example topics — select one to fill the question, not start work
-          </span>
-          <div className="row">
-            {examples.map((example) => (
-              <button
-                type="button"
-                className="button secondary example-topic"
-                key={example}
-                disabled={locked}
-                onClick={() => setQuestion(example)}
-              >
-                {example}
-              </button>
-            ))}
-          </div>
-        </div>
-        <details className="advanced">
-          <summary>Constraints and context</summary>
-          <label className="field" htmlFor="research-context">
-            Constraints and context
-            <textarea
-              id="research-context"
-              rows={4}
-              maxLength={50000}
-              disabled={locked}
-              value={context}
-              onChange={(event) => setContext(event.target.value)}
-            />
-          </label>
-          <p className="metadata">
-            The question and context are sent directly to the proposal generator
-            under literal headings.
-          </p>
-        </details>
-        <details className="advanced">
-          <summary>Advanced generation settings</summary>
-          <fieldset disabled={locked} className="generation-settings stack">
-            <div className="split">
-              <label className="field" htmlFor="proposal-attempts">
-                Proposal attempts
-                <input
-                  id="proposal-attempts"
-                  type="number"
-                  min={1}
-                  max={10}
-                  step={1}
-                  required
-                  value={Number.isNaN(attempts) ? "" : attempts}
-                  onChange={(event) => setAttempts(event.target.valueAsNumber)}
-                  aria-describedby="attempt-help"
-                />
-                <span id="attempt-help" className="metadata">
-                  An attempt may not produce a finalized proposal.
-                </span>
-              </label>
-              <label className="field" htmlFor="generation-rounds">
-                Generation rounds per attempt
-                <input
-                  id="generation-rounds"
-                  type="number"
-                  min={2}
-                  max={20}
-                  step={1}
-                  required
-                  value={Number.isNaN(rounds) ? "" : rounds}
-                  onChange={(event) => setRounds(event.target.valueAsNumber)}
-                  aria-describedby="round-help"
-                />
-                <span id="round-help" className="metadata">
-                  Includes the first model call. The same model is used for all
-                  rounds.
-                </span>
-              </label>
-            </div>
-            {pending ? (
-              <label className="field" htmlFor="generation-role-config">
-                Role configuration
-                <input
-                  id="generation-role-config"
-                  readOnly
-                  value={
-                    bootstrap.role_configs.find(
-                      (config) => config.id === effectiveRoleId,
-                    )?.label || effectiveRoleId
-                  }
-                />
-              </label>
-            ) : (
-              <ConfigSelect id="generation-role-config" />
+    <section className="card stack conversation-workspace" aria-labelledby="conversation-heading">
+      <h2 id="conversation-heading">{conversation?.title || (seedIdea ? `Refine: ${ideaTitle(seedIdea.idea)}` : "Let's develop an idea")}</h2>
+      {!conversationId && (
+        <p className="muted">{seedIdea ? "Tell the agent what to discuss or change in this saved idea." : "Bring an existing idea, ask a question about a paper, or ask for suggestions. Discuss and refine it here."} The agent will present a complete design for you to approve or revise in your own words.</p>
+      )}
+      {loading && !conversation && <p role="status">Loading conversation…</p>}
+      <ErrorNotice error={loadError} />
+      {Boolean(loadError) && <button className="button secondary" type="button" onClick={() => setReload((value) => value + 1)}>Reload conversation</button>}
+      <div ref={discussion} className="conversation-messages" role="log" aria-label="Idea discussion" aria-live="polite" aria-relevant="additions text">
+        {conversation?.messages.map((message, index) => (
+          <article className={`conversation-message message-${message.role}`} key={index}>
+            <h3>{message.role === "user" ? "You" : "Agent"}</h3>
+            <div className="conversation-text">{message.content}</div>
+            {message.idea && (
+              <details className="presented-design">
+                <summary>Presented design</summary>
+                <CompleteIdea idea={message.idea} />
+              </details>
             )}
-          </fieldset>
-          <ErrorNotice error={models.error} />
-          <div className="notice">
-            <strong>Model: role/ideation</strong>
-            {ideation ? (
-              <p>
-                {ideation.model || "No model assigned"} ·{" "}
-                {models.data?.endpoints.find((endpoint) => endpoint.id === ideation.endpoint)?.label || ideation.endpoint || "No endpoint assigned"} · Effective token
-                budget: {models.data?.endpoints.find((endpoint) => endpoint.id === ideation.endpoint)?.provider === "openai-codex"
-                  ? "managed by Codex" : ideation.effective_max_tokens ?? "not specified"}
-              </p>
-            ) : (
-              <p>
-                {models.loading
-                  ? "Loading the selected model assignment…"
-                  : "Ideation assignment unavailable. Check Models before generating."}
-              </p>
-            )}
-            <p className="metadata">
-              Assignment from the selected configuration; availability has not
-              been probed.
-            </p>
-          </div>
-        </details>
-        <ErrorNotice error={error} />
-        {conflictId && (
-          <Link to={`/experiments/${encodeURIComponent(conflictId)}`}>
-            Open the recorded active job{" "}
-            <ArrowRight size={16} aria-hidden="true" />
-          </Link>
-        )}
-        {!jobId && (
-          <div className="actions">
-            <button
-              className="button primary"
-              type="submit"
-              disabled={submitting || !question.trim() || !roleConfigId}
-            >
-              <Sparkles size={18} aria-hidden="true" />
-              {submitting
-                ? "Submitting request…"
-                : pending
-                  ? "Retry submitted request"
-                  : "Generate proposals"}
-            </button>
-            {pending && !submitting && (
-              <button
-                type="button"
-                className="button secondary"
-                onClick={newRequest}
-              >
-                Edit as a new request
-              </button>
-            )}
-          </div>
-        )}
-        {pending && !jobId && (
-          <p className="metadata">
-            Retry uses the same saved request ID and inputs; it cannot create a
-            duplicate job.
-          </p>
-        )}
-      </form>
-      {jobId && (
-        <section className="stack" aria-label="Proposal generation">
-          <JobMonitor jobId={jobId} onUpdate={onUpdate} />
-          {finished && (
-            <div className="card stack" aria-live="polite">
-              <h2>
-                {finalized === 0
-                  ? "No proposals were created"
-                  : `${finalized} ${finalized === 1 ? "proposal" : "proposals"} created`}
-              </h2>
-              <p>
-                {attempted !== null
-                  ? `${finalized} finalized / ${attempted} requested attempts.`
-                  : `${finalized} finalized proposals. Attempt count is unavailable.`}{" "}
-                {job?.state === "partial"
-                  ? "Some attempts did not finish successfully. Saved proposals remain usable."
-                  : ""}
-              </p>
-              {job?.error && <p>{job.error.message}</p>}
-              <p className="metadata">
-                Open Technical details in the generation monitor for recorded
-                errors.
-              </p>
-              <div className="actions">
-                <button
-                  type="button"
-                  className="button primary"
-                  onClick={newRequest}
-                >
-                  {job?.state === "completed"
-                    ? "New generation request"
-                    : "Try again"}
-                </button>
-              </div>
-              <p className="metadata">
-                This opens an editable new request. Work starts only when you
-                select Generate proposals.
-              </p>
-            </div>
-          )}
+          </article>
+        ))}
+      </div>
+      {conversation?.pending_idea && (
+        <section className="pending-design stack" aria-labelledby="pending-design-heading">
+          <div className="metadata">Complete candidate · Conversation revision {conversation.revision} · Not yet saved</div>
+          <h3 id="pending-design-heading">Final idea and experiment design</h3>
+          <CompleteIdea idea={conversation.pending_idea} />
+          <p>Review every field above. Reply in the conversation to approve this exact design, or describe what should change. Only an explicitly approved design is added to the backlog; requesting changes does not approve it.</p>
         </section>
       )}
-      <section className="stack" aria-labelledby="saved-proposals">
-        <div className="section-heading">
-          <h2 id="saved-proposals">Saved proposals</h2>
-          <span className="metadata">
-            {ideas.data ? `${ideas.data.ideas.length} saved` : ""}
-          </span>
+      {conversation?.idea_id && (
+        <div className="notice" role="status">
+          <p>This conversation is linked to a saved backlog idea. Any new candidate above remains unsaved until approved.</p>
+          <Link to={`/ideas/${encodeURIComponent(conversation.idea_id)}`}>View saved idea and experiment preparation <ArrowRight size={16} aria-hidden="true" /></Link>
         </div>
+      )}
+      {running && (
+        <div className="row conversation-progress">
+          <p role="status">{conversation.progress || "Agent is working on your message."}</p>
+          <button className="button secondary" type="button" disabled={stopping || submitting} onClick={() => void stop()}>
+            <Square size={16} aria-hidden="true" /> {stopping ? "Stopping…" : "Stop"}
+          </button>
+        </div>
+      )}
+      {conversation?.error && <ErrorNotice error={new Error(conversation.error.message)} />}
+      <form className="stack conversation-composer" onSubmit={send}>
+        <label className="field" htmlFor="idea-message">
+          Message
+          <textarea id="idea-message" rows={4} maxLength={50000} required value={draft.message}
+            readOnly={submitting || Boolean(draft.pending)}
+            onChange={(event) => updateDraft({ message: event.target.value })}
+            aria-describedby="idea-message-help"
+            placeholder="Share an idea, ask for suggestions, or discuss the design…" />
+        </label>
+        <p className="metadata" id="idea-message-help">Enter adds a new line. Use Send message to reply. Approval happens here in the conversation, not through a separate save step.</p>
+        <ErrorNotice error={error} />
+        {conflict && <p className="notice">The conversation or saved artifact changed. Your message is still here. Review the latest conversation and any agent instructions before sending it again.</p>}
+        {draft.pending && !submitting && <p className="notice">The last request has not been confirmed. Retry sends the identical message and request ID so it cannot create a duplicate turn.</p>}
+        <div className="actions">
+          <button className="button primary" type="submit"
+            disabled={submitting || stopping || !draft.message.trim() || (!draft.pending && (running || (Boolean(conversationId) && (!conversation || Boolean(loadError))) || (!conversationId && !roleConfigId)))}>
+            <Send size={16} aria-hidden="true" /> {submitting ? "Sending…" : draft.pending ? "Retry message" : "Send message"}
+          </button>
+        </div>
+        {!conversationId && !roleConfigId && <p className="notice">A role configuration is required. Check Models to restore the Studio configuration; no assignment is changed here.</p>}
+      </form>
+    </section>
+  );
+}
+
+export default function Ideas() {
+  const { ideaId } = useParams();
+  const [search] = useSearchParams();
+  const navigate = useNavigate();
+  const conversations = useApi<{ conversations: IdeaConversation[] }>("/api/idea-conversations");
+  const ideas = useApi<{ ideas: IdeaRecord[] }>("/api/ideas");
+  const approved = useApi<IdeaRecord>(ideaId ? `/api/ideas/${encodeURIComponent(ideaId)}` : null);
+  const refresh = useCallback(() => {
+    conversations.refresh();
+    ideas.refresh();
+    approved.refresh();
+  }, [conversations.refresh, ideas.refresh, approved.refresh]);
+  const associated = ideaId ? conversations.data?.conversations
+    .filter((conversation) => conversation.idea_id === ideaId)
+    .sort((left, right) => right.updated_at.localeCompare(left.updated_at))[0] : undefined;
+  const conversationId = search.get("conversation") || associated?.id || "";
+  const record = approved.data?.id === ideaId ? approved.data : undefined;
+  const openConversation = (id: string) => {
+    navigate(`${ideaId ? `/ideas/${encodeURIComponent(ideaId)}` : "/ideas"}?conversation=${encodeURIComponent(id)}`, { replace: true });
+  };
+  return (
+    <div className="stack">
+      <PageHeading eyebrow="Ideas" title="Develop an idea together">
+        <p>From a question to an approved research design, in one conversation.</p>
+      </PageHeading>
+      <div className="actions">
+        <Link className="button secondary" to="/ideas"><Plus size={16} aria-hidden="true" /> New conversation</Link>
+      </div>
+      <div className="ideas-workspace">
+        <nav className="card stack conversation-navigation" aria-labelledby="conversations-heading">
+          <h2 id="conversations-heading">Conversations</h2>
+          <p className="metadata">Discussions and unapproved designs stay here, separate from the backlog.</p>
+          <ErrorNotice error={conversations.error} />
+          {Boolean(conversations.error) && <button className="button secondary" type="button" onClick={conversations.refresh}>Reload conversations</button>}
+          {conversations.loading && !conversations.data && <p role="status">Loading conversations…</p>}
+          {conversations.data?.conversations.length === 0 && <p className="muted">Your first conversation starts when you send a message.</p>}
+          <ul className="conversation-list">
+            {conversations.data?.conversations.map((conversation) => (
+              <li key={conversation.id}>
+                <Link to={`/ideas?conversation=${encodeURIComponent(conversation.id)}`} aria-current={conversation.id === conversationId ? "page" : undefined}>
+                  <span>{conversation.title || "Untitled conversation"}</span>
+                  <span className="metadata">{conversation.state === "running" ? "Running" : conversation.state === "failed" ? "Needs attention" : conversation.pending_idea ? "Design awaiting your reply" : conversation.idea_id ? "Linked to saved idea" : "Discussion"}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </nav>
+        <div className="stack conversation-column">
+          <ErrorNotice error={approved.error} />
+          {ideaId && !record && approved.loading && <p role="status">Loading saved idea…</p>}
+          {(!ideaId || (record && conversations.data)) && (
+            <ConversationWorkspace key={conversationId || `new-${ideaId || "idea"}`} conversationId={conversationId} seedIdea={record} onChange={refresh} onOpen={openConversation} />
+          )}
+          {record && <ApprovedArtifact record={record} />}
+        </div>
+      </div>
+      <section className="stack" aria-labelledby="approved-ideas-heading">
+        <div className="section-heading">
+          <h2 id="approved-ideas-heading">Approved ideas</h2>
+          <span className="metadata">{ideas.data ? `${ideas.data.ideas.length} saved` : ""}</span>
+        </div>
+        <p className="muted">Approved designs and previously saved artifacts. Conversation drafts never appear here.</p>
         <ErrorNotice error={ideas.error} />
-        {ideas.loading && !ideas.data && (
-          <p role="status">Loading saved proposals…</p>
-        )}
+        {ideas.loading && !ideas.data && <p role="status">Loading approved ideas…</p>}
         {ideas.data?.ideas.length === 0 && (
-          <div className="empty-state">
-            <Plus size={26} aria-hidden="true" />
-            <h3>Your proposals will appear here</h3>
-            <p>
-              Generate proposals above, then edit and save one before preparing
-              an experiment.
-            </p>
-          </div>
+          <div className="empty-state"><MessageSquare size={26} aria-hidden="true" /><h3>No approved ideas yet</h3><p>Discuss a design above and approve the complete artifact in conversation to add it here.</p></div>
         )}
         <div className="card-grid proposal-grid">
-          {ideas.data?.ideas.map((record, index) => (
-            <article
-              className={`card stack proposal-card proposal-color-${index % 3}`}
-              key={record.id}
-            >
-              <div className="metadata">
-                Saved proposal · Revision {record.revision}
-              </div>
-              <h3>{preview(record.idea.Title) || "Untitled proposal"}</h3>
-              <p className="proposal-excerpt">
-                <strong>Hypothesis</strong>
-                <br />
-                {preview(record.idea["Short Hypothesis"]) ||
-                  "No hypothesis saved"}
-              </p>
-              <p className="proposal-excerpt">
-                <strong>Experiment plan</strong>
-                <br />
-                {preview(record.idea.Experiments) || "No experiment plan saved"}
-              </p>
-              <Link
-                className="button secondary"
-                to={`/ideas/${encodeURIComponent(record.id)}`}
-              >
-                Edit proposal <ArrowRight size={16} aria-hidden="true" />
-              </Link>
+          {ideas.data?.ideas.map((item, index) => (
+            <article className={`card stack proposal-card proposal-color-${index % 3}`} key={item.id}>
+              <div className="metadata">Saved artifact · Revision {item.revision}</div>
+              <h3>{ideaTitle(item.idea)}</h3>
+              {typeof item.idea["Short Hypothesis"] === "string" && <p className="proposal-excerpt">{item.idea["Short Hypothesis"]}</p>}
+              <Link className="button secondary" to={`/ideas/${encodeURIComponent(item.id)}`}>Open / refine idea <ArrowRight size={16} aria-hidden="true" /></Link>
             </article>
           ))}
         </div>

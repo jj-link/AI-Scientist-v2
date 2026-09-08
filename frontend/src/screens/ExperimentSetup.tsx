@@ -213,7 +213,7 @@ function Setup({
           The experiment snapshots exactly the requested saved revision. Later
           edits cannot change a running experiment.
         </p>
-        <Link to={`/ideas/${encodeURIComponent(idea.id)}`}>Edit proposal</Link>
+        <Link to={`/ideas/${encodeURIComponent(idea.id)}`}>Discuss or refine idea</Link>
       </section>
       <section className="card stack" aria-labelledby="setup-config">
         <h2 id="setup-config">Configurations and workload</h2>

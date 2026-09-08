@@ -13,6 +13,34 @@ export interface IdeaRecord {
   created_at: string;
   updated_at: string;
 }
+
+export interface IdeaConversation {
+  id: string;
+  title: string;
+  revision: number;
+  role_config_id: string;
+  state: "idle" | "running" | "failed";
+  messages: { role: "user" | "assistant"; content: string; idea?: Idea }[];
+  pending_idea: Idea | null;
+  idea_id: string | null;
+  error: { message: string } | null;
+  progress?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface IdeaConversationCreate {
+  request_id: string;
+  role_config_id: string;
+  message: string;
+  idea_id?: string;
+}
+
+export interface IdeaConversationMessage {
+  request_id: string;
+  expected_revision: number;
+  message: string;
+}
 export type JobState =
   | "starting"
   | "running"

@@ -38,6 +38,33 @@ class Request(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class IdeaConversationCreate(Request):
+    request_id: UUID
+    role_config_id: str = Field(min_length=1, max_length=256)
+    message: str = Field(min_length=1, max_length=20000)
+    idea_id: UUID | None = None
+
+    @field_validator("message")
+    @classmethod
+    def nonblank_message(cls, value):
+        if not value.strip():
+            raise ValueError("Enter a message.")
+        return value
+
+
+class IdeaConversationMessage(Request):
+    request_id: UUID
+    expected_revision: int = Field(ge=1, strict=True)
+    message: str = Field(min_length=1, max_length=20000)
+
+    @field_validator("message")
+    @classmethod
+    def nonblank_message(cls, value):
+        if not value.strip():
+            raise ValueError("Enter a message.")
+        return value
+
+
 class IdeaJobRequest(Request):
     request_id: UUID
     research_question: str = Field(min_length=1, max_length=50000)

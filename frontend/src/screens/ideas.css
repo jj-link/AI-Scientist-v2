@@ -1,18 +1,8 @@
-.generation-settings,
-.editor-fields {
+.generation-settings {
   min-width: 0;
   margin: 0;
   padding: 0;
   border: 0;
-}
-.example-topics {
-  gap: 8px;
-}
-.example-topic {
-  max-width: 350px;
-  text-align: left;
-  white-space: normal;
-  font-size: 14px;
 }
 .proposal-grid {
   align-items: stretch;
@@ -39,20 +29,6 @@
   -webkit-box-orient: vertical;
   overflow: hidden;
   overflow-wrap: anywhere;
-}
-.editor-list-item {
-  background: #faf7f0;
-  padding: 16px;
-}
-.editor-fields > .advanced > .stack {
-  margin-top: 16px;
-}
-.json-editor {
-  font-family: Consolas, "Courier New", monospace;
-  font-size: 14px;
-  tab-size: 2;
-  overflow-wrap: normal;
-  white-space: pre;
 }
 .output-path {
   overflow-wrap: anywhere;
@@ -89,14 +65,135 @@
   accent-color: #a8402d;
 }
 @media (max-width: 640px) {
-  .example-topic {
-    max-width: none;
-    width: 100%;
-  }
-  .editor-list-item {
-    padding: 12px;
-  }
   .execution-ack {
     gap: 8px;
+  }
+}
+
+.ideas-workspace {
+  display: grid;
+  grid-template-columns: minmax(190px, 250px) minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+.conversation-column,
+.conversation-workspace,
+.conversation-navigation {
+  min-width: 0;
+}
+.conversation-navigation {
+  gap: 16px;
+}
+.conversation-navigation h2 {
+  font-size: 20px;
+}
+.conversation-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.conversation-list a {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  overflow-wrap: anywhere;
+  text-decoration: none;
+}
+.conversation-list a[aria-current="page"] {
+  background: var(--teal-tint);
+  border-color: #1b6c60;
+}
+.conversation-messages {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+.conversation-messages:empty {
+  display: none;
+}
+.conversation-message {
+  padding: 16px;
+  background: #faf7f0;
+  border-left: 3px solid #1b6c60;
+  min-width: 0;
+}
+.message-user {
+  border-left-color: #a8402d;
+  background: #f5eee4;
+}
+.conversation-message h3 {
+  font-size: 14px;
+  margin: 0 0 8px;
+}
+.conversation-text,
+.complete-idea .prose {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: 1.65;
+}
+.pending-design {
+  padding: 20px;
+  border: 2px solid #1b6c60;
+  border-radius: 6px;
+}
+.pending-design h3 {
+  margin: 0;
+}
+.complete-idea {
+  margin: 0;
+  min-width: 0;
+}
+.complete-idea > div + div {
+  margin-top: 20px;
+}
+.complete-idea dt {
+  font-weight: 700;
+  overflow-wrap: anywhere;
+  margin-bottom: 6px;
+}
+.complete-idea dd {
+  margin: 0;
+  min-width: 0;
+}
+.presented-design {
+  margin-top: 12px;
+}
+.presented-design summary {
+  cursor: pointer;
+  margin-bottom: 12px;
+}
+.conversation-composer {
+  gap: 12px;
+}
+.conversation-progress p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.conversation-workspace h2,
+.conversation-column h2 {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 800px) {
+  .ideas-workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .conversation-navigation {
+    max-height: 280px;
+    overflow-y: auto;
+  }
+}
+@media (max-width: 640px) {
+  .conversation-message,
+  .pending-design {
+    padding: 12px;
   }
 }

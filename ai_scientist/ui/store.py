@@ -45,6 +45,23 @@ class Store:
                     idea TEXT NOT NULL, original TEXT NOT NULL,
                     created_at TEXT NOT NULL, updated_at TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS idea_conversations (
+                    id TEXT PRIMARY KEY, title TEXT NOT NULL, revision INTEGER NOT NULL,
+                    role_config_id TEXT NOT NULL, state TEXT NOT NULL,
+                    messages TEXT NOT NULL, pending_idea TEXT, candidate_revision INTEGER,
+                    idea_id TEXT, idea_revision INTEGER, base_idea TEXT,
+                    error TEXT, progress TEXT, owner TEXT, active_request TEXT,
+                    approval_revision INTEGER, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS idea_conversation_requests (
+                    request_id TEXT PRIMARY KEY, conversation_id TEXT NOT NULL,
+                    fingerprint TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS idea_conversation_sources (
+                    sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+                    conversation_id TEXT NOT NULL, request_id TEXT NOT NULL,
+                    evidence TEXT NOT NULL
+                );
                 CREATE TABLE IF NOT EXISTS events (
                     sequence INTEGER PRIMARY KEY AUTOINCREMENT,
                     job_id TEXT NOT NULL, timestamp TEXT NOT NULL,
@@ -472,3 +489,164 @@ class Store:
                 raise Conflict({"message": "Proposal changed; reload before saving", "revision": record["revision"]})
             db.execute("UPDATE ideas SET idea=?,revision=revision+1,updated_at=? WHERE id=?", (json.dumps(normalize_idea(idea)), now(), id))
         return self.get_idea(id)
+
+    @staticmethod
+    def conversation_record(row, *, internal=False):
+        if row is None:
+            raise KeyError("Conversation not found")
+        result = dict(row)
+        for key in ("messages", "pending_idea", "base_idea", "error", "owner"):
+            result[key] = json.loads(result[key]) if result[key] is not None else None
+        if not internal:
+            for key in ("owner", "active_request", "approval_revision", "idea_revision", "base_idea"):
+                result.pop(key)
+        return result
+
+    def conversations(self, *, internal=False):
+        with self.connection() as db:
+            return [self.conversation_record(row, internal=internal) for row in db.execute(
+                "SELECT * FROM idea_conversations ORDER BY updated_at DESC")]
+
+    def get_conversation(self, id, *, internal=False):
+        with self.connection() as db:
+            return self.conversation_record(db.execute(
+                "SELECT * FROM idea_conversations WHERE id=?", (id,)).fetchone(), internal=internal)
+
+    def claim_conversation(self, request_id, message, owner, *, conversation_id=None,
+                           expected_revision=None, role_config_id=None, idea_id=None):
+        """Persist user input and its unique turn claim before scheduling any network work."""
+        from .idea_conversations import explicit_approval
+        request_id = str(UUID(str(request_id)))
+        fingerprint = json.dumps([conversation_id, expected_revision, role_config_id, idea_id, message])
+        with self.connection() as db:
+            db.execute("BEGIN IMMEDIATE")
+            prior = db.execute("SELECT * FROM idea_conversation_requests WHERE request_id=?",
+                               (request_id,)).fetchone()
+            if prior:
+                if prior["fingerprint"] != fingerprint:
+                    raise Conflict({"message": "This request ID was already used for a different message."})
+                return self.conversation_record(db.execute(
+                    "SELECT * FROM idea_conversations WHERE id=?", (prior["conversation_id"],)).fetchone()), False
+            stamp = now()
+            if conversation_id is None:
+                conversation_id = str(uuid4())
+                baseline = self.idea_record(db.execute("SELECT * FROM ideas WHERE id=?", (idea_id,)).fetchone()) if idea_id else None
+                db.execute(
+                    "INSERT INTO idea_conversations(id,title,revision,role_config_id,state,messages,"
+                    "idea_id,idea_revision,base_idea,created_at,updated_at) VALUES(?,?,0,?,'idle','[]',?,?,?,?,?)",
+                    (conversation_id, message.strip()[:100], role_config_id, idea_id,
+                     baseline["revision"] if baseline else None,
+                     json.dumps(baseline["idea"]) if baseline else None, stamp, stamp))
+            record = self.conversation_record(db.execute(
+                "SELECT * FROM idea_conversations WHERE id=?", (conversation_id,)).fetchone(), internal=True)
+            if record["state"] == "running":
+                raise Conflict({"message": "The assistant is still responding. Stop it or wait before sending."})
+            if expected_revision is not None and record["revision"] != expected_revision:
+                raise Conflict({"message": "This conversation changed. Reload before sending.",
+                                "revision": record["revision"]})
+            approval = record["candidate_revision"] if record["pending_idea"] is not None and explicit_approval(message) else None
+            messages = record["messages"] + [{"role": "user", "content": message}]
+            db.execute(
+                "UPDATE idea_conversations SET messages=?,revision=revision+1,state='running',error=NULL,"
+                "progress='Thinking about your idea…',owner=?,active_request=?,approval_revision=?,"
+                "pending_idea=?,candidate_revision=?,updated_at=? WHERE id=?",
+                (json.dumps(messages), json.dumps(owner), request_id, approval,
+                 json.dumps(record["pending_idea"]) if approval is not None else None,
+                 record["candidate_revision"] if approval is not None else None, stamp, conversation_id))
+            db.execute("INSERT INTO idea_conversation_requests VALUES(?,?,?)",
+                       (request_id, conversation_id, fingerprint))
+            return self.conversation_record(db.execute(
+                "SELECT * FROM idea_conversations WHERE id=?", (conversation_id,)).fetchone()), True
+
+    def conversation_progress(self, id, request_id, progress):
+        with self.connection() as db:
+            db.execute("UPDATE idea_conversations SET progress=?,updated_at=? "
+                       "WHERE id=? AND active_request=? AND state='running'",
+                       (progress, now(), id, request_id))
+
+    def finish_conversation(self, id, request_id, *, message=None, candidate=None,
+                            approve_revision=None, error=None):
+        """Commit the exact presented JSON and acknowledgement together, or nothing."""
+        from .idea_conversations import explicit_approval
+        with self.connection() as db:
+            db.execute("BEGIN IMMEDIATE")
+            record = self.conversation_record(db.execute(
+                "SELECT * FROM idea_conversations WHERE id=?", (id,)).fetchone(), internal=True)
+            if record["state"] != "running" or record["active_request"] != request_id:
+                return False
+            stamp = now()
+            pending = record["pending_idea"]
+            pending_revision = record["candidate_revision"]
+            if approve_revision is not None:
+                if (type(approve_revision) is not int or pending is None
+                        or approve_revision != pending_revision
+                        or approve_revision != record["approval_revision"]
+                        or not explicit_approval(record["messages"][-1]["content"])
+                        or candidate is not None):
+                    raise Conflict({"message": "Approval no longer matches the presented idea. Please review it again."})
+                payload = json.dumps(pending, ensure_ascii=False, allow_nan=False)
+                if record["idea_id"] is None:
+                    record["idea_id"] = str(uuid4())
+                    record["idea_revision"] = 1
+                    db.execute("INSERT INTO ideas VALUES(?,?,1,?,?,?,?)",
+                               (record["idea_id"], id, payload, payload, stamp, stamp))
+                else:
+                    changed = db.execute(
+                        "UPDATE ideas SET idea=?,revision=revision+1,updated_at=? WHERE id=? AND revision=?",
+                        (payload, stamp, record["idea_id"], record["idea_revision"])).rowcount
+                    if not changed:
+                        raise Conflict({"message": "The saved idea changed elsewhere. Start a new discussion from its latest revision; nothing was overwritten."})
+                    record["idea_revision"] += 1
+                record["base_idea"] = pending
+                message = "Saved the exact idea you approved to the ideas backlog."
+                pending, pending_revision = None, None
+            elif candidate is not None:
+                pending, pending_revision = candidate, record["revision"] + 1
+                message = message or "Here is the complete idea for your review."
+            elif error is None:
+                pending, pending_revision = None, None
+            messages = record["messages"]
+            if message:
+                reply = {"role": "assistant", "content": message}
+                if candidate is not None:
+                    reply["idea"] = candidate
+                messages.append(reply)
+            db.execute(
+                "UPDATE idea_conversations SET state=?,revision=revision+1,messages=?,pending_idea=?,"
+                "candidate_revision=?,idea_id=?,idea_revision=?,base_idea=?,error=?,progress=NULL,owner=NULL,"
+                "active_request=NULL,approval_revision=NULL,updated_at=? WHERE id=?",
+                ("failed" if error else "idle", json.dumps(messages),
+                 json.dumps(pending, ensure_ascii=False, allow_nan=False) if pending is not None else None,
+                 pending_revision, record["idea_id"], record["idea_revision"],
+                 json.dumps(record["base_idea"]) if record["base_idea"] is not None else None,
+                 json.dumps(error) if error else None, stamp, id))
+            return True
+
+    def stop_conversation(self, id, *, request_id=None, interrupted=False):
+        with self.connection() as db:
+            db.execute("BEGIN IMMEDIATE")
+            record = self.conversation_record(db.execute(
+                "SELECT * FROM idea_conversations WHERE id=?", (id,)).fetchone(), internal=True)
+            if record["state"] == "running" and (request_id is None or request_id == record["active_request"]):
+                error = {"message": "The response was interrupted. Your discussion is retained; send a message to continue."} if interrupted else None
+                messages = record["messages"] + [{"role": "assistant", "content":
+                    "Response interrupted; nothing new was saved." if interrupted else "Stopped. Nothing new was saved; you can continue this discussion."}]
+                db.execute(
+                    "UPDATE idea_conversations SET state=?,revision=revision+1,messages=?,error=?,progress=NULL,"
+                    "owner=NULL,active_request=NULL,approval_revision=NULL,updated_at=? WHERE id=?",
+                    ("failed" if interrupted else "idle", json.dumps(messages), json.dumps(error) if error else None, now(), id))
+        return self.get_conversation(id)
+
+    def conversation_sources(self, id):
+        with self.connection() as db:
+            return [json.loads(row["evidence"]) for row in db.execute(
+                "SELECT evidence FROM idea_conversation_sources WHERE conversation_id=? ORDER BY sequence", (id,))]
+
+    def add_conversation_source(self, id, request_id, evidence):
+        """Retain actual tool evidence separately from user/assistant dialogue."""
+        with self.connection() as db:
+            return bool(db.execute(
+                "INSERT INTO idea_conversation_sources(conversation_id,request_id,evidence) "
+                "SELECT id,active_request,? FROM idea_conversations "
+                "WHERE id=? AND active_request=? AND state='running'",
+                (json.dumps(evidence, ensure_ascii=False, allow_nan=False), id, request_id)).rowcount)

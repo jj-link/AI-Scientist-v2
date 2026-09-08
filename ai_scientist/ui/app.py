@@ -21,6 +21,8 @@ from . import diagnostics
 from .artifacts import artifact_file, list_runs, run_detail
 from .configs import Configs, EditorConflict, InvalidConfiguration, assistant_settings_view
 from .diagnostics import CrashAssistant, PublishUnknown, PublishUnavailable, REPOSITORY, sanitize_text
+from .idea_conversations import IdeaConversations
+from .schemas import IdeaConversationCreate, IdeaConversationMessage
 from .schemas import AssistantSettingsUpdate, EndpointModelsRequest, ExperimentRequest, ModelConfigUpdate, IdeaJobRequest, IdeaUpdate, IssueDraftUpdate, IssuePublish, ModelCheck
 from .schemas import Request as ProviderAction
 from .store import Conflict, Store
@@ -105,15 +107,18 @@ def create_app(root: Path | None = None, *, development: bool = False) -> FastAP
     launch_lock = threading.RLock()
     assets = (root / "frontend" / "dist").resolve()
     assistant = CrashAssistant(store, configs)
+    idea_conversations = IdeaConversations(store, configs)
     codex_auth = get_auth()
 
     @asynccontextmanager
     async def lifespan(app):
         supervisor.start()
         await assistant.start()
+        await idea_conversations.start()
         try:
             yield
         finally:
+            await idea_conversations.close()
             await assistant.close()
             await asyncio.to_thread(codex_auth.close)
             supervisor.close()
@@ -123,6 +128,7 @@ def create_app(root: Path | None = None, *, development: bool = False) -> FastAP
     app.state.configs = configs
     app.state.supervisor = supervisor
     app.state.crash_assistant = assistant
+    app.state.idea_conversations = idea_conversations
     app.state.codex_auth = codex_auth
     app.add_middleware(LocalBoundary, token=request_token, development=development)
 
@@ -184,6 +190,30 @@ def create_app(root: Path | None = None, *, development: bool = False) -> FastAP
     @app.get("/api/ideas")
     def ideas():
         return {"ideas": store.ideas()}
+
+    @app.get("/api/idea-conversations")
+    def conversations():
+        return {"conversations": store.conversations()}
+
+    @app.get("/api/idea-conversations/{conversation_id}")
+    def conversation(conversation_id: str):
+        return store.get_conversation(conversation_id)
+
+    @app.post("/api/idea-conversations", status_code=202)
+    async def create_conversation(body: IdeaConversationCreate):
+        return idea_conversations.submit(str(body.request_id), body.message,
+                                         role_config_id=body.role_config_id,
+                                         idea_id=str(body.idea_id) if body.idea_id else None)
+
+    @app.post("/api/idea-conversations/{conversation_id}/messages", status_code=202)
+    async def conversation_message(conversation_id: str, body: IdeaConversationMessage):
+        return idea_conversations.submit(str(body.request_id), body.message,
+                                         conversation_id=conversation_id,
+                                         expected_revision=body.expected_revision)
+
+    @app.post("/api/idea-conversations/{conversation_id}/stop")
+    async def stop_conversation(conversation_id: str, body: ProviderAction):
+        return await idea_conversations.stop(conversation_id)
 
     @app.get("/api/ideas/{idea_id}")
     def idea(idea_id: str):

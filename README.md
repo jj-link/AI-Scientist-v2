@@ -87,12 +87,20 @@ command. The launch command prints the URL and fails clearly if UI dependencies,
 built assets, or the fixed loopback port are unavailable. There is no LAN/public
 host option.
 
-Describe a research question on **Ideas**. Example topics only fill the form.
-Generation uses `role/ideation` with the selected configuration; an attempt can
-produce no proposal. Edit and explicitly save a proposal before selecting
-**Prepare experiment**. Incomplete drafts can be saved, but cannot run. Proposal
-exports are launcher-compatible single-element JSON arrays; original generated
-JSON and unknown scientific fields are retained.
+Use one conversation on **Ideas** to share an idea, ask for suggestions, and
+refine the design. The agent uses `role/ideation` from the selected configuration
+and presents the complete candidate for review. Approve it in the conversation;
+the agent saves exactly that candidate to the ideas backlog. There is no separate
+Save or Approve button, and a refinement request does not approve the previous
+candidate. Reopen a saved idea to continue discussing it; further changes require
+another approval before replacing the saved artifact.
+
+Discussions have no fixed five-call cutoff. **Stop** cancels the current turn
+without approving a design. Incomplete designs can be approved and saved, but
+cannot run until the experiment plan is complete. **Prepare experiment** remains
+a separate step, and saving never starts an experiment. Exports are
+launcher-compatible single-element JSON arrays; original saved JSON and unknown
+scientific fields are retained.
 
 Preparation displays the actual workload and exclusive output directory.
 **Start experiment** requires an explicit acknowledgment:
@@ -124,6 +132,10 @@ An endpoint can set a display `label` (for example, `label: Spark cluster`);
 role assignments still reference its YAML key, so labels do not change routing.
 Changing a role's endpoint clears its model selection. Choose a model for the new
 endpoint before saving; discovery does not automatically assign one.
+Role cards identify each task with plain-language titles and its exact
+`role/<name>` key. The supplied presets declare only the assignments the default
+workflow selects; a role chooses a model and settings, not a separate agent or a
+shared conversation, so tasks can reuse one model with different contexts.
 
 **Save configuration** patches the selected YAML file, preserving comments and
 unrelated settings. Endpoint edits must be saved before their new connection is
@@ -165,14 +177,15 @@ Launch Studio from a newly opened terminal (restart its parent IDE or service
 manager if needed), or pass that launch process the existing tool directory on
 PATH. Do not assume an unavailable check means the tools need reinstalling.
 
-Only one generation or experiment job can be active. Browser refresh and
+Only one generation or experiment worker job can be active. Browser refresh and
 reopening reconnect to monitoring; workers can finish while the HTTP server is
 closed. **Stop** preserves outputs and stops only the recorded worker and its
 descendants after a ten-second cooperative grace period. There is no
 computational pause/resume or automatic research restart. On server restart,
 missing worker identities become **Interrupted**, not completed.
 
-Local state is stored in `ui_data/ui.sqlite3`; immutable requests/configuration
+Local state, including conversations, retrieved source evidence, and approved
+ideas, is stored in `ui_data/ui.sqlite3`; immutable worker requests/configuration
 snapshots and private technical logs are under `ui_data/jobs/<uuid>/`. New runs
 use exclusive `experiments/ui_<uuid>/` directories. Keep both directories to
 retain saved proposals, lifecycle history, and artifacts. Configuration

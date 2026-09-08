@@ -7,7 +7,6 @@ import {
 } from "react-router-dom";
 import App from "./App";
 import Ideas from "./screens/Ideas";
-import IdeaEditor from "./screens/IdeaEditor";
 import ExperimentSetup from "./screens/ExperimentSetup";
 import Experiments from "./screens/Experiments";
 import Results from "./screens/Results";
@@ -20,7 +19,7 @@ const router = createBrowserRouter([
     children: [
       { path: "/", element: <Navigate to="/ideas" replace /> },
       { path: "/ideas", element: <Ideas /> },
-      { path: "/ideas/:ideaId", element: <IdeaEditor /> },
+      { path: "/ideas/:ideaId", element: <Ideas /> },
       { path: "/ideas/:ideaId/setup", element: <ExperimentSetup /> },
       { path: "/experiments", element: <Experiments /> },
       { path: "/experiments/:jobId", element: <Experiments /> },
