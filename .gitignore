@@ -174,7 +174,8 @@ data/
 templates/*/run_0/
 templates/*/*.png
 results/
-# logs/
+# Local model request logs
+/logs/*_requests.jsonl
 
 # data folders under review_iclr_bench/
 review_iclr_bench/iclr_papers/
