@@ -1229,25 +1229,51 @@ dialog::backdrop {
   background:#fff;
 }
 
+.models-role-heading {
+  display:flex;
+  justify-content:space-between;
+  align-items:baseline;
+  flex-wrap:wrap;
+  gap:8px 16px;
+}
+
+.models-role-description {
+  max-width:90ch;
+  margin:8px 0 16px;
+  line-height:1.55;
+}
+
+.models-role-note {
+  margin:0 0 16px;
+  padding:8px 12px;
+  border-left:3px solid var(--border);
+  color:var(--muted);
+  font-size:13px;
+  line-height:1.5;
+}
+
 .models-role-primary {
   display:grid;
-  grid-template-columns:minmax(120px,.8fr) minmax(0,1fr) minmax(0,1.6fr) auto;
+  grid-template-columns:minmax(0,1fr) minmax(0,1.6fr) auto;
   gap:16px;
   align-items:start;
 }
 
 .models-role-name {
   min-width:0;
-  padding-top:2px;
+  display:flex;
+  align-items:baseline;
+  flex-wrap:wrap;
+  gap:4px 12px;
 }
 
 .models-role-name h3 {
   font-size:16px;
-  margin:0 0 4px;
+  margin:0;
 }
 
 .models-role-name .metadata {
-  display:block;
+  overflow-wrap:anywhere;
   font-size:12px;
 }
 
@@ -1373,12 +1399,6 @@ dialog::backdrop {
 }
 
 @media(max-width:1199px) {
-  .models-role-primary {
-    grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto;
-  }
-  .models-role-name {
-    grid-column:1 / -1;
-  }
   .models-save-main {
     grid-template-columns:minmax(0,1fr) auto;
     row-gap:4px;
@@ -1406,9 +1426,6 @@ dialog::backdrop {
   }
   .models-role-primary,.models-save-main {
     grid-template-columns:minmax(0,1fr);
-  }
-  .models-role-name {
-    grid-column:auto;
   }
   .models-advanced-toggle {
     margin-top:0;

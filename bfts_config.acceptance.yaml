@@ -25,10 +25,6 @@ exec:
   format_tb_ipython: False
 
 generate_report: True
-# LLM settings for final report from journal
-report:
-  model: role/report
-  temp: 1.0
 
 experiment:
   num_syn_datasets: 1

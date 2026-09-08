@@ -1,0 +1,44 @@
+# Acceptance-run role config: expanded reasoning budgets and local coding roles.
+# Spark roles use the same directly reachable cluster as ais_roles.yaml.
+endpoints:
+  local:
+    base_url: http://localhost:8000/v1
+    api_key_env: LOCAL_MODEL_API_KEY
+    provides: [text, function_calling, vision]
+    requires_user_message: true
+
+  spark:
+    label: Spark cluster
+    base_url: http://100.92.139.82:8888/v1
+    api_key_env: SPARK_MODEL_API_KEY
+    provides: [text, vision, function_calling]
+
+  codex:
+    label: Codex (ChatGPT)
+    provider: openai-codex
+    provides: [text, vision, function_calling]
+
+roles:
+  ideation:               {endpoint: spark, model: glm-5.3-flash, max_tokens: 32768}
+  # qwen3.8 is a reasoning model. Treesearch callers pass max_tokens from the
+  # bfts config (agent.code), which overrides the role budget below; the role
+  # budget applies only when a caller passes none (backend_openai fallback).
+  # Coding roles need headroom for reasoning + code in both paths.
+  experiment_code:        {endpoint: local, model: qwen3.8-27b-6000pro, max_tokens: 32768, requires: [function_calling]}
+  # plot_generation: aggregator-script generation hit the same reasoning wall
+  # (32,616 reasoning chars, finish_reason='length') at 8192.
+  plot_generation:        {endpoint: local, model: qwen3.8-27b-6000pro, max_tokens: 32768}
+  tree_scoring:           {endpoint: local, model: qwen3.8-27b-6000pro, max_tokens: 4096, requires: [function_calling]}
+  experiment_feedback:    {endpoint: spark, model: glm-5.3-flash, max_tokens: 32768}
+  findings_synthesis:     {endpoint: spark, model: glm-5.3-flash, max_tokens: 32768}
+  # Local vision routing is retained from acceptance testing of the previous
+  # Spark DeepSeek model, which exhausted its output budget without content.
+  visual_feedback:        {endpoint: local, model: qwen3.8-27b-6000pro, max_tokens: 8192, requires: [vision]}
+  review:                 {endpoint: spark, model: glm-5.3-flash, max_tokens: 32768}
+  writeup:                {endpoint: spark, model: glm-5.3-flash, max_tokens: 32768, timeout: 1800}
+
+  citation:               {endpoint: local, model: qwen3.8-27b-6000pro, max_tokens: 4096}
+  writeup_small:          {endpoint: local, model: qwen3.8-27b-6000pro, max_tokens: 8192}
+
+experiment_execution:
+  cuda_device: 0

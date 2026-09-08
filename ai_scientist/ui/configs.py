@@ -48,7 +48,7 @@ class EditorConflict(Exception):
 _ENV_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*\Z")
 _REQUIRED_ROLES = ("ideation", "experiment_code", "experiment_feedback", "visual_feedback",
                    "findings_synthesis", "tree_scoring", "plot_generation", "citation",
-                   "writeup", "writeup_small", "review", "report")
+                   "writeup", "writeup_small", "review")
 
 
 def _now() -> str:
