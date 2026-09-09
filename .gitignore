@@ -176,6 +176,8 @@ templates/*/*.png
 results/
 # Local model request logs
 /logs/*_requests.jsonl
+# Local model assignments, edited through the Studio Models screen
+/ais_roles.yaml
 
 # data folders under review_iclr_bench/
 review_iclr_bench/iclr_papers/
