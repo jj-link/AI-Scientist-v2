@@ -287,7 +287,7 @@ function Setup({
         <div className="stack">
           <section className="card stack" aria-labelledby="setup-research-models">
             <div>
-              <h2 id="setup-research-models">Which models do the research?</h2>
+              <h2 id="setup-research-models">Role assignments</h2>
               <p>These assignments tell AI-Scientist who writes the experiment code, evaluates its outputs, and writes the paper.</p>
               <p className="setup-distinction"><strong>Research models are not the models being studied.</strong> A model named in your proposal is an experimental subject. Selecting it in the proposal does not load it or assign it to the research roles below.</p>
             </div>
