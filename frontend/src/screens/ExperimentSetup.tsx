@@ -75,7 +75,6 @@ function workloadLabel(config: Bootstrap["bfts_configs"][number]) {
 function ResearchModels({ configId }: { configId: string }) {
   const view = useApi<ModelsView>(`/api/models?config_id=${encodeURIComponent(configId)}`);
   const models = view.data?.config_id === configId ? view.data : undefined;
-  const primaryRoles = ["experiment_code", "experiment_feedback", "writeup"];
   const researchRoles = models?.roles.filter((role) => role.name !== "ideation") || [];
   function assignment(role: ModelRole) {
     const help = Object.hasOwn(ROLE_HELP, role.name) ? ROLE_HELP[role.name] : CUSTOM_ROLE_HELP;
@@ -99,13 +98,7 @@ function ResearchModels({ configId }: { configId: string }) {
       {models && (
         <>
           {researchRoles.length === 0 && <p className="notice">No research roles are configured in this preset. Review the assignments in Models.</p>}
-          <dl className="setup-models">{researchRoles.filter((role) => primaryRoles.includes(role.name)).map(assignment)}</dl>
-          {researchRoles.some((role) => !primaryRoles.includes(role.name)) && (
-            <details className="setup-details">
-              <summary>Analysis, figures, citations, and other assignments</summary>
-              <dl className="setup-models">{researchRoles.filter((role) => !primaryRoles.includes(role.name)).map(assignment)}</dl>
-            </details>
-          )}
+          <dl className="setup-models">{researchRoles.map(assignment)}</dl>
         </>
       )}
     </>
@@ -285,12 +278,9 @@ function Setup({
 
       <div className="setup-columns">
         <div className="stack">
-          <section className="card stack" aria-labelledby="setup-research-models">
-            <div>
-              <h2 id="setup-research-models">Role assignments</h2>
-              <p>These assignments tell AI-Scientist who writes the experiment code, evaluates its outputs, and writes the paper.</p>
-              <p className="setup-distinction"><strong>Research models are not the models being studied.</strong> A model named in your proposal is an experimental subject. Selecting it in the proposal does not load it or assign it to the research roles below.</p>
-            </div>
+          <details className="card setup-role-assignments">
+            <summary id="setup-research-models">Role assignments</summary>
+            <div className="stack">
             <ResearchModels key={selectedRoleId} configId={selectedRoleId} />
             <Link to="/models">Edit research model assignments <ArrowRight size={16} aria-hidden="true" /></Link>
             <details className="setup-details">
@@ -305,50 +295,8 @@ function Setup({
               </fieldset>
               <p className="metadata">Changes to model assignments are made in Models. This selector chooses which saved configuration the run will copy.</p>
             </details>
-          </section>
-
-          <section className="card stack" aria-labelledby="local-readiness">
-            <div>
-              <h2 id="local-readiness">What has actually been checked?</h2>
-              <p>A saved proposal is not proof that its models, datasets, or runtime are ready.</p>
             </div>
-            <div className="setup-check-group">
-              <h3>Checked here: paper-processing tools</h3>
-              <ul className="setup-checks">
-                {bootstrap.prerequisites.tools.map((tool) => (
-                  <li key={tool.name}>
-                    <span><strong>{tool.name === "pdflatex" ? "Build the PDF" : tool.name === "bibtex" ? "Build the bibliography" : tool.name === "pdftotext" ? "Read PDF text" : tool.name}</strong><small>{tool.name}</small></span>
-                    <span className={tool.available ? "setup-check-ok" : "setup-check-missing"}>{tool.available ? "Available" : "Missing"}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <div className="setup-check-group">
-              <h3>Checked when you press Start</h3>
-              <p>The saved configurations and research endpoint model listings. A listed model is not proof that inference will succeed.</p>
-            </div>
-            <div className="setup-unverified">
-              <h3>Not verified by this screen</h3>
-              <p>The model and dataset required by your study, GPU memory fit, context capacity, runtime features such as speculative decoding, and benchmark test environments. These requirements stay in the saved design; this page does not install or validate them.</p>
-            </div>
-            {localBlockers.length > 0 && (
-              <div className="error-notice" role="alert">
-                <strong>Resolve these before starting</strong>
-                <ul>{localBlockers.map((blocker, index) => <li key={index}>{blocker}</li>)}</ul>
-                <p>No dependency will be installed automatically by this preparation page.</p>
-              </div>
-            )}
-            <div className="actions">
-              <button className="button secondary" type="button" disabled={submitting}
-                onClick={() => { refreshBootstrap(); refreshIdea(); }}>Recheck local tools and saved settings</button>
-            </div>
-            {active && (
-              <div className="notice">
-                <p>Another job is using the compute slot. Wait for it to finish or stop it before starting this run.</p>
-                <Link to={`/experiments/${encodeURIComponent(active.id)}`}>Open active {active.kind === "idea" ? "generation" : "experiment"} job</Link>
-              </div>
-            )}
-          </section>
+          </details>
         </div>
 
         <aside className="card stack setup-run-settings" aria-labelledby="setup-config">
@@ -409,6 +357,23 @@ function Setup({
           <h2 id="execution-permissions"><ShieldAlert size={24} aria-hidden="true" /> Start this research run</h2>
           <p>This starts code generation, execution, analysis, and paper writing using the saved study and selected settings above.</p>
         </div>
+            {localBlockers.length > 0 && (
+              <div className="error-notice" role="alert">
+                <strong>Resolve these before starting</strong>
+                <ul>{localBlockers.map((blocker, index) => <li key={index}>{blocker}</li>)}</ul>
+                <p>No dependency will be installed automatically by this preparation page.</p>
+            <div className="actions">
+              <button className="button secondary" type="button" disabled={submitting}
+                onClick={() => { refreshBootstrap(); refreshIdea(); }}>Recheck local tools and saved settings</button>
+            </div>
+              </div>
+            )}
+            {active && (
+              <div className="notice">
+                <p>Another job is using the compute slot. Wait for it to finish or stop it before starting this run.</p>
+                <Link to={`/experiments/${encodeURIComponent(active.id)}`}>Open active {active.kind === "idea" ? "generation" : "experiment"} job</Link>
+              </div>
+            )}
         <label className="execution-ack" htmlFor="execution-ack">
           <input id="execution-ack" type="checkbox" checked={acknowledged} disabled={submitting || Boolean(pending)}
             onChange={(event) => setAcknowledged(event.target.checked)} required />
