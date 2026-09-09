@@ -36,59 +36,53 @@ roles:  # Selected by the default pipeline. Custom callers may reference role/<n
     model: gpt-6-astra
   experiment_code:        # code generation + debugging (agent.code)
     endpoint: spark
-    model: glm-5.3-flash
+    model: GLM-5.3-Flash-EXL3
     max_tokens: 12000
     requires: [function_calling]
   experiment_feedback:    # result/traceback evaluation (agent.feedback)
     endpoint: spark
-    model: glm-5.3-flash
+    model: GLM-5.3-Flash-EXL3
     max_tokens: 8192
 
   tree_scoring:           # tree-search node selection + scoring (select_node)
     endpoint: spark
-    model: glm-5.3-flash
+    model: GLM-5.3-Flash-EXL3
     max_tokens: 4096
     requires: [function_calling]
   findings_synthesis:     # summarizing scientific findings (summary)
     endpoint: spark
-    model: glm-5.3-flash
+    model: GLM-5.3-Flash-EXL3
     max_tokens: 8192
 
   visual_feedback:        # interpreting plots/figures during search (vlm_feedback)
     endpoint: spark
-    model: glm-5.3-flash
+    model: GLM-5.3-Flash-EXL3
     max_tokens: 4096
     requires: [vision]
   writeup:                # main paper writeup + reflection (model_writeup)
     endpoint: spark
-    model: glm-5.3-flash
+    model: GLM-5.3-Flash-EXL3
     max_tokens: 16384
 
   review:                 # paper review + meta-review (model_review)
     endpoint: spark
-    model: glm-5.3-flash
+    model: GLM-5.3-Flash-EXL3
     max_tokens: 8192
 
   # ---- Routine / high-volume work: local model by default ----
 
   plot_generation:        # generating aggregation/plotting code (model_agg_plots)
-    endpoint: local
-    model: qwen3.8-27b-6000pro
+    endpoint: spark
+    model: GLM-5.3-Flash-EXL3
     max_tokens: 8192
 
   citation:               # citation lookup + formatting (model_citation)
-    endpoint: local
-    model: qwen3.8-27b-6000pro
+    endpoint: spark
+    model: GLM-5.3-Flash-EXL3
     max_tokens: 4096
 
   writeup_small:          # smaller writeup revisions (model_writeup_small)
-    endpoint: local
-    model: qwen3.8-27b-6000pro
-    max_tokens: 8192
-# Generated experiment code executes on the RTX 4090.
-# CUDA device enumeration (torch) on this workstation: 0 = RTX 4090 (24 GiB),
-# 1 = RTX PRO 6000 Blackwell (95.6 GiB, model serving). nvidia-smi lists the
-# PRO 6000 first, but CUDA/torch order is inverted — verify with:
-# python -c "import torch; [print(i, torch.cuda.get_device_name(i)) for i in range(torch.cuda.device_count())]"
+    endpoint: spark
+    model: GLM-5.3-Flash-EXL3
 experiment_execution:
   cuda_device: 0
