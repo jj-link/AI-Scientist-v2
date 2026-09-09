@@ -21,69 +21,10 @@ import {
   type ModelsCheck,
   type ModelsView,
 } from "../api";
-import { ConfigSelect, ErrorNotice, PageHeading } from "../components";
+import { ConfigSelect, ErrorNotice, PageHeading, ROLE_HELP, CUSTOM_ROLE_HELP } from "../components";
 import { useStudio } from "../studio";
 import CodexProviderCard from "./CodexProviderCard";
 
-interface RoleHelp {
-  title: string;
-  description: string;
-  usageNote?: string;
-}
-
-const ROLE_HELP: Record<string, RoleHelp> = {
-  ideation: {
-    title: "Generate research ideas",
-    description: "Turns your research question and constraints into a proposal, then refines and finalizes it across generation rounds.",
-  },
-  experiment_code: {
-    title: "Write and debug experiment code",
-    description: "Designs, writes, improves, and debugs Python experiments, including tuning, ablations, and supporting analysis code.",
-  },
-  experiment_feedback: {
-    title: "Evaluate runs and plan next steps",
-    description: "Reviews execution outputs and bugs, extracts metrics, and decides stage completion and next substage goals.",
-  },
-  tree_scoring: {
-    title: "Select the best experiment",
-    description: "Compares recorded results and selects the best implementation to retain or carry into later experiment stages.",
-    usageNote: "Used when best-result selection needs an LLM comparison, not for every tree-search decision.",
-  },
-  findings_synthesis: {
-    title: "Summarize research findings",
-    description: "Combines experiment results into summaries of individual branches and the overall research findings for reporting and paper writing.",
-  },
-  visual_feedback: {
-    title: "Interpret experiment figures",
-    description: "Examines generated plots and figures to assess experiment results and provide visual feedback during the search.",
-  },
-  writeup: {
-    title: "Write and revise the paper",
-    description: "Drafts and revises the LaTeX manuscript using the research idea, experiment results, citations, and figure feedback.",
-  },
-  review: {
-    title: "Review the paper and its figures",
-    description: "Assesses the finished paper's scientific quality and checks figures against their captions and discussion.",
-  },
-  plot_generation: {
-    title: "Create combined result plots",
-    description: "Writes and refines Python code that turns saved experiment results into final paper figures.",
-  },
-  citation: {
-    title: "Find and prepare citations",
-    description: "Chooses literature searches and relevant papers for the paper's bibliography.",
-  },
-  writeup_small: {
-    title: "Describe and check paper figures",
-    description: "Describes figures, checks captions, duplicates, and figure selection, and gathers citations when needed.",
-    usageNote: "Despite its name, this role handles figure-related work in the default workflow. Manuscript revisions use writeup.",
-  },
-};
-
-const CUSTOM_ROLE_HELP: RoleHelp = {
-  title: "Custom role",
-  description: "No built-in description is available. This role's purpose is defined by the code or configuration that selects it.",
-};
 
 interface ModelDiscovery {
   status: "idle" | "loading" | "ok" | "error";

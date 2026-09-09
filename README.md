@@ -102,7 +102,15 @@ a separate step, and saving never starts an experiment. Exports are
 launcher-compatible single-element JSON arrays; original saved JSON and unknown
 scientific fields are retained.
 
-Preparation displays the actual workload and exclusive output directory.
+Preparation shows the saved study and comparisons, the actual research-model
+assignments, and explained workload limits. Research models write and evaluate
+the experiment; models named as experimental subjects remain requirements in the
+saved design, not automatically loaded assignments. Advanced sections expose
+preset selection, named research-stage limits, and the exclusive output directory.
+Readiness separates local paper-tool checks, launch-time configuration/model-list
+checks, and unverified study requirements such as datasets, GPU memory, and runtime
+features. **Start experiment** launches code generation, execution, analysis,
+and paper writing, not a prebuilt benchmark runner.
 **Start experiment** requires an explicit acknowledgment:
 **This runs generated Python code on this PC. It can read and write files
 available to your account.** Loopback HTTP access is not a sandbox. Studio does
