@@ -6,6 +6,8 @@ import http.client
 import json
 from pathlib import Path
 import shutil
+import sys
+import types
 import threading
 import time
 import unittest
@@ -325,7 +327,10 @@ class CodexAuthentication(unittest.TestCase):
         backend = PlaintextBackend()
         controller = CodexAuth(namespace="fixture", lock_path=self.root / "other.lock")
         self.controllers.append(controller)
-        with patch("keyring.get_keyring", return_value=backend):
+        fake_keyring = types.ModuleType("keyring")
+        fake_keyring.get_keyring = lambda: backend
+        with patch.dict(sys.modules, {"keyring": fake_keyring}), \
+                patch("keyring.get_keyring", return_value=backend):
             with self.assertRaises(CodexAuthError):
                 controller.begin_login()
             self.assertFalse(controller.status()["connected"])

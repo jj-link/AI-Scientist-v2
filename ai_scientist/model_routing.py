@@ -1,21 +1,22 @@
-"""Role-based routing for self-hosted OpenAI-compatible endpoints.
+"""Role-based routing for OpenAI-compatible model servers.
 
 Additive routing layer for AI-Scientist-v2. Existing model strings
 (cborg/..., spark/..., ollama/..., gpt/o1/claude/gemini names) keep working
 unchanged. New model-string forms:
 
-- ``role/<role>``: the role's endpoint, served model id, and per-role
-  request settings are looked up from the role config at request time. The
-  ``role/<role>`` string itself is the client model token end to end, so
-  each role keeps its own identity (no shared-state, no races).
-- ``selfhosted/<endpoint>/<model>``: direct reference to an endpoint defined
-  in the same YAML registry.
+- ``role/<task>``: the task's server, served model id, and per-task request
+  settings are looked up from the model settings at request time. The
+  ``role/<task>`` string itself is the client model token end to end, so
+  each task keeps its own identity (no shared-state, no races).
+- ``selfhosted/<server>/<model>``: direct reference to a server defined
+  in the same settings registry.
 
-The role config file is discovered from the ``AI_SCIENTIST_ROLE_CONFIG``
-environment variable, defaulting to ``ais_roles.yaml`` in the repository
-root. Endpoints are peers: there is no primary endpoint and no automatic
-fallback. Credentials are read from environment variables named in the
-config and are never logged.
+Settings live in Studio's SQLite database (``ui_data/ui.sqlite3``) and are
+edited on the Models page. A running job reads a frozen JSON snapshot instead
+(``AI_SCIENTIST_ROLE_CONFIG`` points at it), so editing settings never affects
+an experiment that already started. Servers are peers: there is no primary
+server and no automatic fallback. Credentials are read from environment
+variables named in the settings and are never logged.
 """
 
 from __future__ import annotations
@@ -27,10 +28,10 @@ import time
 from pathlib import Path
 from typing import Any
 
-import yaml
+import sqlite3
 
 ROLE_CONFIG_ENV = "AI_SCIENTIST_ROLE_CONFIG"
-DEFAULT_ROLE_CONFIG_FILENAME = "ais_roles.yaml"
+
 
 SELFHOSTED_PREFIX = "selfhosted/"
 ROLE_PREFIX = "role/"
@@ -84,37 +85,73 @@ class RoleConfigError(ValueError):
     """Raised when the role configuration is missing or invalid."""
 
 
-def role_config_path() -> Path:
+class NoModelSettings(RoleConfigError):
+    """No server or task settings exist yet (fresh installation)."""
+
+
+NO_SETTINGS_MESSAGE = (
+    "No model settings are configured. Open AI-Scientist Studio's Models page to "
+    "add a server and assign models to research tasks."
+)
+
+
+def settings_snapshot_path() -> Path | None:
+    """Frozen settings file for a running job, or None for live database reads."""
     override = os.environ.get(ROLE_CONFIG_ENV)
-    if override:
-        return Path(override)
-    return Path(__file__).resolve().parent.parent / DEFAULT_ROLE_CONFIG_FILENAME
+    return Path(override) if override else None
 
 
-def load_role_config(path: str | os.PathLike | None = None) -> dict:
-    """Load the role YAML, invalidating cached values after file replacement."""
-    cfg_path = Path(path) if path is not None else role_config_path()
-    if not cfg_path.exists():
-        raise RoleConfigError(
-            f"Role config not found: {cfg_path}. Set {ROLE_CONFIG_ENV} or create "
-            f"{DEFAULT_ROLE_CONFIG_FILENAME} in the repository root."
-        )
-    key = str(cfg_path)
-    stamp = cfg_path.stat()
-    fingerprint = (stamp.st_mtime_ns, stamp.st_ctime_ns, stamp.st_size)
-    with _lock:
-        cached = _cache.get(key)
-        if cached and cached[0] == fingerprint:
-            return cached[1]
-    with open(cfg_path, "r", encoding="utf-8") as f:
-        cfg = yaml.safe_load(f) or {}
-    if not isinstance(cfg, dict):
-        raise RoleConfigError(f"Role config {cfg_path} must be a mapping.")
-    if "endpoints" not in cfg or not isinstance(cfg["endpoints"], dict):
-        raise RoleConfigError(f"Role config {cfg_path} requires an 'endpoints' mapping.")
-    with _lock:
-        _cache[key] = (fingerprint, cfg)
+def _validate_settings_shape(cfg: object, source: Path) -> dict:
+    if not isinstance(cfg, dict) or not isinstance(cfg.get("endpoints"), dict):
+        raise RoleConfigError(f"Model settings {source} must contain an 'endpoints' mapping.")
+    if not isinstance(cfg.get("roles") or {}, dict):
+        raise RoleConfigError(f"Model settings {source} requires a 'roles' mapping.")
+    cfg.setdefault("roles", {})
+    cfg.setdefault("experiment_execution", {})
     return cfg
+
+
+def load_settings() -> dict:
+    """Load model settings: a frozen snapshot inside a running job, else the database.
+
+    Returns {"endpoints": {name: cfg}, "roles": {task: cfg}, "experiment_execution": {}}.
+    Job processes receive AI_SCIENTIST_ROLE_CONFIG pointing at their snapshot, so a
+    settings edit never affects an experiment that already started. Direct runs read
+    the database current set.
+    """
+    snapshot = settings_snapshot_path()
+    if snapshot is not None:
+        key = str(snapshot)
+        try:
+            stamp = snapshot.stat()
+        except OSError as exc:
+            raise RoleConfigError(f"Model settings snapshot not found: {snapshot}.") from exc
+        fingerprint = (stamp.st_mtime_ns, stamp.st_size)
+        with _lock:
+            cached = _cache.get(key)
+            if cached and cached[0] == fingerprint:
+                return cached[1]
+        try:
+            with open(snapshot, "r", encoding="utf-8") as f:
+                cfg = json.load(f)
+        except (OSError, ValueError) as exc:
+            raise RoleConfigError(
+                f"Model settings snapshot {snapshot} is not readable JSON: {exc}") from exc
+        cfg = _validate_settings_shape(cfg, snapshot)
+        with _lock:
+            _cache[key] = (fingerprint, cfg)
+        return cfg
+    from .ui import model_settings
+    try:
+        cfg = model_settings.current_settings()
+    except sqlite3.Error:
+        raise NoModelSettings(NO_SETTINGS_MESSAGE) from None
+    return _validate_settings_shape(cfg, settings_db_display())
+
+
+def settings_db_display() -> str:
+    from .ui import model_settings
+    return str(model_settings.settings_db_path())
 
 
 def is_selfhosted(model: str) -> bool:
@@ -131,8 +168,7 @@ def endpoint_config(model: str) -> tuple[str, dict]:
             "Expected 'selfhosted/<endpoint>/<model>'."
         )
     endpoint_name = parts[1]
-    cfg = load_role_config()
-    endpoints = cfg["endpoints"]
+    endpoints = load_settings()["endpoints"]
     if endpoint_name not in endpoints:
         raise RoleConfigError(
             f"Unknown endpoint {endpoint_name!r} in {model!r}. "
@@ -161,7 +197,7 @@ def parse_model(model: str) -> dict | None:
     """
     if model.startswith(ROLE_PREFIX):
         role = model[len(ROLE_PREFIX):]
-        cfg = load_role_config()
+        cfg = load_settings()
         roles = cfg.get("roles") or {}
         if role not in roles:
             raise RoleConfigError(
@@ -229,17 +265,25 @@ def endpoint_settings(model: str) -> dict[str, Any]:
             f"Model string {model!r} is not a self-hosted or role model string."
         )
     endpoint_name = parsed["endpoint"]
-    endpoint = load_role_config()["endpoints"].get(endpoint_name)
+    endpoint = load_settings()["endpoints"].get(endpoint_name)
     if endpoint is None:
         raise RoleConfigError(
             f"Endpoint {endpoint_name!r} is not configured. "
-            f"Configured endpoints: {sorted(load_role_config()['endpoints'])}."
+            f"Configured endpoints: {sorted(load_settings()['endpoints'])}."
         )
     return endpoint or {}
 
 
 DEFAULT_ENDPOINT_TIMEOUT = 600  # seconds; finite so a wedged endpoint fails
                                 # clearly instead of stalling the pipeline.
+
+
+def _resolve_timeout(settings: dict, endpoint: dict):
+    """Task override, else server value, else default; stored None means default."""
+    for source in (settings.get("timeout"), endpoint.get("timeout")):
+        if source is not None:
+            return float(source)
+    return float(DEFAULT_ENDPOINT_TIMEOUT)
 
 
 def create_selfhosted_client(model: str, max_retries: int = 2):
@@ -251,13 +295,12 @@ def create_selfhosted_client(model: str, max_retries: int = 2):
         raise RoleConfigError(
             f"Model string {model!r} is not a self-hosted or role model string."
         )
-    cfg = load_role_config()
+    cfg = load_settings()
     endpoint = cfg["endpoints"][parsed["endpoint"]] or {}
     validate_provider_settings(endpoint, parsed["settings"])
     if endpoint_provider(endpoint) == CODEX_PROVIDER:
         from .codex_provider import CodexClient
-        return CodexClient(timeout=float(parsed["settings"].get(
-            "timeout", endpoint.get("timeout", DEFAULT_ENDPOINT_TIMEOUT))))
+        return CodexClient(timeout=_resolve_timeout(parsed["settings"], endpoint))
     # Per-role auth overrides the endpoint default; env var NAMES only.
     api_key_env = (
         parsed["settings"].get("api_key_env") or endpoint_api_key_env(endpoint)
@@ -270,11 +313,7 @@ def create_selfhosted_client(model: str, max_retries: int = 2):
         raise RoleConfigError(
             f"Endpoint {parsed['endpoint']!r} has no 'base_url'."
         )
-    timeout = float(
-        parsed["settings"].get(
-            "timeout", endpoint.get("timeout", DEFAULT_ENDPOINT_TIMEOUT)
-        )
-    )
+    timeout = _resolve_timeout(parsed["settings"], endpoint)
     return openai.OpenAI(
         base_url=base_url, api_key=api_key, max_retries=max_retries, timeout=timeout
     )
@@ -324,16 +363,14 @@ def log_request(
                 f.write(json.dumps(record) + "\n")
     except OSError:
         pass  # logging must never break inference
-
-
 def list_endpoint_models(
-    endpoint_name: str, *, path: str | os.PathLike | None = None,
-    timeout: float | None = None,
+    endpoint_name: str, settings: dict | None = None,
+    *, timeout: float | None = None,
 ) -> list[str]:
     """GET <base_url>/models; raises a clear error when unreachable."""
     import openai
 
-    cfg = load_role_config(path)
+    cfg = settings if settings is not None else load_settings()
     endpoints = cfg["endpoints"]
     if endpoint_name not in endpoints:
         raise RoleConfigError(
@@ -362,19 +399,19 @@ def list_endpoint_models(
         client.close()
 
 
-def validate_roles(path: str | os.PathLike | None = None) -> dict[str, dict]:
-    """Validate every role: model present on its endpoint, capabilities declared.
+def validate_roles(settings: dict | None = None) -> dict[str, dict]:
+    """Validate every task: model present on its server, capabilities declared.
 
-    Returns {role: {endpoint, model, capabilities}}. Raises RoleConfigError
+    Returns {task: {endpoint, model, capabilities}}. Raises RoleConfigError
     with a readable message on the first problem found.
     """
-    cfg = load_role_config(path)
+    cfg = settings if settings is not None else load_settings()
     endpoints = cfg["endpoints"]
     model_lists: dict[str, list[str]] = {}
 
     def _models(name: str) -> list[str]:
         if name not in model_lists:
-            model_lists[name] = list_endpoint_models(name, path=path)
+            model_lists[name] = list_endpoint_models(name, cfg)
         return model_lists[name]
 
     validated: dict[str, dict] = {}
@@ -412,13 +449,12 @@ def validate_roles(path: str | os.PathLike | None = None) -> dict[str, dict]:
         }
     return validated
 
-
-def describe_assignment(path: str | os.PathLike | None = None) -> str:
-    """One-line-per-role summary of the active mapping (for startup logs)."""
+def describe_assignment(settings: dict | None = None) -> str:
+    """One-line-per-task summary of the active mapping (for startup logs)."""
     try:
-        validated = validate_roles(path)
+        validated = validate_roles(settings)
     except RoleConfigError as e:
-        return f"role config INVALID: {e}"
+        return f"model settings INVALID: {e}"
     lines = ["role mapping:"]
     for role, info in validated.items():
         lines.append(

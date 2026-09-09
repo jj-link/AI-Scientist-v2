@@ -27,6 +27,12 @@ class Store:
         self.data_dir = self.root / "ui_data"
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.db_path = self.data_dir / "ui.sqlite3"
+        from . import model_settings
+        # Creates the model_servers/task_models tables and imports a legacy
+        # ais_roles.yaml exactly once (the file is renamed after import).
+        self._migrate_legacy_role_config = model_settings.maybe_import_legacy(self.root)
+        self._migrate_legacy_role_config()
+        model_settings.ensure_schema(self.root)
         with self.connection() as db:
             db.execute("PRAGMA journal_mode=WAL")
             db.executescript("""
@@ -93,6 +99,11 @@ class Store:
                 CREATE INDEX IF NOT EXISTS diagnostics_by_state
                     ON job_diagnostics(state, created_at);
             """)
+
+    def current_settings(self) -> dict:
+        """Current model settings in the routing layer's internal shape."""
+        from . import model_settings
+        return model_settings.current_settings(self.root)
 
     @contextmanager
     def connection(self):
@@ -534,7 +545,7 @@ class Store:
                 db.execute(
                     "INSERT INTO idea_conversations(id,title,revision,role_config_id,state,messages,"
                     "idea_id,idea_revision,base_idea,created_at,updated_at) VALUES(?,?,0,?,'idle','[]',?,?,?,?,?)",
-                    (conversation_id, message.strip()[:100], role_config_id, idea_id,
+                    (conversation_id, message.strip()[:100], role_config_id or "current", idea_id,
                      baseline["revision"] if baseline else None,
                      json.dumps(baseline["idea"]) if baseline else None, stamp, stamp))
             record = self.conversation_record(db.execute(

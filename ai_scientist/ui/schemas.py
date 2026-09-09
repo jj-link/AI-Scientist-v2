@@ -40,7 +40,6 @@ class Request(BaseModel):
 
 class IdeaConversationCreate(Request):
     request_id: UUID
-    role_config_id: str = Field(min_length=1, max_length=256)
     message: str = Field(min_length=1, max_length=20000)
     idea_id: UUID | None = None
 
@@ -71,7 +70,7 @@ class IdeaJobRequest(Request):
     context: str = Field(default="", max_length=50000)
     attempts: int = Field(default=1, ge=1, le=10, strict=True)
     rounds: int = Field(default=5, ge=2, le=20, strict=True)
-    role_config_id: str
+
 
 
 class StageIterations(Request):
@@ -92,7 +91,7 @@ class ExperimentRequest(Request):
     request_id: UUID
     idea_id: str
     idea_revision: int = Field(ge=1, strict=True)
-    role_config_id: str
+
     bfts_config_id: str
     execution_acknowledged: bool
     run_settings: ExperimentRunSettings
@@ -103,25 +102,19 @@ class IdeaUpdate(Request):
     idea: dict
 
 
-class ModelCheck(Request):
-    config_id: str
-
-
 class EndpointModelsRequest(Request):
-    config_id: str
     endpoint: str
 
 
 class AssistantSettingsUpdate(Request):
     enabled: bool = Field(strict=True)
-    config_id: str | None = None
+
     role: str | None = None
 
     @model_validator(mode="after")
     def _require_selection(self):
-        if self.enabled and (not self.config_id or not self.config_id.strip()
-                             or not self.role or not self.role.strip()):
-            raise ValueError("Enable with a selected configuration and role.")
+        if self.enabled and (not self.role or not self.role.strip()):
+            raise ValueError("Enable with a selected research task.")
         return self
 
 
@@ -215,7 +208,8 @@ class ModelEndpointPatch(Request):
 
 
 class ModelConfigUpdate(Request):
-    config_id: str
     expected_revision: str
     roles: dict[str, ModelRolePatch] = Field(default_factory=dict)
     endpoints: dict[str, ModelEndpointPatch] = Field(default_factory=dict)
+    delete_servers: list[str] = Field(default_factory=list)
+    delete_tasks: list[str] = Field(default_factory=list)

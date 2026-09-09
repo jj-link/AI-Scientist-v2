@@ -39,7 +39,12 @@ def pipeline(workspace, monkeypatch):
         "--writeup-retries", "2",
     ])
     monkeypatch.setattr(launcher.model_routing, "validate_roles", lambda: {})
-    monkeypatch.setattr(launcher.model_routing, "role_config_path", lambda: workspace / "absent.yaml")
+    monkeypatch.setattr(
+        launcher.model_routing,
+        "load_settings",
+        lambda: {"endpoints": {}, "roles": {}, "experiment_execution": {}},
+    )
+    monkeypatch.delenv(launcher.model_routing.ROLE_CONFIG_ENV, raising=False)
     monkeypatch.setattr(launcher, "get_available_gpus", lambda: [])
     monkeypatch.setattr(launcher, "save_token_tracker", lambda path: None)
     monkeypatch.setenv("AI_SCIENTIST_ROOT", str(workspace))

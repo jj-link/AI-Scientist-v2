@@ -18,7 +18,6 @@ export interface IdeaConversation {
   id: string;
   title: string;
   revision: number;
-  role_config_id: string;
   state: "idle" | "running" | "failed";
   messages: { role: "user" | "assistant"; content: string; idea?: Idea }[];
   pending_idea: Idea | null;
@@ -31,7 +30,6 @@ export interface IdeaConversation {
 
 export interface IdeaConversationCreate {
   request_id: string;
-  role_config_id: string;
   message: string;
   idea_id?: string;
 }
@@ -93,14 +91,12 @@ export interface Workload {
   output_directory: string;
 }
 export interface Bootstrap {
-  role_configs: { id: string; label: string }[];
   bfts_configs: {
     id: string;
     label: string;
     settings: Workload | null;
     error: string | null;
   }[];
-  selected_role_config_id: string;
   selected_bfts_config_id: string;
   prerequisites: {
     ok: boolean;
@@ -198,12 +194,10 @@ export interface ModelEndpoint {
   credential: Credential;
 }
 export interface ModelsView {
-  config_id: string;
   roles: ModelRole[];
   endpoints: ModelEndpoint[];
 }
 export interface ModelsCheck {
-  config_id: string;
   checked_at: string;
   ok: boolean;
   endpoints: {
@@ -224,7 +218,6 @@ export interface ModelsCheck {
   }[];
 }
 export interface EndpointModels {
-  config_id: string;
   endpoint: string;
   checked_at: string;
   ok: boolean;
@@ -248,7 +241,6 @@ export interface ModelConfigEditorEndpoint {
   provides: string[];
 }
 export interface ModelConfigEditor {
-  config_id: string;
   revision: string;
   roles: Record<string, ModelConfigEditorRole>;
   endpoints: Record<string, ModelConfigEditorEndpoint>;
@@ -268,15 +260,15 @@ export interface ModelEndpointPatch {
   timeout?: number | null;
 }
 export interface ModelConfigUpdate {
-  config_id: string;
   expected_revision: string;
   roles: Record<string, ModelRolePatch>;
   endpoints: Record<string, ModelEndpointPatch>;
+  delete_servers?: string[];
+  delete_tasks?: string[];
 }
 export interface AssistantSettings {
   enabled: boolean;
   provider?: "openai" | "openai-codex" | "cborg";
-  config_id: string | null;
   role: string | null;
   model: string | null;
   endpoint: string | null;
@@ -353,7 +345,7 @@ export async function request<T>(
   const response = await fetch(path, {
     ...options,
     headers: {
-      ...(options.body
+      ...(options.method && options.method !== "GET"
         ? { "Content-Type": "application/json", "X-Studio-Token": token }
         : {}),
       ...options.headers,
@@ -385,13 +377,12 @@ export function mutate<T>(
 }
 /** Probe one configured endpoint's model listing on demand. */
 export function discoverEndpointModels(
-  configId: string,
   endpoint: string,
   signal?: AbortSignal,
 ): Promise<EndpointModels> {
   return request<EndpointModels>("/api/models/endpoint-models", {
     method: "POST",
-    body: JSON.stringify({ config_id: configId, endpoint }),
+    body: JSON.stringify({ endpoint }),
     signal,
   });
 }

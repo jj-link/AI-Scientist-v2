@@ -22,8 +22,7 @@ import {
   type ModelsCheck,
   type ModelsView,
 } from "../api";
-import { ConfigSelect, ErrorNotice, PageHeading, ROLE_HELP, CUSTOM_ROLE_HELP } from "../components";
-import { useStudio } from "../studio";
+import { ErrorNotice, PageHeading, ROLE_HELP, CUSTOM_ROLE_HELP } from "../components";
 import CodexProviderCard from "./CodexProviderCard";
 
 
@@ -36,7 +35,7 @@ interface ModelDiscovery {
 const CUSTOM_MODEL_HINT =
   "Enter the model ID exactly as served by the endpoint.";
 
-const DRAFT_STORAGE_PREFIX = "studio.models.draft.";
+const DRAFT_STORAGE_KEY = "model-drafts";
 const CBORG_BASE_URL = "https://api.cborg.lbl.gov/v1";
 const CBORG_API_KEY_ENV = "CBORG_API_KEY";
 
@@ -50,15 +49,9 @@ interface StoredDraft {
   endpoints: Record<string, EndpointDraft>;
 }
 
-function draftKey(configId: string) {
-  return DRAFT_STORAGE_PREFIX + configId;
-}
-
-function readStoredDraft(
-  configId: string,
-): StoredDraft | null {
+function readStoredDraft(): StoredDraft | null {
   try {
-    const raw = sessionStorage.getItem(draftKey(configId));
+    const raw = sessionStorage.getItem(DRAFT_STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (typeof parsed?.baseRevision === "string") return parsed;
@@ -68,17 +61,17 @@ function readStoredDraft(
   return null;
 }
 
-function writeStoredDraft(configId: string, draft: StoredDraft) {
+function writeStoredDraft(draft: StoredDraft) {
   try {
-    sessionStorage.setItem(draftKey(configId), JSON.stringify(draft));
+    sessionStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draft));
   } catch {
     /* Draft persistence is best effort. */
   }
 }
 
-function clearStoredDraft(configId: string) {
+function clearStoredDraft() {
   try {
-    sessionStorage.removeItem(draftKey(configId));
+    sessionStorage.removeItem(DRAFT_STORAGE_KEY);
   } catch {
     /* Draft persistence is best effort. */
   }
@@ -106,7 +99,10 @@ function countChangedFields(
   }
   for (const [id, draft] of Object.entries(endpoints)) {
     const original = saved.endpoints[id];
-    if (!original) continue;
+    if (!original) {
+      if (id.trim()) count++;
+      continue;
+    }
     for (const field of ["provider", "base_url", "api_key_env", "timeout"] as const) {
       if (draft[field] !== original[field]) count++;
     }
@@ -148,20 +144,16 @@ function CrashAssistantCard({
 }: {
   configurationRevision: string | null;
 }) {
-  const { bootstrap } = useStudio();
   const settings = useApi<AssistantSettings>(
     "/api/crash-assistant/settings",
   );
-  const [configId, setConfigId] = useState("");
   const [role, setRole] = useState("");
   const [touched, setTouched] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<unknown>(null);
   const [savedView, setSavedView] = useState<AssistantSettings | null>(null);
-  const view = useApi<ModelsView>(
-    configId ? `/api/models?config_id=${encodeURIComponent(configId)}` : null,
-  );
-  const currentView = view.data?.config_id === configId ? view.data : undefined;
+  const view = useApi<ModelsView>("/api/models");
+  const currentView = view.data;
   const textRoles = (currentView?.roles ?? []).filter(
     (candidate) =>
       candidate.endpoint &&
@@ -173,12 +165,11 @@ function CrashAssistantCard({
   );
   const loaded = settings.data;
   useEffect(() => {
-    if (!touched && loaded?.config_id) {
-      setConfigId(loaded.config_id);
+    if (!touched && loaded) {
       setRole(loaded.role ?? "");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loaded?.config_id, loaded?.role]);
+  }, [loaded?.role]);
   useEffect(() => {
     if (configurationRevision !== null) {
       settings.refresh();
@@ -194,8 +185,8 @@ function CrashAssistantCard({
       const result = await mutate<AssistantSettings>(
         "/api/crash-assistant/settings",
         enabled
-          ? { enabled: true, config_id: configId, role }
-          : { enabled: false, config_id: null, role: null },
+          ? { enabled: true, role }
+          : { enabled: false },
         "PUT",
       );
       setSavedView(result);
@@ -206,7 +197,7 @@ function CrashAssistantCard({
       setSaving(false);
     }
   }
-  const canEnable = Boolean(configId && role && textRoles.some((item) => item.name === role));
+  const canEnable = Boolean(role && textRoles.some((item) => item.name === role));
   return (
     <section className="card stack" aria-labelledby="assistant-heading">
       <div className="card-header">
@@ -239,34 +230,15 @@ function CrashAssistantCard({
         {!canEnable && (
           <small className="muted">
             {shown?.enabled
-              ? "Disabling stays available even if the saved preset is broken."
-              : "Enable requires a preset with a role whose endpoint declares text capability. Use this page's configuration editor to assign one, then click Save assistant settings."}
+              ? "Disabling stays available even if the saved assignment is broken."
+              : "Enable requires a role whose endpoint declares text capability. Use this page's configuration editor to assign one, then click Save assistant settings."}
           </small>
         )}
       </div>
       {loaded ? (
         <>
           <div className="field">
-            <label htmlFor="assistant-preset">Preset</label>
-            <select
-              id="assistant-preset"
-              value={configId}
-              onChange={(event) => {
-                setTouched(true);
-                setConfigId(event.target.value);
-                setRole("");
-              }}
-            >
-              {!configId && <option value="">Select a preset</option>}
-              {bootstrap.role_configs.map((config) => (
-                <option key={config.id} value={config.id}>
-                  {config.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="field">
-            <label htmlFor="assistant-role">Role — model — endpoint</label>
+            <label htmlFor="assistant-role">Assistant role</label>
             <select
               id="assistant-role"
               value={role}
@@ -284,10 +256,7 @@ function CrashAssistantCard({
                 )}
               {textRoles.map((candidate) => (
                 <option key={candidate.name} value={candidate.name}>
-                  {candidate.name} — {candidate.model || "model not set"} —{" "}
-                  {currentView?.endpoints.find(
-                    (endpoint) => endpoint.id === candidate.endpoint,
-                  )?.label ?? candidate.endpoint}
+                  {candidate.name}
                 </option>
               ))}
             </select>
@@ -315,7 +284,7 @@ function CrashAssistantCard({
         <dl className="results-record metadata">
           <dt>Saved assignment</dt>
           <dd>
-            {shown.enabled && shown.config_id
+            {shown.enabled
               ? `${shown.role} · ${shown.model} · ${shown.endpoint}`
               : "Disabled"}
           </dd>
@@ -342,20 +311,11 @@ function CrashAssistantCard({
 }
 
 const REVISION_CHANGED_MESSAGE =
-  "The preset changed after your last edit; reload before saving.";
+  "The configuration changed after your last edit; reload before saving.";
 
 export default function Models() {
-  const { bootstrap, roleConfigId } = useStudio();
-  const editor = useApi<ModelConfigEditor>(
-    roleConfigId
-      ? `/api/models/editor?config_id=${encodeURIComponent(roleConfigId)}`
-      : null,
-  );
-  const display = useApi<ModelsView>(
-    roleConfigId
-      ? `/api/models?config_id=${encodeURIComponent(roleConfigId)}`
-      : null,
-  );
+  const editor = useApi<ModelConfigEditor>("/api/models/editor");
+  const display = useApi<ModelsView>("/api/models");
   const [saved, setSaved] = useState<ModelConfigEditor | null>(null);
   const [roleDrafts, setRoleDrafts] = useState<
     Record<string, ModelConfigEditorRole>
@@ -370,12 +330,13 @@ export default function Models() {
   const [saving, setSaving] = useState(false);
   const [saveNotice, setSaveNotice] = useState("");
   const [expandedRoles, setExpandedRoles] = useState<string[]>([]);
-  const [check, setCheck] = useState<ModelsCheck | null>(null);
-  const [checkError, setCheckError] = useState<unknown>(null);
-  const [checking, setChecking] = useState(false);
+  const [rolesOpen, setRolesOpen] = useState(false);
   const [discoveries, setDiscoveries] = useState<
     Record<string, ModelDiscovery>
   >({});
+  const [check, setCheck] = useState<ModelsCheck | null>(null);
+  const [checkError, setCheckError] = useState<unknown>(null);
+  const [checking, setChecking] = useState(false);
   const discoveryRequests = useRef(new Map<string, AbortController>());
   const clearAvailability = useCallback(() => {
     for (const controller of discoveryRequests.current.values()) controller.abort();
@@ -385,8 +346,6 @@ export default function Models() {
   }, []);
   const probe = useRef<AbortController | null>(null);
   const baseRevision = useRef<string | null>(null);
-  const selectedConfig = useRef(roleConfigId);
-  selectedConfig.current = roleConfigId;
   const changed = saved
     ? countChangedFields(saved, roleDrafts, endpointDrafts)
     : 0;
@@ -411,18 +370,16 @@ export default function Models() {
       for (const controller of discoveryRequests.current.values()) controller.abort();
       discoveryRequests.current.clear();
     };
-  }, [roleConfigId, saved?.revision]);
+  }, [saved?.revision]);
   useEffect(() => {
     const loaded = editor.data;
-    if (!loaded || loaded.config_id !== roleConfigId) return;
-    if (saved?.config_id === loaded.config_id) {
-      if (loaded.revision === saved.revision) return;
-      if (dirty) {
-        setStaleDraft(true);
-        return;
-      }
+    if (!loaded) return;
+    if (saved && loaded.revision === saved.revision) return;
+    if (dirty) {
+      setStaleDraft(true);
+      return;
     }
-    const stored = readStoredDraft(roleConfigId);
+    const stored = readStoredDraft();
     baseRevision.current = stored?.baseRevision ?? loaded.revision;
     setStaleDraft(Boolean(stored && stored.baseRevision !== loaded.revision));
     setSaved(loaded);
@@ -431,30 +388,27 @@ export default function Models() {
     setFieldErrors({});
     setApiError(null);
     setSaveNotice("");
-  }, [editor.data, roleConfigId]);
+  }, [editor.data]);
   useEffect(() => {
     probe.current?.abort();
     probe.current = null;
-    setCheck(null);
-    setCheckError(null);
-    setChecking(false);
     return () => {
       probe.current?.abort();
       probe.current = null;
     };
-  }, [roleConfigId]);
+  }, []);
   useEffect(() => {
-    if (!saved || saved.config_id !== roleConfigId) return;
+    if (!saved) return;
     if (!dirty) {
-      clearStoredDraft(roleConfigId);
+      clearStoredDraft();
       return;
     }
-    writeStoredDraft(roleConfigId, {
+    writeStoredDraft({
       baseRevision: baseRevision.current ?? saved.revision,
       roles: roleDrafts,
       endpoints: endpointDrafts,
     });
-  }, [roleDrafts, endpointDrafts, dirty, roleConfigId, saved]);
+  }, [roleDrafts, endpointDrafts, dirty, saved]);
   useEffect(() => {
     if (!dirty) return;
     const handler = (event: BeforeUnloadEvent) => {
@@ -471,46 +425,6 @@ export default function Models() {
       [name]: { ...current[name], ...patch },
     }));
   }
-  function setEndpoint(id: string, patch: Partial<ModelEndpointPatch>) {
-    setFieldErrors({});
-    setEndpointDrafts((current) => ({
-      ...current,
-      [id]: { ...current[id], ...patch },
-    }));
-  }
-  function setProvider(id: string, provider: EndpointDraft["provider"]) {
-    if (endpointDrafts[id]?.provider === provider) return;
-    clearAvailability();
-    setEndpoint(id, {
-      provider,
-      ...(provider === "cborg"
-        ? { base_url: CBORG_BASE_URL, api_key_env: CBORG_API_KEY_ENV }
-        : provider === "openai-codex"
-          ? { base_url: null, api_key_env: null }
-          : {}),
-    });
-    if (provider === "openai-codex") {
-      const affectedRoles = Object.entries(roleDrafts)
-        .filter(([, role]) => role.endpoint === id)
-        .map(([name]) => name);
-      setRoleDrafts((current) => {
-        const next = { ...current };
-        for (const name of affectedRoles) {
-          next[name] = { ...current[name], max_tokens: null, temperature: null, api_key_env: null };
-        }
-        return next;
-      });
-      setExpandedRoles((current) => [...new Set([...current, ...affectedRoles])]);
-    }
-  }
-  function switchPreset(nextId: string): boolean {
-    if (dirty && !window.confirm("Discard unsaved edits to this preset?"))
-      return false;
-    if (roleConfigId && dirty) clearStoredDraft(roleConfigId);
-    resetEditor();
-    // ConfigSelect owns the selected preset update.
-    return true;
-  }
   function resetEditor() {
     baseRevision.current = null;
     setSaved(null);
@@ -521,8 +435,8 @@ export default function Models() {
     setRevisionConflict(false);
     setStaleDraft(false);
     setSaveNotice("");
-    setExpandedRoles([]);
     setCheck(null);
+    setExpandedRoles([]);
     setDiscoveries({});
     for (const controller of discoveryRequests.current.values()) controller.abort();
     discoveryRequests.current.clear();
@@ -537,7 +451,6 @@ export default function Models() {
         connection.base_url !== original.base_url ||
         connection.api_key_env !== original.api_key_env ||
         connection.timeout !== original.timeout) return;
-    const configId = saved.config_id;
     const controller = new AbortController();
     discoveryRequests.current.set(endpoint, controller);
     setDiscoveries((current) => ({
@@ -545,9 +458,8 @@ export default function Models() {
       [endpoint]: { status: "loading", models: [], error: null },
     }));
     try {
-      const result = await discoverEndpointModels(configId, endpoint, controller.signal);
-      if (controller.signal.aborted || selectedConfig.current !== configId ||
-          result.config_id !== configId || result.endpoint !== endpoint) return;
+      const result = await discoverEndpointModels(endpoint, controller.signal);
+      if (controller.signal.aborted || result.endpoint !== endpoint) return;
       setDiscoveries((current) => ({
         ...current,
         [endpoint]: {
@@ -557,7 +469,7 @@ export default function Models() {
         },
       }));
     } catch {
-      if (controller.signal.aborted || selectedConfig.current !== configId) return;
+      if (controller.signal.aborted) return;
       setDiscoveries((current) => ({
         ...current,
         [endpoint]: { status: "error", models: [], error: "Model listing failed. Retry or enter a model ID in Advanced." },
@@ -593,7 +505,15 @@ export default function Models() {
     const endpointPatch: Record<string, ModelEndpointPatch> = {};
     for (const [id, draft] of Object.entries(endpointDrafts)) {
       const original = saved.endpoints[id];
-      if (!original) continue;
+      if (!original) {
+        if (id.trim()) endpointPatch[id] = {
+          provider: draft.provider,
+          base_url: draft.base_url,
+          api_key_env: draft.api_key_env,
+          timeout: draft.timeout,
+        };
+        continue;
+      }
       const patch: ModelEndpointPatch = {};
       if (draft.provider !== original.provider) (patch.provider = draft.provider);
       if (draft.base_url !== original.base_url) (patch.base_url = draft.base_url);
@@ -602,7 +522,6 @@ export default function Models() {
       if (Object.keys(patch).length) endpointPatch[id] = patch;
     }
     const payload = {
-      config_id: roleConfigId,
       expected_revision: saved.revision,
       roles: rolePatch,
       endpoints: endpointPatch,
@@ -613,14 +532,13 @@ export default function Models() {
         payload,
         "PATCH",
       );
-      if (result.config_id !== selectedConfig.current) return;
       baseRevision.current = result.revision;
       setSaved(result);
       setRoleDrafts({ ...result.roles });
       setEndpointDrafts({ ...result.endpoints });
       setCheck(null);
       setSaveNotice("Configuration saved");
-      if (roleConfigId) clearStoredDraft(roleConfigId);
+      clearStoredDraft();
       display.refresh();
     } catch (error) {
       if (error instanceof ApiError && error.status === 409) {
@@ -666,7 +584,7 @@ export default function Models() {
       !window.confirm("Discard unsaved edits?")
     )
       return;
-    if (roleConfigId && dirty) clearStoredDraft(roleConfigId);
+    if (dirty) clearStoredDraft();
     if (saved) {
       setRoleDrafts({ ...saved.roles });
       setEndpointDrafts({ ...saved.endpoints });
@@ -675,17 +593,18 @@ export default function Models() {
     setApiError(null);
     setSaveNotice("");
     setCheck(null);
-    if (roleConfigId) clearStoredDraft(roleConfigId);
+    clearStoredDraft();
   }
   function reloadConfiguration() {
     if (saved && dirty && !window.confirm("Discard unsaved edits?")) return;
-    if (roleConfigId && dirty) clearStoredDraft(roleConfigId);
+    if (dirty) clearStoredDraft();
     resetEditor();
     editor.refresh();
     display.refresh();
   }
+  const currentDisplay = display.data;
   async function checkAvailability() {
-    if (probe.current || !saved || dirty || roleConfigId == null) return;
+    if (probe.current || !saved || dirty) return;
     const controller = new AbortController();
     probe.current = controller;
     setChecking(true);
@@ -693,18 +612,10 @@ export default function Models() {
     try {
       const result = await request<ModelsCheck>("/api/models/check", {
         method: "POST",
-        body: JSON.stringify({ config_id: roleConfigId }),
         signal: controller.signal,
       });
-      if (
-        !controller.signal.aborted &&
-        selectedConfig.current === roleConfigId &&
-        result.config_id === roleConfigId
-      )
-        setCheck(result);
     } catch (failure) {
-      if (!controller.signal.aborted && selectedConfig.current === roleConfigId)
-        setCheckError(failure);
+      if (!controller.signal.aborted) setCheckError(failure);
     } finally {
       if (probe.current === controller) {
         probe.current = null;
@@ -712,29 +623,18 @@ export default function Models() {
       }
     }
   }
-  const currentDisplay =
-    display.data?.config_id === roleConfigId ? display.data : undefined;
-  const currentCheck = check?.config_id === roleConfigId ? check : null;
+  const currentCheck = check;
   const loadingEditor = editor.loading && !saved;
-  const presetLabel =
-    bootstrap.role_configs.find((config) => config.id === roleConfigId)
-      ?.label ?? "Selected preset";
   return (
     <div className="models-page stack" ref={editorSurface}>
       <PageHeading eyebrow="Local configuration" title="Models">
         <p>
-          Choose the model for each research role. Changes save to the
-          selected YAML preset for future Studio jobs; running jobs keep
-          their snapshots. Saving does not start or restart models.
+          Choose the model for each research role. Changes save for future
+          Studio jobs; running jobs keep their snapshots. Saving does not
+          start or restart models.
         </p>
       </PageHeading>
       <div className="card models-preset">
-        <ConfigSelect
-          id="models-role-config"
-          label="Selected preset"
-          disabled={saving}
-          onBeforeChange={switchPreset}
-        />
         <button
           className="button secondary"
           onClick={reloadConfiguration}
@@ -775,6 +675,16 @@ export default function Models() {
           <section className="stack" aria-labelledby="model-roles-heading">
             <div>
               <h2 id="model-roles-heading">Role assignments</h2>
+              <button
+                type="button"
+                className="button secondary models-roles-toggle"
+                aria-expanded={rolesOpen}
+                aria-controls="models-role-list"
+                onClick={() => setRolesOpen((current) => !current)}
+              >
+                {rolesOpen ? "Hide role assignments" : "Show role assignments"}
+                <ChevronDown size={16} aria-hidden="true" />
+              </button>
               <p className="muted">
                 Choose which AI model handles each task. One model can serve
                 several roles. Tasks can reuse a model with different
@@ -783,7 +693,7 @@ export default function Models() {
                 temperature, timeout, and credential overrides.
               </p>
             </div>
-            <div className="models-role-list">
+            <div className="models-role-list" id="models-role-list" hidden={!rolesOpen}>
               {Object.entries(saved.roles).map(([name, original]) => {
                 const draft = roleDrafts[name];
                 if (!draft) return null;
@@ -1179,297 +1089,6 @@ export default function Models() {
               })}
             </div>
           </section>
-          <section className="stack" aria-labelledby="model-endpoints-heading">
-            <div>
-              <h2 id="model-endpoints-heading">Endpoint connections</h2>
-              <p className="muted">
-                Only environment-variable names are editable; credential
-                values are never displayed or stored here.
-              </p>
-            </div>
-            <div className="editor-grid">
-              {Object.entries(saved.endpoints).map(([id, original]) => {
-                const draft = endpointDrafts[id];
-                if (!draft) return null;
-                const displayEndpoint = currentDisplay?.endpoints.find(
-                  (item) => item.id === id,
-                );
-                const capabilities = original.provides;
-                const codex = draft.provider === "openai-codex";
-                const cborg = draft.provider === "cborg";
-                const endpointId = (field: string) => `endpoint-${id}-${field}`;
-                const endpointErrorId = (field: string) =>
-                  `${endpointId(field)}-error`;
-                const endpointDescribedBy = (field: string) =>
-                  [
-                    ["provider", "base_url", "api_key_env"].includes(field)
-                      ? endpointId(`${field}-hint`)
-                      : null,
-                    fieldErrors[`endpoints.${id}.${field}`]
-                      ? endpointErrorId(field)
-                      : null,
-                  ].filter(Boolean).join(" ") || undefined;
-                return (
-                  <fieldset
-                    key={id}
-                    className="card stack editor-card"
-                    disabled={saving}
-                  >
-                    <legend className="editor-entry">{displayEndpoint?.label ?? id}</legend>
-                    <p className="muted metadata">
-                      Provides:{" "}
-                      {capabilities.length ? capabilities.join(", ") : "None declared"}
-                    </p>
-                    <div className="field" data-changed={draft.provider !== original.provider}>
-                      <label htmlFor={endpointId("provider")}>Provider</label>
-                      <select
-                        id={endpointId("provider")}
-                        value={draft.provider}
-                        onChange={(event) => setProvider(id, event.target.value as EndpointDraft["provider"])}
-                        aria-invalid={!!fieldErrors[`endpoints.${id}.provider`]}
-                        aria-describedby={endpointDescribedBy("provider")}
-                      >
-                        <option value="openai">OpenAI-compatible API</option>
-                        <option value="cborg">CBORG</option>
-                        <option value="openai-codex">OpenAI Codex</option>
-                      </select>
-                      <small className="muted" id={endpointId("provider-hint")}>
-                        {cborg
-                          ? "CBORG uses the existing OpenAI-compatible API. Selecting it supplies its address and credential environment-variable name; custom overrides remain editable."
-                          : codex
-                            ? "Selecting Codex clears the endpoint address and credential name, plus token, temperature, and credential overrides for its roles, in this draft."
-                            : "Use any compatible HTTP(S) API address. An endpoint URL is required."}
-                        {" "}Changes apply only after Save configuration.
-                      </small>
-                      {fieldErrors[`endpoints.${id}.provider`] && (
-                        <p className="field-error" role="alert" id={endpointErrorId("provider")}>
-                          {fieldErrors[`endpoints.${id}.provider`].message}
-                        </p>
-                      )}
-                    </div>
-                    {codex && <p className="muted">Managed Codex server and OAuth credentials. Sign in above; no API key or custom server address is used.</p>}
-                    <div
-                      className="field"
-                      data-changed={draft.base_url !== original.base_url}
-                    >
-                      <label htmlFor={endpointId("base_url")}>Endpoint URL</label>
-                      <input
-                        id={endpointId("base_url")}
-                        type="text"
-                        value={codex ? "Managed by Codex" : draft.base_url ?? ""}
-                        placeholder={cborg ? CBORG_BASE_URL : "https://api.example.org/v1"}
-                        disabled={codex}
-                        onChange={(event) =>
-                          setEndpoint(id, {
-                            base_url: event.target.value || null,
-                          })
-                        }
-                        aria-invalid={!!fieldErrors[`endpoints.${id}.base_url`]}
-                        aria-describedby={endpointDescribedBy("base_url")}
-                      />
-                      <small className="muted" id={endpointId("base_url-hint")}>
-                        {cborg ? `Blank uses ${CBORG_BASE_URL}.` : codex ? "Address managed by Codex." : "Required for an OpenAI-compatible API."}
-                      </small>
-                      {fieldErrors[`endpoints.${id}.base_url`] && (
-                        <p
-                          className="field-error"
-                          role="alert"
-                          id={endpointErrorId("base_url")}
-                        >
-                          {fieldErrors[`endpoints.${id}.base_url`].message}
-                        </p>
-                      )}
-                    </div>
-                    <div className="field-row">
-                      <div
-                        className="field"
-                        data-changed={draft.api_key_env !== original.api_key_env}
-                      >
-                        <label htmlFor={endpointId("api_key_env")}>
-                          Credential environment name
-                        </label>
-                        <input
-                          id={endpointId("api_key_env")}
-                          disabled={codex}
-                          placeholder={codex ? "ChatGPT sign-in" : cborg ? CBORG_API_KEY_ENV : undefined}
-                          type="text"
-                          value={draft.api_key_env ?? ""}
-                          onChange={(event) =>
-                            setEndpoint(id, {
-                              api_key_env: event.target.value || null,
-                            })
-                          }
-                          aria-invalid={
-                            !!fieldErrors[`endpoints.${id}.api_key_env`]
-                          }
-                          aria-describedby={endpointDescribedBy("api_key_env")}
-                        />
-                        <small className="muted" id={endpointId("api_key_env-hint")}>
-                          {cborg ? `Blank uses ${CBORG_API_KEY_ENV}.` : codex ? "Credentials managed by Codex." : "Blank uses the keyless endpoint convention."}
-                          {" "}Environment-variable names only, never secret values.
-                        </small>
-                        {fieldErrors[`endpoints.${id}.api_key_env`] && (
-                          <p
-                            className="field-error"
-                            role="alert"
-                            id={endpointErrorId("api_key_env")}
-                          >
-                            {fieldErrors[`endpoints.${id}.api_key_env`].message}
-                          </p>
-                        )}
-                      </div>
-                      <div
-                        className="field"
-                        data-changed={draft.timeout !== original.timeout}
-                      >
-                        <label htmlFor={endpointId("timeout")}>
-                          Timeout seconds (blank = 600)
-                        </label>
-                        <input
-                          id={endpointId("timeout")}
-                          type="number"
-                          min={0}
-                          step="any"
-                          value={
-                            draft.timeout === undefined
-                              ? ""
-                              : fieldValue(draft.timeout)
-                          }
-                          onChange={(event) =>
-                            setEndpoint(id, {
-                              timeout: parseNumber(event.target.value)
-                                ?? (event.target.value.trim()
-                                  ? undefined
-                                  : null),
-                            })
-                          }
-                          aria-invalid={!!fieldErrors[`endpoints.${id}.timeout`]}
-                          aria-describedby={endpointDescribedBy("timeout")}
-                        />
-                        {fieldErrors[`endpoints.${id}.timeout`] && (
-                          <p
-                            className="field-error"
-                            role="alert"
-                            id={endpointErrorId("timeout")}
-                          >
-                            {fieldErrors[`endpoints.${id}.timeout`].message}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </fieldset>
-                );
-              })}
-            </div>
-            {!Object.keys(saved.endpoints).length && (
-              <p className="notice">No endpoints are configured.</p>
-            )}
-          </section>
-          <section className="card stack" aria-labelledby="availability-heading">
-            <div className="card-header">
-              <div>
-                <h2 id="availability-heading">Availability</h2>
-                <p className="muted">
-                  Checks the saved configuration. This page's edits are
-                  checked only after saving.
-                </p>
-              </div>
-              <button
-                className="button primary"
-                onClick={() => void checkAvailability()}
-                disabled={checking || dirty || !saved}
-              >
-                <RefreshCw size={16} aria-hidden="true" />
-                {checking ? "Checking availability…" : "Check availability"}
-              </button>
-            </div>
-            <p className="notice">
-              A failed probe never disables configuration saving.
-            </p>
-            <div role="status" aria-live="polite">
-              {checking
-                ? "Contacting configured endpoints. Previous results, if present, are shown until this check finishes."
-                : currentCheck
-                  ? currentCheck.ok
-                    ? "Configured models are listed and required capabilities are declared."
-                    : "One or more availability or declaration checks failed."
-                  : "Not checked. No endpoint has been contacted by this page."}
-            </div>
-            <ErrorNotice error={checkError} />
-            {currentCheck && (
-              <div className="stack">
-                {currentCheck.endpoints.map((endpoint) => (
-                  <article className="models-check-result" key={endpoint.id}>
-                    <div className="card-header">
-                      <h3>{endpoint.label}</h3>
-                      <span className="badge">
-                        {endpoint.ok ? (
-                          <CheckCircle2 size={16} aria-hidden="true" />
-                        ) : (
-                          <XCircle size={16} aria-hidden="true" />
-                        )}
-                        {endpoint.ok
-                          ? "Listed / declared checks passed"
-                          : "Check needs attention"}
-                      </span>
-                    </div>
-                    {endpoint.error && (
-                      <p className="notice">{endpoint.error}</p>
-                    )}
-                    {endpoint.roles.length > 0 && (
-                      <div className="table-wrap">
-                        <table>
-                          <thead>
-                            <tr>
-                              <th scope="col">Role / model ID</th>
-                              <th scope="col">Model listed</th>
-                              <th scope="col">Capability declared</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {endpoint.roles.map((role) => (
-                              <tr key={role.name}>
-                                <th scope="row">
-                                  {role.name}
-                                  <code>{role.model}</code>
-                                </th>
-                                <td>
-                                  {role.listed
-                                    ? "Yes — listed by endpoint"
-                                    : "No — not listed"}
-                                </td>
-                                <td>
-                                  {role.capabilities_declared
-                                    ? "Yes — required capabilities declared"
-                                    : `No — missing declarations: ${role.missing_capabilities.join(", ")}`}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                    <details className="advanced">
-                      <summary>
-                        Model IDs returned by endpoint ({endpoint.models.length})
-                      </summary>
-                      {endpoint.models.length ? (
-                        <ul>
-                          {endpoint.models.map((model) => (
-                            <li key={model}>
-                              <code>{model}</code>
-                            </li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <p>No model IDs were returned.</p>
-                      )}
-                    </details>
-                  </article>
-                ))}
-              </div>
-            )}
-          </section>
         </div>
       )}
       <div
@@ -1495,9 +1114,6 @@ export default function Models() {
         )}
         <ErrorNotice error={apiError} />
         <div className="models-save-main">
-          <p className="models-save-context">
-            <span>{presetLabel}</span>
-          </p>
           <p
             className="models-save-status"
             role="status"

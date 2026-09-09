@@ -124,7 +124,9 @@ not upload source code, install missing tools, start models, download datasets
 implicitly through a UI control, or reroute model assignments automatically. Generated Python
 itself executes with your account's permissions.
 
-The role preset defaults to `AI_SCIENTIST_ROLE_CONFIG`, otherwise `ais_roles.yaml`.
+Model settings are saved in `ui_data/ui.sqlite3`, with one current configuration.
+Studio imports the legacy `ais_roles.yaml` on first use and retains an import backup.
+`AI_SCIENTIST_ROLE_CONFIG` now selects a frozen JSON settings snapshot, not YAML.
 The workload defaults to `bfts_config.yaml`. If present,
 `bfts_config.acceptance.yaml` is labeled **Reduced validation workload**; it is
 not a publication-quality guarantee. This UI uses the ICBINB paper workflow with
@@ -135,34 +137,31 @@ and `pdftotext`. The existing TeX resolver honors `AI_SCIENTIST_TEX_BIN_DIR`;
 launch with their names. A model listing and declared capability do not prove a
 text or image generation request works.
 
-On **Models**, select a preset and an endpoint for each role. **Detect models**
+On **Models**, select an endpoint for each role. **Detect models**
 lists that endpoint's advertised IDs in the **Model** dropdown; **Refresh models**
 retries the listing. These are explicit, bounded requests against the selected
-preset, not generation requests. A failed or empty listing preserves the current
+server, not generation requests. A failed or empty listing preserves the current
 assignment. **Advanced** accepts a custom model ID and token, temperature,
 timeout, and credential-environment overrides. Blank overrides inherit the
 endpoint or the calling task's settings.
-An endpoint can set a display `label` (for example, `label: Spark cluster`);
-role assignments still reference its YAML key, so labels do not change routing.
 Changing a role's endpoint clears its model selection. Choose a model for the new
 endpoint before saving; discovery does not automatically assign one.
 Role cards identify each task with plain-language titles and its exact
-`role/<name>` key. The supplied presets declare only the assignments the default
-workflow selects; a role chooses a model and settings, not a separate agent or a
+`role/<name>` key. Unassigned tasks remain visible so they can be configured. The
+role chooses a model and settings, not a separate agent or a
 shared conversation, so tasks can reuse one model with different contexts.
 
-**Save configuration** patches the selected YAML file, preserving comments and
-unrelated settings. Endpoint edits must be saved before their new connection is
-probed. API-key credentials are environment-variable names only; key values are never
-editable. Shared YAML aliases/merge keys and embedded credentials block editing.
+**Save configuration** updates the local settings database atomically.
+Endpoint edits must be saved before their new connection is probed.
+API-key credentials are environment-variable names only; key values are never editable.
 Stale saves retain the draft and require **Reload configuration**; there is no
 force-save. Unsaved edits survive navigation within the same browser tab.
 
-Future Studio jobs and command-line reads use the saved preset. Existing Studio
+Future Studio jobs and command-line reads use the saved settings. Existing Studio
 jobs retain their configuration snapshots; running command-line jobs are not
 snapshot-isolated by this editor. Crash assistant settings are saved separately:
 click **Save assistant settings** after changing its role to capture the new
-assignment. Saving a research preset never silently changes that enrollment.
+assignment. Saving model settings never silently changes that enrollment.
 
 Under **Models → Endpoint connections**, the **Provider** selector includes
 **CBORG**. Selecting it fills `https://api.cborg.lbl.gov/v1` and the credential

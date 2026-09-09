@@ -86,18 +86,17 @@ AVAILABLE_LLMS = [
 
 
 def get_available_llms() -> list[str]:
-    """Static provider list plus role/<name> entries from the current config.
+    """Static provider list plus role/<task> entries from current model settings.
 
-    A missing role config keeps the legacy provider list usable for existing
-    CLIs; a present but malformed config raises RoleConfigError instead of
-    being silently ignored.
+    A fresh installation without configured settings keeps the legacy provider
+    list usable for existing CLIs; a present but malformed snapshot raises
+    RoleConfigError instead of being silently ignored.
     """
-    path = model_routing.role_config_path()
-    if not path.exists():
+    try:
+        settings = model_routing.load_settings()
+    except model_routing.NoModelSettings:
         return list(AVAILABLE_LLMS)
-    cfg = model_routing.load_role_config()
-    roles = cfg.get("roles") or {}
-    return list(AVAILABLE_LLMS) + [f"role/{name}" for name in roles]
+    return list(AVAILABLE_LLMS) + [f"role/{name}" for name in settings.get("roles") or {}]
 
 
 # Get N responses from a single message, used for ensembling.

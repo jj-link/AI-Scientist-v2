@@ -428,7 +428,7 @@ class DurabilityAndClaiming(DiagnosticsBase):
                     deadline = time.monotonic() + 20
                     while time.monotonic() < deadline:
                         record = self.store.get_diagnostic(job["id"])
-                        if record is not None and record["state"] == "analyzing":
+                        if record is not None and record["state"] == "analyzing" and server.requests:
                             break
                         await asyncio.sleep(0.05)
                     self.store.save_assistant_settings(False)

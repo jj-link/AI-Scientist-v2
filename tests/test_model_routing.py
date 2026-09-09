@@ -10,7 +10,6 @@ import sys
 from pathlib import Path
 
 import pytest
-import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -51,9 +50,10 @@ def role_cfg(tmp_path, monkeypatch):
                 "requires": ["vision"],
             },
         },
+        "experiment_execution": {},
     }
-    path = tmp_path / "ais_roles_test.yaml"
-    path.write_text(yaml.safe_dump(cfg), encoding="utf-8")
+    path = tmp_path / "model_settings.json"
+    path.write_text(json.dumps(cfg), encoding="utf-8")
     monkeypatch.setenv(model_routing.ROLE_CONFIG_ENV, str(path))
     model_routing._cache.clear()
     return path
@@ -115,10 +115,12 @@ def test_unknown_endpoint_fails_clearly(role_cfg):
 
 def test_missing_role_config_fails_clearly(tmp_path, monkeypatch):
     monkeypatch.setenv(
-        model_routing.ROLE_CONFIG_ENV, str(tmp_path / "missing.yaml")
+        model_routing.ROLE_CONFIG_ENV, str(tmp_path / "missing.json")
     )
     model_routing._cache.clear()
-    with pytest.raises(model_routing.RoleConfigError, match="not found"):
+    with pytest.raises(
+        model_routing.RoleConfigError, match="Model settings snapshot not found"
+    ):
         model_routing.parse_model("role/writeup")
 
 
@@ -132,7 +134,7 @@ def test_validation_requires_model_on_endpoint(role_cfg, monkeypatch):
     monkeypatch.setattr(
         model_routing,
         "list_endpoint_models",
-        lambda name, **kwargs: ["big-model"] if name == "spark" else ["other"],
+        lambda name, settings=None, **kwargs: ["big-model"] if name == "spark" else ["other"],
     )
     with pytest.raises(model_routing.RoleConfigError, match="not served by endpoint"):
         model_routing.validate_roles()
@@ -140,18 +142,18 @@ def test_validation_requires_model_on_endpoint(role_cfg, monkeypatch):
 
 def test_validation_checks_declared_capabilities(tmp_path, role_cfg, monkeypatch):
     # spark does not declare function_calling; a role requiring it must fail.
-    cfg = yaml.safe_load(role_cfg.read_text(encoding="utf-8"))
+    cfg = json.loads(role_cfg.read_text(encoding="utf-8"))
     cfg["roles"]["needy"] = {
         "endpoint": "spark",
         "model": "big-model",
         "requires": ["vision", "function_calling"],
     }
-    role_cfg.write_text(yaml.safe_dump(cfg), encoding="utf-8")
+    role_cfg.write_text(json.dumps(cfg), encoding="utf-8")
     os.utime(role_cfg, None)
     monkeypatch.setattr(
         model_routing,
         "list_endpoint_models",
-        lambda name, **kwargs: ["big-model"] if name == "spark" else ["small-model"],
+        lambda name, settings=None, **kwargs: ["big-model"] if name == "spark" else ["small-model"],
     )
     with pytest.raises(model_routing.RoleConfigError, match="function_calling"):
         model_routing.validate_roles()
@@ -161,7 +163,7 @@ def test_validation_success_summary(role_cfg, monkeypatch):
     monkeypatch.setattr(
         model_routing,
         "list_endpoint_models",
-        lambda name, **kwargs: ["big-model", "small-model"],
+        lambda name, settings=None, **kwargs: ["big-model", "small-model"],
     )
     summary = model_routing.validate_roles()
     assert summary["writeup"]["endpoint"] == "spark"
@@ -208,9 +210,9 @@ def test_client_build_without_key_uses_placeholder(role_cfg, monkeypatch):
 
 def test_config_cache_invalidated_on_mtime_change(role_cfg):
     assert model_routing.parse_model("role/writeup")["endpoint"] == "spark"
-    cfg = yaml.safe_load(role_cfg.read_text(encoding="utf-8"))
+    cfg = json.loads(role_cfg.read_text(encoding="utf-8"))
     cfg["roles"]["writeup"]["endpoint"] = "local"
-    role_cfg.write_text(yaml.safe_dump(cfg), encoding="utf-8")
+    role_cfg.write_text(json.dumps(cfg), encoding="utf-8")
     os.utime(role_cfg, None)  # ensure mtime bump on coarse filesystems
     assert model_routing.parse_model("role/writeup")["endpoint"] == "local"
 
@@ -236,13 +238,13 @@ def test_per_role_api_key_overrides_endpoint(role_cfg, monkeypatch):
     monkeypatch.setenv("LOCAL_MODEL_API_KEY", "sk-local")
 
     # Two roles on the SAME endpoint, different key env vars.
-    cfg = yaml.safe_load(role_cfg.read_text(encoding="utf-8"))
+    cfg = json.loads(role_cfg.read_text(encoding="utf-8"))
     cfg["roles"]["review_override"] = {
         "endpoint": "spark",
         "model": "big-model",
         "api_key_env": "REVIEW_KEY",
     }
-    role_cfg.write_text(yaml.safe_dump(cfg), encoding="utf-8")
+    role_cfg.write_text(json.dumps(cfg), encoding="utf-8")
     model_routing._cache.clear()
 
     assert model_routing.create_selfhosted_client("role/writeup").api_key == (
@@ -262,9 +264,9 @@ def test_client_timeout_finite_and_overridable(role_cfg, monkeypatch):
     assert float(default.timeout) == model_routing.DEFAULT_ENDPOINT_TIMEOUT
 
     # Endpoint-level override.
-    cfg = yaml.safe_load(role_cfg.read_text(encoding="utf-8"))
+    cfg = json.loads(role_cfg.read_text(encoding="utf-8"))
     cfg["endpoints"]["spark"]["timeout"] = 123.5
-    role_cfg.write_text(yaml.safe_dump(cfg), encoding="utf-8")
+    role_cfg.write_text(json.dumps(cfg), encoding="utf-8")
     os.utime(role_cfg, None)
     assert float(
         model_routing.create_selfhosted_client("role/writeup").timeout
@@ -272,7 +274,7 @@ def test_client_timeout_finite_and_overridable(role_cfg, monkeypatch):
 
     # Role-level override wins over the endpoint value.
     cfg["roles"]["writeup"]["timeout"] = 7
-    role_cfg.write_text(yaml.safe_dump(cfg), encoding="utf-8")
+    role_cfg.write_text(json.dumps(cfg), encoding="utf-8")
     os.utime(role_cfg, None)
     assert float(model_routing.create_selfhosted_client("role/writeup").timeout) == 7.0
 

@@ -299,20 +299,28 @@ class IdeaConversations:
         return record
 
     def _assignment(self, config_id):
+        """Resolve the ideation assignment from current model settings.
+
+        ``config_id`` from conversation rows is ignored: settings are edited in
+        one place, and each request uses the saved values as of right now.
+        """
         from ai_scientist import model_routing
-        cfg = model_routing.load_role_config(path=self.configs.role_path(config_id))
-        from .configs import _environment_credentials_only
-        # Validate the exact loaded mapping too if an external editor replaced the
-        # preset between role_path's validation and the routing loader's read.
-        _environment_credentials_only(cfg)
+        cfg = self.store.current_settings()
         selected = cfg.get("roles", {}).get("ideation")
         if not isinstance(selected, dict):
-            raise TurnFailure("The selected preset has no ideation role. Configure it on the Models page and retry.")
-        endpoint = cfg.get("endpoints", {}).get(selected.get("endpoint"))
-        if not isinstance(endpoint, dict) or not isinstance(selected.get("model"), str) or not selected["model"].strip():
+            raise TurnFailure("The ideation task has no model assigned yet. Configure it on the Models page and retry.")
+        endpoint_name = selected.get("endpoint")
+        endpoint = cfg.get("endpoints", {}).get(endpoint_name)
+        if not isinstance(endpoint_name, str) or not isinstance(endpoint, dict):
+            raise TurnFailure("The ideation task references a missing server. Check Models and retry.")
+        if not isinstance(selected.get("model"), str) or not selected["model"].strip():
             raise TurnFailure("The ideation model assignment is incomplete. Check Models and retry.")
         model_routing.validate_provider_settings(endpoint, selected)
-        timeout = selected.get("timeout", endpoint.get("timeout", model_routing.DEFAULT_ENDPOINT_TIMEOUT))
+        timeout = selected.get("timeout")
+        if timeout is None:
+            timeout = endpoint.get("timeout")
+        if timeout is None:
+            timeout = model_routing.DEFAULT_ENDPOINT_TIMEOUT
         if type(timeout) not in (int, float) or not math.isfinite(timeout) or timeout <= 0:
             raise TurnFailure("The ideation timeout must be a positive finite number. Check Models and retry.")
         for key in ("max_tokens", "temperature"):

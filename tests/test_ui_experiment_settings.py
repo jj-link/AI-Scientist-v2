@@ -72,7 +72,6 @@ class ExperimentSettingsTests(unittest.TestCase):
         self.body = {
             "request_id": str(uuid4()), "idea_id": self.idea["id"],
             "idea_revision": self.idea["revision"],
-            "role_config_id": bootstrap["selected_role_config_id"],
             "bfts_config_id": bootstrap["selected_bfts_config_id"],
             "execution_acknowledged": True,
             "run_settings": {"num_workers": 7, "num_seeds": 9, "execution_timeout": 12.5,
@@ -108,7 +107,7 @@ class ExperimentSettingsTests(unittest.TestCase):
     def test_two_runs_keep_settings_and_unrelated_baseline_data_isolated(self):
         original = self.baseline_path.read_bytes()
         other = self.other_path.read_bytes()
-        role_bytes = self.role_path.read_bytes()
+        settings = self.app.state.store.current_settings()
         first = self.launch(self.body)
         first_bytes = self.snapshot(first).read_bytes()
         self.app.state.store.update_job(first, state="completed")
@@ -141,7 +140,7 @@ class ExperimentSettingsTests(unittest.TestCase):
         self.assertEqual(self.snapshot(first).read_bytes(), first_bytes)
         self.assertEqual(self.baseline_path.read_bytes(), original)
         self.assertEqual(self.other_path.read_bytes(), other)
-        self.assertEqual(self.role_path.read_bytes(), role_bytes)
+        self.assertEqual(self.app.state.store.current_settings(), settings)
 
     def test_retry_retains_original_request_and_snapshot_after_source_change(self):
         first = self.launch(self.body)
@@ -268,8 +267,10 @@ class ExperimentSettingsTests(unittest.TestCase):
         self.assertIn("Fixture TeX is unavailable.", response.json()["detail"]["blockers"])
         self.assert_unreserved()
         self.tools.return_value = {"ok": True, "tools": []}
-        self.role_config["roles"]["experiment_code"]["model"] = "not-served"
-        self.role_path.write_text(yaml.safe_dump(self.role_config), encoding="utf-8")
+        from ai_scientist.ui.configs import Configs
+        configs = Configs(self.root)
+        configs.save_editor(configs.editor()["revision"],
+                            {"experiment_code": {"model": "not-served"}}, {})
         response = self.client.post("/api/experiments", headers=self.headers, json=self.body)
         self.assertEqual(response.status_code, 422, response.text)
         self.assert_unreserved()

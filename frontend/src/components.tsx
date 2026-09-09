@@ -11,7 +11,6 @@ import {
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { ApiError, errorMessage, type JobState, type Json } from "./api";
-import { useStudio } from "./studio";
 interface RoleHelp {
   title: string;
   description: string;
@@ -143,43 +142,6 @@ export function PageHeading({
       <h1>{title}</h1>
       {children}
     </header>
-  );
-}
-export function ConfigSelect({
-  id = "role-config",
-  label = "Role configuration",
-  disabled,
-  onBeforeChange,
-}: {
-  id?: string;
-  label?: string;
-  disabled?: boolean;
-  onBeforeChange?: (nextId: string) => boolean;
-}) {
-  const { bootstrap, roleConfigId, setRoleConfigId } = useStudio();
-  return (
-    <div className="field">
-      <label htmlFor={id}>{label}</label>
-      <select
-        id={id}
-        value={roleConfigId}
-        disabled={disabled}
-        onChange={(event) => {
-          const nextId = event.target.value;
-          if (onBeforeChange && !onBeforeChange(nextId)) {
-            event.target.value = roleConfigId;
-            return;
-          }
-          setRoleConfigId(nextId);
-        }}
-      >
-        {bootstrap.role_configs.map((config) => (
-          <option key={config.id} value={config.id}>
-            {config.label}
-          </option>
-        ))}
-      </select>
-    </div>
   );
 }
 export function JsonText({ value }: { value: Json }) {

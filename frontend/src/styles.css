@@ -1215,7 +1215,7 @@ dialog::backdrop {
   margin:0;
 }
 
-.models-role-list {
+.models-role-list:not([hidden]) {
   display:grid;
   gap:12px;
 }
@@ -1299,6 +1299,15 @@ dialog::backdrop {
 }
 
 .models-advanced-toggle[aria-expanded=true] svg {
+  transform:rotate(180deg);
+}
+
+.models-roles-toggle {
+  align-self:flex-start;
+  margin-top:4px;
+}
+
+.models-roles-toggle[aria-expanded=true] svg {
   transform:rotate(180deg);
 }
 

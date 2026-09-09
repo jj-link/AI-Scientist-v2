@@ -139,7 +139,7 @@ def parse_arguments(argv=None):
         "--role-config",
         type=str,
         default=None,
-        help="Path to the role-to-endpoint/model YAML (default: ais_roles.yaml).",
+        help="Path to a frozen model-settings JSON snapshot (set automatically for Studio jobs; direct runs use the current settings database).",
     )
     parser.add_argument(
         "--bfts-config",
@@ -333,17 +333,15 @@ def run_pipeline(args, *, run_dir=None, on_event=None, should_stop=None):
                     print(f"  {role_name:<22} -> {info['endpoint']:<8} {info['model']}{caps}")
 
             # Constrain generated experiment workers, not HTTP model inference.
-            role_cfg_path = model_routing.role_config_path()
-            if role_cfg_path.exists():
-                with open(role_cfg_path, "r", encoding="utf-8") as f:
-                    role_cfg = yaml.safe_load(f) or {}
-                exp_gpu = (role_cfg.get("experiment_execution") or {}).get("cuda_device")
-                if exp_gpu is not None:
-                    os.environ["CUDA_VISIBLE_DEVICES"] = str(exp_gpu)
-                    print(
-                        f"Experiments pinned via CUDA_VISIBLE_DEVICES={exp_gpu} "
-                        f"(from {role_cfg_path})"
-                    )
+            settings = model_routing.load_settings()
+            execution = settings.get("experiment_execution") or {}
+            exp_gpu = execution.get("cuda_device")
+            if exp_gpu is not None:
+                os.environ["CUDA_VISIBLE_DEVICES"] = str(exp_gpu)
+                print(
+                    f"Experiments pinned via CUDA_VISIBLE_DEVICES={exp_gpu} "
+                    f"(from model settings)"
+                )
             print(f"Using GPUs: {get_available_gpus()}")
             with open(args.load_ideas, "r") as f:
                 ideas = json.load(f)

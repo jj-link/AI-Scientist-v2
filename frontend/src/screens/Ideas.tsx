@@ -13,7 +13,6 @@ import {
   type IdeaRecord,
 } from "../api";
 import { ErrorNotice, JsonText, PageHeading } from "../components";
-import { useStudio } from "../studio";
 import "./ideas.css";
 
 type PendingMessage = {
@@ -93,7 +92,6 @@ function ConversationWorkspace({ conversationId, seedIdea, onChange, onOpen }: {
   onChange: () => void;
   onOpen: (id: string) => void;
 }) {
-  const { roleConfigId } = useStudio();
   const storageKey = `scientist-studio-idea-chat-${conversationId || (seedIdea ? `idea-${seedIdea.id}` : "new")}`;
   const [draft, setDraft] = useState(() => readDraft(storageKey));
   const draftRef = useRef(draft);
@@ -173,7 +171,6 @@ function ConversationWorkspace({ conversationId, seedIdea, onChange, onOpen }: {
         message: draftRef.current.message,
       } : {
         request_id: crypto.randomUUID(),
-        role_config_id: roleConfigId,
         message: draftRef.current.message,
         ...(seedIdea ? { idea_id: seedIdea.id } : {}),
       },
@@ -292,11 +289,10 @@ function ConversationWorkspace({ conversationId, seedIdea, onChange, onOpen }: {
         {draft.pending && !submitting && <p className="notice">The last request has not been confirmed. Retry sends the identical message and request ID so it cannot create a duplicate turn.</p>}
         <div className="actions">
           <button className="button primary" type="submit"
-            disabled={submitting || stopping || !draft.message.trim() || (!draft.pending && (running || (Boolean(conversationId) && (!conversation || Boolean(loadError))) || (!conversationId && !roleConfigId)))}>
+            disabled={submitting || stopping || !draft.message.trim() || (!draft.pending && (running || (Boolean(conversationId) && (!conversation || Boolean(loadError)))))}>
             <Send size={16} aria-hidden="true" /> {submitting ? "Sending…" : draft.pending ? "Retry message" : "Send message"}
           </button>
         </div>
-        {!conversationId && !roleConfigId && <p className="notice">A role configuration is required. Check Models to restore the Studio configuration; no assignment is changed here.</p>}
       </form>
     </section>
   );

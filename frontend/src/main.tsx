@@ -11,6 +11,7 @@ import ExperimentSetup from "./screens/ExperimentSetup";
 import Experiments from "./screens/Experiments";
 import Results from "./screens/Results";
 import Models from "./screens/Models";
+import Settings from "./screens/Settings";
 import "./styles.css";
 
 const router = createBrowserRouter([
@@ -26,6 +27,7 @@ const router = createBrowserRouter([
       { path: "/results", element: <Results /> },
       { path: "/results/:runId", element: <Results /> },
       { path: "/models", element: <Models /> },
+      { path: "/settings", element: <Settings /> },
       {
         path: "*",
         element: (

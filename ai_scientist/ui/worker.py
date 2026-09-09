@@ -235,8 +235,8 @@ class Supervisor:
 def credential_values(directory: Path) -> set[str]:
     values = {value for key, value in os.environ.items() if value and re.search(r"KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL", key, re.I)}
     try:
-        config = yaml.safe_load((directory / "role_config.yaml").read_text(encoding="utf-8"))
-    except (OSError, yaml.YAMLError):
+        config = json.loads((directory / "model_settings.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
         config = None
 
     def collect(value: object) -> None:
@@ -345,7 +345,7 @@ def run_job(store: Store, job_id: str) -> int:
     process = psutil.Process(os.getpid())
     store.update_job(job_id, pid=process.pid, process_created=process.create_time(), started_at=now())
     os.environ["AI_SCIENTIST_ROOT"] = str(store.root)
-    os.environ["AI_SCIENTIST_ROLE_CONFIG"] = str(directory / "role_config.yaml")
+    os.environ["AI_SCIENTIST_ROLE_CONFIG"] = str(directory / "model_settings.json")
     os.environ["AI_SCIENTIST_REQUEST_LOG"] = str(directory / "model_requests.jsonl")
     finished = threading.Event()
 
@@ -430,7 +430,7 @@ def run_job(store: Store, job_id: str) -> int:
 
             args = parse_arguments([
                 "--writeup-type", "icbinb", "--load_ideas", str(directory / "idea.json"),
-                "--idea_idx", "0", "--role-config", str(directory / "role_config.yaml"),
+                "--idea_idx", "0", "--role-config", str(directory / "model_settings.json"),
                 "--bfts-config", str(directory / "bfts_config.yaml"),
                 "--model_agg_plots", "role/plot_generation", "--model_writeup", "role/writeup",
                 "--model_citation", "role/citation", "--model_writeup_small", "role/writeup_small",

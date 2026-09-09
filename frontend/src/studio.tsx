@@ -2,15 +2,12 @@ import {
   createContext,
   useContext,
   useEffect,
-  useState,
   type ReactNode,
 } from "react";
 import { errorMessage, setRequestToken, useApi, type Bootstrap } from "./api";
 
 interface Studio {
   bootstrap: Bootstrap;
-  roleConfigId: string;
-  setRoleConfigId: (id: string) => void;
   refreshBootstrap: () => void;
 }
 const StudioContext = createContext<Studio | null>(null);
@@ -21,14 +18,10 @@ export function useStudio() {
 }
 export function StudioProvider({ children }: { children: ReactNode }) {
   const { data, error, refresh } = useApi<Bootstrap>("/api/bootstrap", 10000);
-  const [roleConfigId, setRoleConfigId] = useState("");
   useEffect(() => {
-    if (data) {
-      setRequestToken(data.request_token);
-      setRoleConfigId((current) => current || data.selected_role_config_id);
-    }
+    if (data) setRequestToken(data.request_token);
   }, [data]);
-  if (!data || !roleConfigId)
+  if (!data)
     return (
       <main className="startup">
         <h1>AI-Scientist Studio</h1>
@@ -46,8 +39,6 @@ export function StudioProvider({ children }: { children: ReactNode }) {
     <StudioContext.Provider
       value={{
         bootstrap: data,
-        roleConfigId,
-        setRoleConfigId,
         refreshBootstrap: refresh,
       }}
     >

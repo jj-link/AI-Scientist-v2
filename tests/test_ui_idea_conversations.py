@@ -70,7 +70,6 @@ class IdeaConversationApproval(unittest.TestCase):
         self.client = self.enterContext(TestClient(self.app, base_url="http://127.0.0.1:8765"))
         bootstrap = self.client.get("/api/bootstrap").json()
         self.headers = {"Origin": "http://127.0.0.1:8765", "X-Studio-Token": bootstrap["request_token"]}
-        self.config = next(item["id"] for item in bootstrap["role_configs"] if item["label"] == "ais_roles.yaml")
         self.design = {"Name": "verifier_study", "Title": "Verifier-guided repository fixes",
             "Short Hypothesis": "Verification may improve repository issue resolution.",
             "Abstract": "Compare unassisted coding, self-verification, and stronger verification at matched cost.",
@@ -93,7 +92,7 @@ class IdeaConversationApproval(unittest.TestCase):
 
     def start(self, output, message="Investigate verifier-guided repository coding.", idea_id=None):
         self.responses.append(output)
-        body = {"request_id": str(uuid4()), "role_config_id": self.config, "message": message}
+        body = {"request_id": str(uuid4()), "message": message}
         if idea_id:
             body["idea_id"] = idea_id
         response = self.post("/api/idea-conversations", body)
@@ -210,7 +209,7 @@ class IdeaConversationApproval(unittest.TestCase):
         self.release.clear()
         self.responses.append({"action": "present", "message": "Review this design.", "idea": self.design})
         response = self.post("/api/idea-conversations", {
-            "request_id": str(uuid4()), "role_config_id": self.config, "message": "Investigate this idea."})
+            "request_id": str(uuid4()), "message": "Investigate this idea."})
         self.assertEqual(response.status_code, 202, response.text)
         id = response.json()["id"]
         stopped = self.post(f"/api/idea-conversations/{id}/stop", {})

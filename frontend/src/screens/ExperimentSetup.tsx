@@ -3,7 +3,6 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, ArrowRight, Play, ShieldAlert } from "lucide-react";
 import { ApiError, isActive, mutate, useApi, type IdeaRecord, type ModelsView, type ModelRole, type RunSettings, type Workload } from "../api";
 import {
-  ConfigSelect,
   ErrorNotice,
   JsonText,
   PageHeading,
@@ -17,7 +16,6 @@ type LaunchRequest = {
   request_id: string;
   idea_id: string;
   idea_revision: number;
-  role_config_id: string;
   bfts_config_id: string;
   execution_acknowledged: boolean;
   run_settings: RunSettings;
@@ -116,9 +114,9 @@ function savedDraft(ideaId: string): { configId: string; values: RunDraft } | nu
   }
 }
 
-function ResearchModels({ configId }: { configId: string }) {
-  const view = useApi<ModelsView>(`/api/models?config_id=${encodeURIComponent(configId)}`);
-  const models = view.data?.config_id === configId ? view.data : undefined;
+function ResearchModels() {
+  const view = useApi<ModelsView>("/api/models");
+  const models = view.data;
   const researchRoles = models?.roles.filter((role) => role.name !== "ideation") || [];
   function assignment(role: ModelRole) {
     const help = Object.hasOwn(ROLE_HELP, role.name) ? ROLE_HELP[role.name] : CUSTOM_ROLE_HELP;
@@ -141,7 +139,7 @@ function ResearchModels({ configId }: { configId: string }) {
       {!models && !view.error && <p role="status">Loading saved model assignments…</p>}
       {models && (
         <>
-          {researchRoles.length === 0 && <p className="notice">No research roles are configured in this preset. Review the assignments in Models.</p>}
+          {researchRoles.length === 0 && <p className="notice">No research roles are configured. Review the assignments in Models.</p>}
           <dl className="setup-models">{researchRoles.map(assignment)}</dl>
         </>
       )}
@@ -155,8 +153,7 @@ function Setup({
   idea: IdeaRecord;
   refreshIdea: () => void;
 }) {
-  const { bootstrap, roleConfigId, setRoleConfigId, refreshBootstrap } =
-    useStudio();
+  const { bootstrap, refreshBootstrap } = useStudio();
   const navigate = useNavigate();
   const [restored] = useState(() => savedRequest(idea.id));
   const [storedDraft] = useState(() => savedDraft(idea.id));
@@ -185,12 +182,8 @@ function Setup({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const selectedConfigId = pending?.bfts_config_id || configId;
-  const selectedRoleId = pending?.role_config_id || roleConfigId;
   const config = bootstrap.bfts_configs.find(
     (item) => item.id === selectedConfigId,
-  );
-  const role = bootstrap.role_configs.find(
-    (item) => item.id === selectedRoleId,
   );
   const workload = config?.settings;
   const fieldErrors: Partial<Record<RunField, string>> = {};
@@ -232,7 +225,6 @@ function Setup({
                 "The experiment configuration must use exp_name: run for this workflow.",
               ]
             : []),
-    ...(!role ? ["Select an available role configuration."] : []),
     ...(pending && pending.idea_revision !== idea.revision
       ? [
           `This request uses saved revision ${pending.idea_revision}, but revision ${idea.revision} is now saved. Prepare a new request to use the latest revision.`,
@@ -255,7 +247,6 @@ function Setup({
       request_id: requestId,
       idea_id: idea.id,
       idea_revision: idea.revision,
-      role_config_id: roleConfigId,
       bfts_config_id: configId,
       execution_acknowledged: acknowledged,
       run_settings: {
@@ -384,20 +375,8 @@ function Setup({
           <details className="card setup-role-assignments">
             <summary id="setup-research-models">Role assignments</summary>
             <div className="stack">
-            <ResearchModels key={selectedRoleId} configId={selectedRoleId} />
+            <ResearchModels />
             <Link to="/models">Edit research model assignments <ArrowRight size={16} aria-hidden="true" /></Link>
-            <details className="setup-details">
-              <summary>Advanced: select a saved model configuration</summary>
-              <fieldset className="generation-settings stack" disabled={submitting || Boolean(pending)}>
-                {pending ? (
-                  <label className="field" htmlFor="submitted-role-config">
-                    Submitted model configuration
-                    <input id="submitted-role-config" readOnly value={role?.label || selectedRoleId} />
-                  </label>
-                ) : <ConfigSelect id="setup-role-config" label="Saved model configuration" />}
-              </fieldset>
-              <p className="metadata">Changes to model assignments are made in Models. This selector chooses which saved configuration the run will copy.</p>
-            </details>
             </div>
           </details>
         </div>
@@ -423,7 +402,6 @@ function Setup({
                 {stages.map((stage) => settingInput(stage, `${stage.replace("stage", "Stage ")}: ${stageLabels[stage]} (iterations)`))}
               </div>
               <dl className="setup-technical">
-                <div><dt>Model preset</dt><dd>{role?.label || "Not selected"}</dd></div>
                 <div><dt>Internal experiment name</dt><dd>{workload?.exp_name || "Not specified"}</dd></div>
                 <div><dt>Paper workflow</dt><dd>ICBINB · Writeup and reviews enabled</dd></div>
                 <div><dt>Output directory</dt><dd className="output-path"><code>{output}</code></dd></div>
@@ -472,7 +450,6 @@ function Setup({
           {pending && !submitting && (
             <button className="button secondary" type="button" onClick={() => {
               if (window.confirm("Create a new request with a new output directory? The previous request may already exist on the server; check Experiments first if its result was unclear.")) {
-                if (pending.role_config_id !== roleConfigId) setRoleConfigId(pending.role_config_id);
                 newRequest();
               }
             }}>Prepare a new request</button>

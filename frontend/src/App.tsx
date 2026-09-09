@@ -4,6 +4,7 @@ import {
   Lightbulb,
   PanelsTopLeft,
   Server,
+  Settings as SettingsIcon,
 } from "lucide-react";
 import { NavLink, Outlet } from "react-router-dom";
 import { StudioProvider, useStudio } from "./studio";
@@ -41,6 +42,10 @@ function Shell() {
           <NavLink to="/models">
             <Server size={20} aria-hidden="true" />
             Models
+          </NavLink>
+          <NavLink to="/settings">
+            <SettingsIcon size={20} aria-hidden="true" />
+            Settings
           </NavLink>
         </nav>
         <div className="sidebar-footer">

@@ -24,7 +24,7 @@ from .configs import Configs, EditorConflict, InvalidConfiguration, assistant_se
 from .diagnostics import CrashAssistant, PublishUnknown, PublishUnavailable, REPOSITORY, sanitize_text
 from .idea_conversations import IdeaConversations
 from .schemas import IdeaConversationCreate, IdeaConversationMessage
-from .schemas import AssistantSettingsUpdate, EndpointModelsRequest, ExperimentRequest, ModelConfigUpdate, IdeaJobRequest, IdeaUpdate, IssueDraftUpdate, IssuePublish, ModelCheck
+from .schemas import AssistantSettingsUpdate, EndpointModelsRequest, ExperimentRequest, ModelConfigUpdate, IdeaJobRequest, IdeaUpdate, IssueDraftUpdate, IssuePublish
 from .schemas import Request as ProviderAction
 from .store import Conflict, Store
 from .worker import Supervisor, identity, log_download, log_preview, now, write_json
@@ -203,7 +203,6 @@ def create_app(root: Path | None = None, *, development: bool = False) -> FastAP
     @app.post("/api/idea-conversations", status_code=202)
     async def create_conversation(body: IdeaConversationCreate):
         return idea_conversations.submit(str(body.request_id), body.message,
-                                         role_config_id=body.role_config_id,
                                          idea_id=str(body.idea_id) if body.idea_id else None)
 
     @app.post("/api/idea-conversations/{conversation_id}/messages", status_code=202)
@@ -251,7 +250,6 @@ def create_app(root: Path | None = None, *, development: bool = False) -> FastAP
             if prior:
                 return accepted(prior)
             # Local validation and endpoint availability happen before reserving compute.
-            role_path = configs.role_path(payload["role_config_id"])
             bfts_bytes = None
             if kind == "experiment":
                 if not payload["execution_acknowledged"]:
@@ -262,13 +260,17 @@ def create_app(root: Path | None = None, *, development: bool = False) -> FastAP
                 if record["errors"]:
                     raise HTTPException(422, detail={"message": "Save a valid proposal before starting an experiment.", "errors": record["errors"]})
                 candidate = configs.experiment_config(payload["bfts_config_id"], payload["run_settings"])
-                blockers = configs.validate_experiment(payload["role_config_id"], candidate)
+                blockers = configs.validate_experiment(candidate)
                 if blockers:
                     raise HTTPException(422, detail={"message": "Experiment prerequisites are not satisfied.", "blockers": blockers})
                 bfts_bytes = yaml.safe_dump(candidate, allow_unicode=True, sort_keys=False).encode("utf-8")
             elif not payload["research_question"].strip():
                 raise HTTPException(422, detail={"message": "Enter a research question.", "errors": {"research_question": "Enter nonempty text"}})
-            role_bytes = role_path.read_bytes()
+            settings = store.current_settings()
+            role_bytes = json.dumps({"endpoints": settings["endpoints"],
+                                     "roles": settings["roles"],
+                                     "experiment_execution": settings["experiment_execution"]},
+                                    indent=1, sort_keys=True).encode("utf-8")
             job = store.create_job(kind, payload["request_id"], payload, idea_id=payload.get("idea_id"), idea_revision=payload.get("idea_revision"))
             directory = store.job_dir(job["id"])
             try:
@@ -278,7 +280,7 @@ def create_app(root: Path | None = None, *, development: bool = False) -> FastAP
                     # A second application instance may have claimed this idempotent request.
                     return accepted(store.get_job(job["id"]))
                 write_json(directory / "request.json", job["request"], exclusive=True)
-                with (directory / "role_config.yaml").open("xb") as handle:
+                with (directory / "model_settings.json").open("xb") as handle:
                     handle.write(role_bytes)
                 if kind == "experiment":
                     with (directory / "bfts_config.yaml").open("xb") as handle:
@@ -364,7 +366,7 @@ def create_app(root: Path | None = None, *, development: bool = False) -> FastAP
     async def save_assistant_settings(body: AssistantSettingsUpdate):
         if body.enabled:
             try:
-                snapshot = dict(configs.diagnostic_assignment(body.config_id, body.role))
+                snapshot = dict(configs.diagnostic_assignment(body.role))
             except KeyError:
                 raise HTTPException(404, detail={"message": "The selected configuration or role was not found."}) from None
             saved = store.save_assistant_settings(True, snapshot)
@@ -448,48 +450,43 @@ def create_app(root: Path | None = None, *, development: bool = False) -> FastAP
         return FileResponse(path, media_type=mime, filename=path.name, content_disposition_type="attachment" if attachment or download else "inline")
 
     @app.get("/api/models")
-    def models(config_id: str):
-        return configs.models(config_id)
+    def models():
+        return configs.models()
 
     @app.post("/api/models/check")
-    def model_check(body: ModelCheck):
-        return configs.check(body.config_id)
+    def model_check():
+        return configs.check()
 
     @app.post("/api/models/endpoint-models")
     def endpoint_models(body: EndpointModelsRequest):
         try:
-            return configs.endpoint_models(body.config_id, body.endpoint)
+            return configs.endpoint_models(body.endpoint)
         except KeyError:
-            raise HTTPException(404, detail={"message": "The selected configuration was not found."}) from None
+            raise HTTPException(404, detail={"message": "The selected server was not found."}) from None
 
     @app.get("/api/models/editor")
-    def read_editor(config_id: str):
-        try:
-            return configs.editor(config_id)
-        except FileNotFoundError:
-            raise HTTPException(404, detail={"message": "The selected preset no longer exists."}) from None
-        except OSError:
-            raise HTTPException(503, detail={"message": "The selected preset is not readable. Check file permissions and retry."}) from None
+    def read_editor():
+        return configs.editor()
 
     @app.patch("/api/models/editor")
     def update_editor(body: ModelConfigUpdate):
         with launch_lock:
             try:
-                return configs.save_editor(body.config_id, body.expected_revision,
+                return configs.save_editor(body.expected_revision,
                                            {name: patch.model_dump(exclude_none=False, exclude_unset=True)
                                             for name, patch in body.roles.items()},
                                            {name: patch.model_dump(exclude_none=False, exclude_unset=True)
-                                            for name, patch in body.endpoints.items()})
+                                            for name, patch in body.endpoints.items()},
+                                           delete_servers=body.delete_servers,
+                                           delete_tasks=body.delete_tasks)
             except InvalidConfiguration as exc:
                 raise HTTPException(422, detail={"message": exc.args[0], "errors": exc.errors}) from None
             except EditorConflict as exc:
                 raise HTTPException(409, detail={"message": exc.message, "errors": exc.errors}) from None
             except KeyError:
-                raise HTTPException(404, detail={"message": "The selected configuration was not found."}) from None
-            except FileNotFoundError:
-                raise HTTPException(404, detail={"message": "The selected preset no longer exists."}) from None
+                raise HTTPException(404, detail={"message": "The selected server was not found."}) from None
             except OSError:
-                raise HTTPException(503, detail={"message": "The preset could not be saved. Check write permissions and file locks, then retry. Your edits are retained."}) from None
+                raise HTTPException(503, detail={"message": "The settings could not be saved. Check write permissions and file locks, then retry. Your edits are retained."}) from None
 
     @app.get("/{path:path}")
     def frontend(path: str, request: Request):

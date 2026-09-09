@@ -1,11 +1,11 @@
 """Focused tests for self-hosted runtime compatibility fixes."""
 
+import json
 import sys
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -14,12 +14,10 @@ from ai_scientist.llm import AVAILABLE_LLMS, get_available_llms  # noqa: E402
 
 
 def test_get_available_llms_appends_roles(monkeypatch):
-    existing = Path(__file__)
-    monkeypatch.setattr(model_routing, "role_config_path", lambda: existing)
     monkeypatch.setattr(
         model_routing,
-        "load_role_config",
-        lambda: {"roles": {"ideation": {}, "writeup": {}}},
+        "load_settings",
+        lambda: {"endpoints": {}, "roles": {"ideation": {}, "writeup": {}}},
     )
     available = get_available_llms()
     assert "role/ideation" in available
@@ -27,12 +25,10 @@ def test_get_available_llms_appends_roles(monkeypatch):
 
 
 def test_get_available_llms_keeps_legacy_list_intact(monkeypatch):
-    existing = Path(__file__)
-    monkeypatch.setattr(model_routing, "role_config_path", lambda: existing)
     monkeypatch.setattr(
         model_routing,
-        "load_role_config",
-        lambda: {"roles": {"ideation": {}, "writeup": {}}},
+        "load_settings",
+        lambda: {"endpoints": {}, "roles": {"ideation": {}, "writeup": {}}},
     )
     available = get_available_llms()
     assert available[: len(AVAILABLE_LLMS)] == AVAILABLE_LLMS
@@ -42,22 +38,18 @@ def test_get_available_llms_keeps_legacy_list_intact(monkeypatch):
 
 
 def test_get_available_llms_missing_config_returns_legacy(monkeypatch):
-    monkeypatch.setattr(
-        model_routing,
-        "role_config_path",
-        lambda: Path("does/not/exist/ais_roles.yaml"),
-    )
+    def no_settings():
+        raise model_routing.NoModelSettings(model_routing.NO_SETTINGS_MESSAGE)
+
+    monkeypatch.setattr(model_routing, "load_settings", no_settings)
     assert get_available_llms() == AVAILABLE_LLMS
 
 
 def test_get_available_llms_malformed_config_raises(monkeypatch):
-    existing = Path(__file__)
-    monkeypatch.setattr(model_routing, "role_config_path", lambda: existing)
-
     def malformed():
-        raise model_routing.RoleConfigError("Role config must be a mapping.")
+        raise model_routing.RoleConfigError("Model settings must be a mapping.")
 
-    monkeypatch.setattr(model_routing, "load_role_config", malformed)
+    monkeypatch.setattr(model_routing, "load_settings", malformed)
     with pytest.raises(model_routing.RoleConfigError, match="must be a mapping"):
         get_available_llms()
 
@@ -121,9 +113,10 @@ def flagged_cfg(tmp_path, monkeypatch):
             "writeup": {"endpoint": "spark", "model": "big", "max_tokens": 8192},
             "no_budget": {"endpoint": "spark", "model": "big"},
         },
+        "experiment_execution": {},
     }
-    path = tmp_path / "roles.yaml"
-    path.write_text(yaml.safe_dump(cfg), encoding="utf-8")
+    path = tmp_path / "model_settings.json"
+    path.write_text(json.dumps(cfg), encoding="utf-8")
     monkeypatch.setenv(model_routing.ROLE_CONFIG_ENV, str(path))
     monkeypatch.setenv(model_routing.REQUEST_LOG_ENV, str(tmp_path / "req.jsonl"))
     model_routing._cache.clear()

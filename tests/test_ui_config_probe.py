@@ -8,7 +8,7 @@ import threading
 import unittest
 from unittest.mock import patch
 from uuid import uuid4
-import yaml
+from ai_scientist.ui import model_settings
 
 from ai_scientist import model_routing
 from ai_scientist.ui.configs import Configs
@@ -46,37 +46,30 @@ class SelectedConfigProbe(unittest.TestCase):
         model_routing._cache.clear()
 
     def test_validation_uses_selected_endpoint_and_ui_retains_later_results(self):
-        with endpoint("global-model") as global_url, endpoint("selected-model") as selected_url, endpoint("error",500) as error_url:
-            default = self.root / "ais_roles.yaml"
-            selected = self.root / "ais_roles.selected.yaml"
-            def config(url, model):
-                return {"endpoints":{"local":{"base_url":url,"provides":["text"]}},
-                        "roles":{"ideation":{"endpoint":"local","model":model,"requires":["text"]}}}
-            default.write_text(yaml.safe_dump(config(global_url,"global-model")),encoding="utf-8")
-            selected.write_text(yaml.safe_dump(config(selected_url,"selected-model")),encoding="utf-8")
-            with patch.dict("os.environ", {model_routing.ROLE_CONFIG_ENV:str(default)}):
-                result = model_routing.validate_roles(path=selected)
-                self.assertEqual(result["ideation"]["model"], "selected-model")
-                cfg = config(selected_url,"selected-model")
-                cfg["endpoints"] = {"broken":{"base_url":error_url}, **cfg["endpoints"]}
-                selected.write_text(yaml.safe_dump(cfg),encoding="utf-8")
-                model_routing._cache.clear()
-                configs = Configs(self.root)
-                id = next(x["id"] for x in configs.presets()["role_configs"] if x["label"]==selected.name)
-                checked = configs.check(id)
-                by_id = {x["id"]:x for x in checked["endpoints"]}
-                self.assertFalse(checked["ok"])
-                self.assertFalse(by_id["broken"]["ok"])
-                self.assertTrue(by_id["local"]["ok"])
-                self.assertEqual(by_id["local"]["models"], ["selected-model"])
+        with endpoint("selected-model") as selected_url, endpoint("error", 500) as error_url:
+            model_settings.save_settings_atomic(self.root, {
+                "local": {"api_format": "openai", "address": selected_url, "capabilities": ["text"]},
+                "broken": {"api_format": "openai", "address": error_url}},
+                {"ideation": {"server": "local", "model": "selected-model", "requires": ["text"]}})
+            settings = model_settings.current_settings(self.root)
+            result = model_routing.validate_roles(settings)
+            self.assertEqual(result["ideation"]["model"], "selected-model")
+            checked = Configs(self.root).check()
+            by_id = {x["id"]: x for x in checked["endpoints"]}
+            self.assertFalse(checked["ok"])
+            self.assertFalse(by_id["broken"]["ok"])
+            self.assertTrue(by_id["local"]["ok"])
+            self.assertEqual(by_id["local"]["models"], ["selected-model"])
 
     def test_passive_model_view_strips_url_credentials(self):
-        cfg = {"endpoints":{"private":{"base_url":"https://user:password@example.com/v1?api_key=hidden&safe=1", "api_key_env":"STUDIO_TEST_KEY"}},
-               "roles":{"ideation":{"endpoint":"private","model":"chosen"}}}
-        (self.root/"ais_roles.yaml").write_text(yaml.safe_dump(cfg),encoding="utf-8")
+        model_settings.save_settings_atomic(self.root, {"private": {
+            "api_format": "openai",
+            "address": "https://user:password@example.com/v1?api_key=hidden&safe=1",
+            "credential_env": "STUDIO_TEST_KEY"}},
+            {"ideation": {"server": "private", "model": "chosen"}})
         configs = Configs(self.root)
-        with patch.dict("os.environ", {"STUDIO_TEST_KEY":"secret-value", model_routing.ROLE_CONFIG_ENV:str(self.root/"ais_roles.yaml")}):
-            view = configs.models(configs.presets()["selected_role_config_id"])
+        with patch.dict("os.environ", {"STUDIO_TEST_KEY": "secret-value"}):
+            view = configs.models()
             serialized = json.dumps(view)
             for secret in ("password", "hidden", "secret-value", "user:"):
                 self.assertNotIn(secret, serialized)
@@ -85,17 +78,14 @@ class SelectedConfigProbe(unittest.TestCase):
 
     def test_cborg_model_listing_uses_default_credential_and_explicit_compatible_url(self):
         with endpoint("cborg-served-model", expected_api_key="fixture-cborg-key") as url:
-            target = self.root / "ais_roles.yaml"
-            target.write_text(yaml.safe_dump({
-                "endpoints": {"cborg": {"provider": "cborg", "base_url": url, "provides": ["text"]}},
-                "roles": {"ideation": {"endpoint": "cborg", "model": "cborg-served-model", "requires": ["text"]}},
-            }), encoding="utf-8")
-            with patch.dict("os.environ", {model_routing.ROLE_CONFIG_ENV: str(target), "CBORG_API_KEY": "fixture-cborg-key"}):
+            model_settings.save_settings_atomic(self.root, {"cborg": {
+                "api_format": "cborg", "address": url, "capabilities": ["text"]}},
+                {"ideation": {"server": "cborg", "model": "cborg-served-model", "requires": ["text"]}})
+            with patch.dict("os.environ", {"CBORG_API_KEY": "fixture-cborg-key"}):
                 configs = Configs(self.root)
-                selected = configs.presets()["selected_role_config_id"]
-                listed = configs.endpoint_models(selected, "cborg")
+                listed = configs.endpoint_models("cborg")
                 self.assertTrue(listed["ok"], listed["error"])
                 self.assertEqual(listed["models"], ["cborg-served-model"])
-                checked = configs.check(selected)
-                self.assertTrue(checked["ok"], checked)
+                checked = configs.check()
+                self.assertTrue(checked["endpoints"][0]["ok"], checked)
                 self.assertNotIn("fixture-cborg-key", json.dumps(checked))
