@@ -331,9 +331,6 @@ export default function Ideas() {
       <div className="actions">
         <Link className="button secondary" to="/ideas"><Plus size={16} aria-hidden="true" /> New conversation</Link>
       </div>
-      <ErrorNotice error={approved.error} />
-      {savedId && !record && approved.loading && <p role="status">Loading saved idea…</p>}
-      {record && <SavedIdeaSummary record={record} />}
       <div className="ideas-workspace">
         <nav className="card stack conversation-navigation" aria-labelledby="conversations-heading">
           <h2 id="conversations-heading">Conversations</h2>
