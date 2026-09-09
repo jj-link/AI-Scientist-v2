@@ -102,14 +102,19 @@ a separate step, and saving never starts an experiment. Exports are
 launcher-compatible single-element JSON arrays; original saved JSON and unknown
 scientific fields are retained.
 
-Preparation shows the saved study and comparisons and explained workload limits.
+Preparation shows the saved study and comparisons. **Run settings** lets you edit
+parallel workers, evaluation seeds, the time limit per code execution, and all four
+research-stage iteration limits. Values start from the existing experiment
+configuration and are copied into the new job's snapshot; saved configuration files
+are not changed. Invalid or incomplete values block Start. Draft values survive
+page reloads, and retrying a submitted request keeps its original settings.
 All role assignments are under one initially collapsed **Role assignments** section.
 The assigned models write and evaluate
 the experiment; models named as experimental subjects remain requirements in the
-saved design, not automatically loaded assignments. Advanced sections expose
-preset selection, named research-stage limits, and the exclusive output directory.
+saved design, not automatically loaded assignments. **Advanced** exposes the named
+research-stage limits and the exclusive output directory.
 Errors that block launch appear beside **Start experiment**, with a recheck action;
-there is no separate readiness panel. Validation behavior is unchanged.
+there is no separate readiness panel. Tool and model readiness checks still apply.
 **Start experiment** launches code generation, execution, analysis,
 and paper writing, not a prebuilt benchmark runner.
 **Start experiment** requires an explicit acknowledgment:

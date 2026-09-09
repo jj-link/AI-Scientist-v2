@@ -1,7 +1,7 @@
-import { useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, ArrowRight, Play, ShieldAlert } from "lucide-react";
-import { ApiError, isActive, mutate, useApi, type Bootstrap, type IdeaRecord, type ModelsView, type ModelRole } from "../api";
+import { ApiError, isActive, mutate, useApi, type IdeaRecord, type ModelsView, type ModelRole, type RunSettings, type Workload } from "../api";
 import {
   ConfigSelect,
   ErrorNotice,
@@ -20,13 +20,16 @@ type LaunchRequest = {
   role_config_id: string;
   bfts_config_id: string;
   execution_acknowledged: boolean;
+  run_settings: RunSettings;
 };
 function savedRequest(ideaId: string): LaunchRequest | null {
   try {
     const value = JSON.parse(
       sessionStorage.getItem(`scientist-studio-launch-${ideaId}`) || "null",
     ) as LaunchRequest | null;
-    return value?.idea_id === ideaId ? value : null;
+    if (value?.idea_id === ideaId && validRunSettings(value.run_settings)) return value;
+    sessionStorage.removeItem(`scientist-studio-launch-${ideaId}`);
+    return null;
   } catch {
     return null;
   }
@@ -61,15 +64,56 @@ export default function ExperimentSetup() {
   );
 }
 
-const stageLabels: Record<string, string> = {
+const stageLabels = {
   stage1: "Build a working implementation",
   stage2: "Tune the baseline",
   stage3: "Explore the research idea",
   stage4: "Run ablation studies",
-};
+} as const;
+type Stage = keyof typeof stageLabels;
+const stages = Object.keys(stageLabels) as Stage[];
+const runFields = ["num_workers", "num_seeds", "execution_timeout", ...stages] as const;
+type RunField = (typeof runFields)[number];
+type RunDraft = Record<RunField, string>;
 
-function workloadLabel(config: Bootstrap["bfts_configs"][number]) {
-  return config.label === "bfts_config.yaml" ? "Standard research run" : config.label;
+function positiveNumber(value: unknown, integer: boolean): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value > 0 &&
+    (!integer || Number.isInteger(value));
+}
+
+function validRunSettings(value: unknown): value is RunSettings {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const settings = value as Record<string, unknown>;
+  const limits = settings.stage_iterations;
+  return Object.keys(settings).length === 4 &&
+    positiveNumber(settings.num_workers, true) &&
+    positiveNumber(settings.num_seeds, true) &&
+    positiveNumber(settings.execution_timeout, false) &&
+    !!limits && typeof limits === "object" && !Array.isArray(limits) &&
+    Object.keys(limits).length === 4 &&
+    stages.every((stage) => positiveNumber((limits as Record<string, unknown>)[stage], true));
+}
+
+function runDraft(settings: Workload | RunSettings | null | undefined): RunDraft {
+  return {
+    num_workers: String(settings?.num_workers ?? ""),
+    num_seeds: String(settings?.num_seeds ?? ""),
+    execution_timeout: String(settings?.execution_timeout ?? ""),
+    stage1: String(settings?.stage_iterations.stage1 ?? ""),
+    stage2: String(settings?.stage_iterations.stage2 ?? ""),
+    stage3: String(settings?.stage_iterations.stage3 ?? ""),
+    stage4: String(settings?.stage_iterations.stage4 ?? ""),
+  };
+}
+
+function savedDraft(ideaId: string): { configId: string; values: RunDraft } | null {
+  try {
+    const draft = JSON.parse(sessionStorage.getItem(`scientist-studio-run-settings-${ideaId}`) || "null");
+    return draft && typeof draft.configId === "string" && draft.values &&
+      runFields.every((field) => typeof draft.values[field] === "string") ? draft : null;
+  } catch {
+    return null;
+  }
 }
 
 function ResearchModels({ configId }: { configId: string }) {
@@ -115,12 +159,23 @@ function Setup({
     useStudio();
   const navigate = useNavigate();
   const [restored] = useState(() => savedRequest(idea.id));
+  const [storedDraft] = useState(() => savedDraft(idea.id));
   const [requestId, setRequestId] = useState(
     () => restored?.request_id || crypto.randomUUID(),
   );
-  const [configId, setConfigId] = useState(
-    restored?.bfts_config_id || bootstrap.selected_bfts_config_id,
+  const [configId] = useState(
+    restored?.bfts_config_id || storedDraft?.configId || bootstrap.selected_bfts_config_id,
   );
+  const [values, setValues] = useState<RunDraft>(() => restored
+    ? runDraft(restored.run_settings)
+    : storedDraft?.values || runDraft(bootstrap.bfts_configs.find((item) => item.id === configId)?.settings));
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(`scientist-studio-run-settings-${idea.id}`, JSON.stringify({ configId, values }));
+    } catch {
+      /* Keep the draft in memory when browser storage is disabled. */
+    }
+  }, [configId, idea.id, values]);
   const [acknowledged, setAcknowledged] = useState(
     restored?.execution_acknowledged || false,
   );
@@ -138,6 +193,23 @@ function Setup({
     (item) => item.id === selectedRoleId,
   );
   const workload = config?.settings;
+  const fieldErrors: Partial<Record<RunField, string>> = {};
+  for (const field of runFields) {
+    const integer = field !== "execution_timeout";
+    if (!values[field].trim() || !positiveNumber(Number(values[field]), integer)) {
+      fieldErrors[field] = integer
+        ? "Enter a positive whole number."
+        : "Enter a finite number greater than zero.";
+    }
+  }
+  const invalidSettings = Object.keys(fieldErrors).length > 0;
+  if (error instanceof ApiError && Array.isArray(error.detail.errors)) {
+    for (const issue of error.detail.errors) {
+      if (!issue || typeof issue.field !== "string" || typeof issue.message !== "string") continue;
+      const field = issue.field.replace(/^run_settings\.(stage_iterations\.)?/, "");
+      if (runFields.includes(field as RunField)) fieldErrors[field as RunField] = issue.message;
+    }
+  }
   const output = `${bootstrap.experiments_directory.replace(/[\\/]$/, "")}/ui_${requestId}`;
   const localBlockers = [
     ...bootstrap.prerequisites.tools
@@ -150,11 +222,11 @@ function Setup({
       ([field, message]) => `${field}: ${message}`,
     ),
     ...(!config
-      ? ["Select an available experiment configuration."]
+      ? ["The experiment configuration is unavailable. Restore it before starting."]
       : config.error
         ? [config.error]
         : !workload
-          ? ["The selected workload could not be read."]
+          ? ["The experiment configuration could not be read."]
           : workload.exp_name !== "run"
             ? [
                 "The experiment configuration must use exp_name: run for this workflow.",
@@ -177,7 +249,8 @@ function Setup({
       : null;
   async function start(event: FormEvent) {
     event.preventDefault();
-    if (busy.current || localBlockers.length || !acknowledged) return;
+    if (busy.current || localBlockers.length || invalidSettings || !acknowledged ||
+      (active && active.id !== requestId)) return;
     const payload = pendingRef.current || {
       request_id: requestId,
       idea_id: idea.id,
@@ -185,6 +258,17 @@ function Setup({
       role_config_id: roleConfigId,
       bfts_config_id: configId,
       execution_acknowledged: acknowledged,
+      run_settings: {
+        num_workers: Number(values.num_workers),
+        num_seeds: Number(values.num_seeds),
+        execution_timeout: Number(values.execution_timeout),
+        stage_iterations: {
+          stage1: Number(values.stage1),
+          stage2: Number(values.stage2),
+          stage3: Number(values.stage3),
+          stage4: Number(values.stage4),
+        },
+      },
     };
     pendingRef.current = payload;
     setPending(payload);
@@ -206,6 +290,7 @@ function Setup({
       );
       try {
         sessionStorage.removeItem(`scientist-studio-launch-${idea.id}`);
+        sessionStorage.removeItem(`scientist-studio-run-settings-${idea.id}`);
       } catch {
         /* No scientific data is stored here. */
       }
@@ -233,8 +318,26 @@ function Setup({
     refreshIdea();
     refreshBootstrap();
   }
+  function settingInput(field: RunField, label: string, help?: string) {
+    const id = `run-${field}`;
+    const message = fieldErrors[field];
+    return (
+      <div className="setup-run-field" key={field}>
+        <label className="field" htmlFor={id}>
+          {label}
+          <input id={id} type="number" min={field === "execution_timeout" ? 0 : 1}
+            step={field === "execution_timeout" ? "any" : 1} required value={values[field]}
+            onChange={(event) => setValues((current) => ({ ...current, [field]: event.target.value }))}
+            aria-invalid={Boolean(message)}
+            aria-describedby={[help ? `${id}-help` : null, message ? `${id}-error` : null].filter(Boolean).join(" ") || undefined} />
+        </label>
+        {help && <p className="metadata" id={`${id}-help`}>{help}</p>}
+        {message && <p className="field-error" id={`${id}-error`} role="alert">{message}</p>}
+      </div>
+    );
+  }
   return (
-    <form className="setup-page stack" onSubmit={start}>
+    <form className="setup-page stack" onSubmit={start} noValidate>
       <section className="card setup-study stack" aria-labelledby="setup-proposal">
         <div className="metadata">Your saved study · Revision {idea.revision}</div>
         <h2 id="setup-proposal">
@@ -304,51 +407,30 @@ function Setup({
             <h2 id="setup-config">Run settings</h2>
             <p>These limits control AI-Scientist’s research process, not the number of benchmark issues or comparison arms in your study.</p>
           </div>
+          <p className="metadata">Edit limits for this run only. Defaults come from the selected experiment configuration; starting copies these values into the new job without changing configuration files.</p>
           <fieldset className="generation-settings stack" disabled={submitting || Boolean(pending)}>
-            <label className="field" htmlFor="experiment-config">
-              Research workload
-              <select id="experiment-config" value={configId} onChange={(event) => setConfigId(event.target.value)} required aria-describedby="workload-help">
-                {bootstrap.bfts_configs.map((item) => <option value={item.id} key={item.id}>{workloadLabel(item)}</option>)}
-              </select>
-            </label>
-            <p className="metadata" id="workload-help">Chooses an existing set of run limits. The reduced validation workload is for checking the pipeline, not a publication-quality study.</p>
-          </fieldset>
-          {workload && (
-            <>
-              <dl className="setup-limits">
-                <div>
-                  <dt>Parallel research workers <strong>{workload.num_workers ?? "Not specified"}</strong></dt>
-                  <dd>How many research workers can develop and execute experiment attempts concurrently.</dd>
-                </div>
-                <div>
-                  <dt>Repeated evaluations <strong>{workload.num_seeds ?? "Not specified"}</strong></dt>
-                  <dd>Random seeds requested for the pipeline’s multi-seed evaluation. This does not set your benchmark sample size.</dd>
-                </div>
-                <div>
-                  <dt>Time limit per code execution <strong>{workload.execution_timeout === null ? "Not specified" : `${workload.execution_timeout} seconds`}</strong></dt>
-                  <dd>Limits one generated-code execution, not the total research run. Total runtime and cost are not estimated.</dd>
-                </div>
+            <legend className="sr-only">Run limits</legend>
+            {settingInput("num_workers", "Parallel research workers",
+              "How many research workers can develop and execute experiment attempts concurrently.")}
+            {settingInput("num_seeds", "Repeated evaluations (seeds)",
+              "Random seeds requested for the pipeline’s multi-seed evaluation. This does not set your benchmark sample size.")}
+            {settingInput("execution_timeout", "Time limit per code execution (seconds)",
+              "Limits one generated-code execution, not the total research run. Fractional seconds are allowed. Total runtime and cost are not estimated.")}
+            <details className="setup-details">
+              <summary>Advanced: research stages and technical settings{stages.some((stage) => fieldErrors[stage]) ? " — check stage limits" : ""}</summary>
+              <p className="metadata">Iteration limits for the research search stages—not the comparisons in your proposal.</p>
+              <div className="setup-stage-inputs">
+                {stages.map((stage) => settingInput(stage, `${stage.replace("stage", "Stage ")}: ${stageLabels[stage]} (iterations)`))}
+              </div>
+              <dl className="setup-technical">
+                <div><dt>Model preset</dt><dd>{role?.label || "Not selected"}</dd></div>
+                <div><dt>Internal experiment name</dt><dd>{workload?.exp_name || "Not specified"}</dd></div>
+                <div><dt>Paper workflow</dt><dd>ICBINB · Writeup and reviews enabled</dd></div>
+                <div><dt>Output directory</dt><dd className="output-path"><code>{output}</code></dd></div>
               </dl>
-              <details className="setup-details">
-                <summary>Advanced: research stages and technical settings</summary>
-                <p className="metadata">Configured iteration limits for the research search stages—not the comparisons in your proposal.</p>
-                <dl className="setup-limits">
-                  {Object.entries(workload.stage_iterations).map(([stage, limit]) => (
-                    <div key={stage}><dt>{stageLabels[stage] || stage}<strong>{limit ?? "Not specified"}</strong></dt></div>
-                  ))}
-                </dl>
-                {Object.keys(workload.stage_iterations).length === 0 && <p className="muted">Stage limits are not specified.</p>}
-                <dl className="setup-technical">
-                  <div><dt>Workload preset</dt><dd>{config?.label}</dd></div>
-                  <div><dt>Model preset</dt><dd>{role?.label || "Not selected"}</dd></div>
-                  <div><dt>Internal experiment name</dt><dd>{workload.exp_name || "Not specified"}</dd></div>
-                  <div><dt>Paper workflow</dt><dd>ICBINB · Writeup and reviews enabled</dd></div>
-                  <div><dt>Output directory</dt><dd className="output-path"><code>{output}</code></dd></div>
-                </dl>
-                <p className="metadata">A new output directory is created after Start; existing results are not reused. The launcher supplies no existing code or dataset reference for this custom proposal.</p>
-              </details>
-            </>
-          )}
+              <p className="metadata">A new output directory is created after Start; existing results are not reused. The launcher supplies no existing code or dataset reference for this custom proposal.</p>
+            </details>
+          </fieldset>
         </aside>
       </div>
 
@@ -379,12 +461,12 @@ function Setup({
             onChange={(event) => setAcknowledged(event.target.checked)} required />
           <span>I understand this runs generated Python code on this PC. It can read and write files available to my account. This is not a sandbox.</span>
         </label>
-        {pending && <p className="notice">A start request was submitted. Retry keeps its exact saved revision, model configuration, workload, and output directory; it does not launch a duplicate job.</p>}
+        {pending && <p className="notice">A start request was submitted. Retry keeps its exact saved revision, model configuration, run settings, and output directory; it does not launch a duplicate job. Prepare a new request to edit these settings.</p>}
         <ErrorNotice error={error} />
         {conflictId && <Link to={`/experiments/${encodeURIComponent(conflictId)}`}>Open the job recorded by the server</Link>}
         <div className="actions">
           <button className="button primary" type="submit"
-            disabled={submitting || !acknowledged || localBlockers.length > 0 || Boolean(active && active.id !== requestId)}>
+            disabled={submitting || !acknowledged || invalidSettings || localBlockers.length > 0 || Boolean(active && active.id !== requestId)}>
             <Play size={18} aria-hidden="true" /> {submitting ? "Validating and starting…" : pending ? "Retry Start experiment" : "Start experiment"}
           </button>
           {pending && !submitting && (
@@ -397,6 +479,7 @@ function Setup({
           )}
         </div>
         {pending && <p className="metadata">Request ID: {requestId}</p>}
+        {invalidSettings && <p className="field-error" role="alert">Correct the highlighted run settings before starting, including any limits under Advanced.</p>}
         {!acknowledged && !pending && <p className="metadata">Acknowledge the code permissions to enable Start. Opening or reviewing this page never launches work.</p>}
       </section>
     </form>

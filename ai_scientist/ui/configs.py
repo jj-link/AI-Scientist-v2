@@ -163,10 +163,32 @@ class Configs:
             raise InvalidConfiguration("The provider settings are invalid.", conflicts)
         return path
 
-    def bfts_path(self, config_id: str) -> Path:
-        path = self._path("bfts", config_id)
-        _environment_credentials_only(_load(path))
-        return path
+    def experiment_config(self, config_id: str, run_settings: dict) -> dict:
+        """Load once and detach edited mappings so YAML aliases remain unrelated."""
+        cfg = _load(self._path("bfts", config_id))
+        _environment_credentials_only(cfg)
+        agent, execution = cfg.get("agent"), cfg.get("exec")
+        if not isinstance(agent, dict) or not isinstance(execution, dict):
+            raise ValueError("The experiment configuration requires agent and exec mappings.")
+        stages, seeds = agent.get("stages"), agent.get("multi_seed_eval")
+        if stages is None:
+            stages = {}
+        if seeds is None:
+            seeds = {}
+        if not isinstance(stages, dict) or not isinstance(seeds, dict):
+            raise ValueError("Stage limits and multi-seed settings must be mappings.")
+        cfg["agent"] = {
+            **agent,
+            "num_workers": run_settings["num_workers"],
+            "multi_seed_eval": {**seeds, "num_seeds": run_settings["num_seeds"]},
+            "stages": {
+                **stages,
+                **{f"stage{i}_max_iters": run_settings["stage_iterations"][f"stage{i}"]
+                   for i in range(1, 5)},
+            },
+        }
+        cfg["exec"] = {**execution, "timeout": run_settings["execution_timeout"]}
+        return cfg
 
     def presets(self) -> dict:
         roles, selected_role = self._paths("role")
@@ -700,7 +722,7 @@ class Configs:
             tools.append({"name": name, "available": available, "error": message})
         return {"ok": all(tool["available"] for tool in tools), "tools": tools}
 
-    def validate_experiment(self, role_id: str, bfts_id: str) -> list[str]:
+    def validate_experiment(self, role_id: str, cfg: dict) -> list[str]:
         errors = []
         try:
             self.role_path(role_id)
@@ -711,27 +733,23 @@ class Configs:
                 errors.append("Role configuration is missing required roles: " + ", ".join(missing) + ".")
         except (ValueError, KeyError):
             errors.append("The selected role configuration is unavailable or invalid; credentials must use environment variables.")
-        try:
-            cfg = _load(self.bfts_path(bfts_id))
-            if cfg.get("exp_name") != "run":
-                errors.append("The experiment configuration must set exp_name: run for this paper workflow.")
-            agent, execution = cfg.get("agent"), cfg.get("exec")
-            if not isinstance(agent, dict) or not isinstance(execution, dict):
-                errors.append("The experiment configuration requires agent and exec mappings.")
+        if cfg.get("exp_name") != "run":
+            errors.append("The experiment configuration must set exp_name: run for this paper workflow.")
+        agent, execution = cfg.get("agent"), cfg.get("exec")
+        if not isinstance(agent, dict) or not isinstance(execution, dict):
+            errors.append("The experiment configuration requires agent and exec mappings.")
+        else:
+            stages, seeds = agent.get("stages") or {}, agent.get("multi_seed_eval") or {}
+            if not isinstance(stages, dict) or not isinstance(seeds, dict):
+                errors.append("Stage limits and multi-seed settings must be mappings.")
             else:
-                stages, seeds = agent.get("stages") or {}, agent.get("multi_seed_eval") or {}
-                if not isinstance(stages, dict) or not isinstance(seeds, dict):
-                    errors.append("Stage limits and multi-seed settings must be mappings.")
-                else:
-                    counts = [agent.get("num_workers"), seeds.get("num_seeds")]
-                    counts.extend(stages.get(f"stage{i}_max_iters", agent.get("steps")) for i in range(1, 5))
-                    if any(type(value) is not int or value < 1 for value in counts):
-                        errors.append("Worker count, seeds, and all stage iteration limits must be positive integers.")
-                timeout = _number(execution.get("timeout"))
-                if timeout is None or timeout <= 0:
-                    errors.append("Execution timeout must be a positive number.")
-        except (ValueError, KeyError):
-            errors.append("The selected experiment configuration is unavailable or invalid.")
+                counts = [agent.get("num_workers"), seeds.get("num_seeds")]
+                counts.extend(stages.get(f"stage{i}_max_iters", agent.get("steps")) for i in range(1, 5))
+                if any(type(value) is not int or value < 1 for value in counts):
+                    errors.append("Worker count, seeds, and all stage iteration limits must be positive integers.")
+            timeout = _number(execution.get("timeout"))
+            if timeout is None or timeout <= 0:
+                errors.append("Execution timeout must be a positive number.")
         errors.extend(tool["error"] for tool in self.prerequisites()["tools"] if not tool["available"])
         if not errors:
             result = self.check(role_id)

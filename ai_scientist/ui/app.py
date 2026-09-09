@@ -11,6 +11,7 @@ import threading
 from uuid import uuid4
 
 import psutil
+import yaml
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, StreamingResponse
@@ -251,7 +252,7 @@ def create_app(root: Path | None = None, *, development: bool = False) -> FastAP
                 return accepted(prior)
             # Local validation and endpoint availability happen before reserving compute.
             role_path = configs.role_path(payload["role_config_id"])
-            bfts_path = None
+            bfts_bytes = None
             if kind == "experiment":
                 if not payload["execution_acknowledged"]:
                     raise HTTPException(422, detail={"message": "Acknowledge that generated Python code runs with your account permissions.", "errors": {"execution_acknowledged": "Acknowledgement is required"}})
@@ -260,14 +261,14 @@ def create_app(root: Path | None = None, *, development: bool = False) -> FastAP
                     raise Conflict({"message": "Proposal changed; reload the saved revision", "revision": record["revision"]})
                 if record["errors"]:
                     raise HTTPException(422, detail={"message": "Save a valid proposal before starting an experiment.", "errors": record["errors"]})
-                bfts_path = configs.bfts_path(payload["bfts_config_id"])
-                blockers = configs.validate_experiment(payload["role_config_id"], payload["bfts_config_id"])
+                candidate = configs.experiment_config(payload["bfts_config_id"], payload["run_settings"])
+                blockers = configs.validate_experiment(payload["role_config_id"], candidate)
                 if blockers:
                     raise HTTPException(422, detail={"message": "Experiment prerequisites are not satisfied.", "blockers": blockers})
+                bfts_bytes = yaml.safe_dump(candidate, allow_unicode=True, sort_keys=False).encode("utf-8")
             elif not payload["research_question"].strip():
                 raise HTTPException(422, detail={"message": "Enter a research question.", "errors": {"research_question": "Enter nonempty text"}})
             role_bytes = role_path.read_bytes()
-            bfts_bytes = bfts_path.read_bytes() if bfts_path else None
             job = store.create_job(kind, payload["request_id"], payload, idea_id=payload.get("idea_id"), idea_revision=payload.get("idea_revision"))
             directory = store.job_dir(job["id"])
             try:

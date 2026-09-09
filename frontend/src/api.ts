@@ -73,6 +73,17 @@ export interface JobEvent {
   phase: string | null;
   data: Record<string, Json>;
 }
+export interface RunSettings {
+  num_workers: number;
+  num_seeds: number;
+  execution_timeout: number;
+  stage_iterations: {
+    stage1: number;
+    stage2: number;
+    stage3: number;
+    stage4: number;
+  };
+}
 export interface Workload {
   exp_name: string | null;
   num_workers: number | null;

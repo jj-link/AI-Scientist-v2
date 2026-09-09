@@ -300,26 +300,21 @@
   grid-template-columns: minmax(0, 1fr);
   gap: 6px;
 }
-.setup-limits {
-  margin: 0;
+.setup-run-field,
+.setup-run-field .field {
+  min-width: 0;
 }
-.setup-limits > div + div {
+.setup-run-field input {
+  width: 100%;
+  min-width: 0;
+}
+.setup-run-field .metadata {
+  margin-top: 6px;
+}
+.setup-stage-inputs {
+  display: grid;
+  gap: 20px;
   margin-top: 20px;
-}
-.setup-limits dt {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 4px 12px;
-  font-weight: 600;
-}
-.setup-limits dt strong {
-  color: var(--teal);
-}
-.setup-limits dd {
-  margin: 6px 0 0;
-  font-size: 14px;
-  color: var(--muted);
 }
 .setup-technical > div {
   margin-top: 16px;

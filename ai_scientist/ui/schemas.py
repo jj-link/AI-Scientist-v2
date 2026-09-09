@@ -74,6 +74,20 @@ class IdeaJobRequest(Request):
     role_config_id: str
 
 
+class StageIterations(Request):
+    stage1: int = Field(gt=0, strict=True)
+    stage2: int = Field(gt=0, strict=True)
+    stage3: int = Field(gt=0, strict=True)
+    stage4: int = Field(gt=0, strict=True)
+
+
+class ExperimentRunSettings(Request):
+    num_workers: int = Field(gt=0, strict=True)
+    num_seeds: int = Field(gt=0, strict=True)
+    execution_timeout: float = Field(gt=0, strict=True, allow_inf_nan=False)
+    stage_iterations: StageIterations
+
+
 class ExperimentRequest(Request):
     request_id: UUID
     idea_id: str
@@ -81,6 +95,7 @@ class ExperimentRequest(Request):
     role_config_id: str
     bfts_config_id: str
     execution_acknowledged: bool
+    run_settings: ExperimentRunSettings
 
 
 class IdeaUpdate(Request):
