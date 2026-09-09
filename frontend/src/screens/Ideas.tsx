@@ -59,13 +59,11 @@ function CompleteIdea({ idea }: { idea: Idea }) {
   );
 }
 
-function ApprovedArtifact({ record }: { record: IdeaRecord }) {
+function SavedIdeaSummary({ record }: { record: IdeaRecord }) {
   return (
-    <section className="card stack" aria-labelledby="approved-artifact-heading">
-      <div className="metadata">Saved artifact · Revision {record.revision}</div>
-      <h2 id="approved-artifact-heading">{ideaTitle(record.idea)}</h2>
-      <p className="muted">This is the saved backlog artifact. Discussion does not change it until you approve a complete revised design in the conversation.</p>
-      <CompleteIdea idea={record.idea} />
+    <section className="card stack" aria-labelledby="saved-idea-heading">
+      <div className="metadata" role="status">Saved · Revision {record.revision}</div>
+      <h2 id="saved-idea-heading">{ideaTitle(record.idea)}</h2>
       {Object.keys(record.errors).length > 0 && (
         <div className="notice">
           <p>This saved idea does not yet contain a complete experiment plan.</p>
@@ -74,7 +72,7 @@ function ApprovedArtifact({ record }: { record: IdeaRecord }) {
       )}
       <div className="actions">
         {Object.keys(record.errors).length === 0 && (
-          <Link className="button secondary" to={`/ideas/${encodeURIComponent(record.id)}/setup`}>
+          <Link className="button primary" to={`/ideas/${encodeURIComponent(record.id)}/setup`}>
             Prepare experiment <ArrowRight size={16} aria-hidden="true" />
           </Link>
         )}
@@ -84,7 +82,7 @@ function ApprovedArtifact({ record }: { record: IdeaRecord }) {
           </a>
         )}
       </div>
-      <p className="metadata">Preparing an experiment is a separate step. Nothing runs from this conversation.</p>
+      <p className="metadata">Preparation uses this saved revision. Further discussion stays unsaved until approved. Nothing runs until you explicitly start the experiment.</p>
     </section>
   );
 }
@@ -242,6 +240,12 @@ function ConversationWorkspace({ conversationId, seedIdea, onChange, onOpen }: {
       {loading && !conversation && <p role="status">Loading conversation…</p>}
       <ErrorNotice error={loadError} />
       {Boolean(loadError) && <button className="button secondary" type="button" onClick={() => setReload((value) => value + 1)}>Reload conversation</button>}
+      {seedIdea && !conversationId && (
+        <details className="presented-design">
+          <summary>Saved design</summary>
+          <CompleteIdea idea={seedIdea.idea} />
+        </details>
+      )}
       <div ref={discussion} className="conversation-messages" role="log" aria-label="Idea discussion" aria-live="polite" aria-relevant="additions text">
         {conversation?.messages.map((message, index) => (
           <article className={`conversation-message message-${message.role}`} key={index}>
@@ -263,12 +267,6 @@ function ConversationWorkspace({ conversationId, seedIdea, onChange, onOpen }: {
           <CompleteIdea idea={conversation.pending_idea} />
           <p>Review every field above. Reply in the conversation to approve this exact design, or describe what should change. Only an explicitly approved design is added to the backlog; requesting changes does not approve it.</p>
         </section>
-      )}
-      {conversation?.idea_id && (
-        <div className="notice" role="status">
-          <p>This conversation is linked to a saved backlog idea. Any new candidate above remains unsaved until approved.</p>
-          <Link to={`/ideas/${encodeURIComponent(conversation.idea_id)}`}>View saved idea and experiment preparation <ArrowRight size={16} aria-hidden="true" /></Link>
-        </div>
       )}
       {running && (
         <div className="row conversation-progress">
@@ -310,17 +308,18 @@ export default function Ideas() {
   const navigate = useNavigate();
   const conversations = useApi<{ conversations: IdeaConversation[] }>("/api/idea-conversations");
   const ideas = useApi<{ ideas: IdeaRecord[] }>("/api/ideas");
-  const approved = useApi<IdeaRecord>(ideaId ? `/api/ideas/${encodeURIComponent(ideaId)}` : null);
+  const associated = ideaId ? conversations.data?.conversations
+    .filter((conversation) => conversation.idea_id === ideaId)
+    .sort((left, right) => right.updated_at.localeCompare(left.updated_at))[0] : undefined;
+  const conversationId = search.get("conversation") || associated?.id || "";
+  const savedId = ideaId || conversations.data?.conversations.find((conversation) => conversation.id === conversationId)?.idea_id;
+  const approved = useApi<IdeaRecord>(savedId ? `/api/ideas/${encodeURIComponent(savedId)}` : null);
   const refresh = useCallback(() => {
     conversations.refresh();
     ideas.refresh();
     approved.refresh();
   }, [conversations.refresh, ideas.refresh, approved.refresh]);
-  const associated = ideaId ? conversations.data?.conversations
-    .filter((conversation) => conversation.idea_id === ideaId)
-    .sort((left, right) => right.updated_at.localeCompare(left.updated_at))[0] : undefined;
-  const conversationId = search.get("conversation") || associated?.id || "";
-  const record = approved.data?.id === ideaId ? approved.data : undefined;
+  const record = approved.data?.id === savedId ? approved.data : undefined;
   const openConversation = (id: string) => {
     navigate(`${ideaId ? `/ideas/${encodeURIComponent(ideaId)}` : "/ideas"}?conversation=${encodeURIComponent(id)}`, { replace: true });
   };
@@ -332,6 +331,9 @@ export default function Ideas() {
       <div className="actions">
         <Link className="button secondary" to="/ideas"><Plus size={16} aria-hidden="true" /> New conversation</Link>
       </div>
+      <ErrorNotice error={approved.error} />
+      {savedId && !record && approved.loading && <p role="status">Loading saved idea…</p>}
+      {record && <SavedIdeaSummary record={record} />}
       <div className="ideas-workspace">
         <nav className="card stack conversation-navigation" aria-labelledby="conversations-heading">
           <h2 id="conversations-heading">Conversations</h2>
@@ -352,12 +354,9 @@ export default function Ideas() {
           </ul>
         </nav>
         <div className="stack conversation-column">
-          <ErrorNotice error={approved.error} />
-          {ideaId && !record && approved.loading && <p role="status">Loading saved idea…</p>}
           {(!ideaId || (record && conversations.data)) && (
             <ConversationWorkspace key={conversationId || `new-${ideaId || "idea"}`} conversationId={conversationId} seedIdea={record} onChange={refresh} onOpen={openConversation} />
           )}
-          {record && <ApprovedArtifact record={record} />}
         </div>
       </div>
       <section className="stack" aria-labelledby="approved-ideas-heading">
@@ -374,10 +373,17 @@ export default function Ideas() {
         <div className="card-grid proposal-grid">
           {ideas.data?.ideas.map((item, index) => (
             <article className={`card stack proposal-card proposal-color-${index % 3}`} key={item.id}>
-              <div className="metadata">Saved artifact · Revision {item.revision}</div>
+              <div className="metadata">Saved · Revision {item.revision}</div>
               <h3>{ideaTitle(item.idea)}</h3>
               {typeof item.idea["Short Hypothesis"] === "string" && <p className="proposal-excerpt">{item.idea["Short Hypothesis"]}</p>}
-              <Link className="button secondary" to={`/ideas/${encodeURIComponent(item.id)}`}>Open / refine idea <ArrowRight size={16} aria-hidden="true" /></Link>
+              <div className="actions">
+                {Object.keys(item.errors).length === 0 && (
+                  <Link className="button primary" to={`/ideas/${encodeURIComponent(item.id)}/setup`}>
+                    Prepare experiment <ArrowRight size={16} aria-hidden="true" />
+                  </Link>
+                )}
+                <Link className="button secondary" to={`/ideas/${encodeURIComponent(item.id)}`}>Open / refine idea <ArrowRight size={16} aria-hidden="true" /></Link>
+              </div>
             </article>
           ))}
         </div>

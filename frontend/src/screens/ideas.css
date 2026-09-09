@@ -19,9 +19,9 @@
 .proposal-card h3 {
   overflow-wrap: anywhere;
 }
-.proposal-card > .button {
-  align-self: flex-start;
+.proposal-card .actions {
   margin-top: auto;
+  align-items: flex-start;
 }
 .proposal-excerpt {
   display: -webkit-box;
