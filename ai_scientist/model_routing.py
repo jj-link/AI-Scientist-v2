@@ -35,23 +35,36 @@ DEFAULT_ROLE_CONFIG_FILENAME = "ais_roles.yaml"
 SELFHOSTED_PREFIX = "selfhosted/"
 ROLE_PREFIX = "role/"
 CODEX_PROVIDER = "openai-codex"
+CBORG_PROVIDER = "cborg"
+CBORG_BASE_URL = "https://api.cborg.lbl.gov/v1"
+CBORG_API_KEY_ENV = "CBORG_API_KEY"
+ENDPOINT_PROVIDERS = ("openai", CODEX_PROVIDER, CBORG_PROVIDER)
 
 
 def endpoint_provider(endpoint: dict) -> str:
     """Resolve the transport without allowing OAuth credentials at arbitrary URLs."""
     provider = endpoint.get("provider", "openai")
-    if provider not in ("openai", CODEX_PROVIDER):
-        raise RoleConfigError("Endpoint provider must be openai or openai-codex.")
+    if provider not in ENDPOINT_PROVIDERS:
+        raise RoleConfigError("Endpoint provider must be openai, openai-codex, or cborg.")
     if provider == CODEX_PROVIDER and any(endpoint.get(key) not in (None, "") for key in ("base_url", "api_key_env")):
         raise RoleConfigError("Codex manages its server address and uses ChatGPT sign-in, not API-key overrides.")
     return provider
 
 
 def endpoint_base_url(endpoint: dict) -> str | None:
-    if endpoint_provider(endpoint) == CODEX_PROVIDER:
+    provider = endpoint_provider(endpoint)
+    if provider == CODEX_PROVIDER:
         from .codex_provider import CODEX_BASE_URL
         return CODEX_BASE_URL
-    return endpoint.get("base_url")
+    return endpoint.get("base_url") or (CBORG_BASE_URL if provider == CBORG_PROVIDER else None)
+
+
+def endpoint_api_key_env(endpoint: dict) -> str | None:
+    """Resolve the credential environment-variable name, never its secret value."""
+    provider = endpoint_provider(endpoint)
+    if provider == CODEX_PROVIDER:
+        return None
+    return endpoint.get("api_key_env") or (CBORG_API_KEY_ENV if provider == CBORG_PROVIDER else None)
 
 
 def validate_provider_settings(endpoint: dict, settings: dict) -> None:
@@ -247,12 +260,12 @@ def create_selfhosted_client(model: str, max_retries: int = 2):
             "timeout", endpoint.get("timeout", DEFAULT_ENDPOINT_TIMEOUT))))
     # Per-role auth overrides the endpoint default; env var NAMES only.
     api_key_env = (
-        parsed["settings"].get("api_key_env") or endpoint.get("api_key_env")
+        parsed["settings"].get("api_key_env") or endpoint_api_key_env(endpoint)
     )
     api_key = os.environ.get(api_key_env) if api_key_env else None
     if not api_key:
         api_key = "unused"
-    base_url = endpoint.get("base_url")
+    base_url = endpoint_base_url(endpoint)
     if not base_url:
         raise RoleConfigError(
             f"Endpoint {parsed['endpoint']!r} has no 'base_url'."
@@ -330,12 +343,12 @@ def list_endpoint_models(
     if endpoint_provider(endpoint) == CODEX_PROVIDER:
         from .codex_provider import list_models
         return list_models(timeout=timeout if timeout is not None else DEFAULT_ENDPOINT_TIMEOUT)
-    base_url = endpoint.get("base_url")
+    base_url = endpoint_base_url(endpoint)
     if not base_url:
         raise RoleConfigError(f"Endpoint {endpoint_name!r} has no 'base_url'.")
     client = openai.OpenAI(
         base_url=base_url,
-        api_key=os.environ.get(endpoint.get("api_key_env") or "") or "unused",
+        api_key=os.environ.get(endpoint_api_key_env(endpoint) or "") or "unused",
         max_retries=0 if timeout is not None else 1,
         timeout=timeout if timeout is not None else DEFAULT_ENDPOINT_TIMEOUT,
     )

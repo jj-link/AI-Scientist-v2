@@ -208,6 +208,7 @@ class ModelRolePatch(Request):
 
 
 class ModelEndpointPatch(Request):
+    provider: Literal["openai", "openai-codex", "cborg"] = "openai"
     base_url: str | None = Field(default=None, max_length=2048)
     api_key_env: str | None = Field(default=None, max_length=256)
     timeout: float | None = None

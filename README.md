@@ -164,6 +164,15 @@ snapshot-isolated by this editor. Crash assistant settings are saved separately:
 click **Save assistant settings** after changing its role to capture the new
 assignment. Saving a research preset never silently changes that enrollment.
 
+Under **Models → Endpoint connections**, the **Provider** selector includes
+**CBORG**. Selecting it fills `https://api.cborg.lbl.gov/v1` and the credential
+environment-variable name `CBORG_API_KEY`; **Save configuration** is still required.
+It uses the existing OpenAI-compatible transport. Explicit URL and credential-name
+overrides remain editable; absent overrides use those CBORG defaults. Set the
+actual key outside Studio. Selecting CBORG does not connect a VPN, probe the
+service, or change other endpoints. Existing configurations are not migrated
+automatically.
+
 **Codex (ChatGPT)** uses **Sign in with ChatGPT** on the Models screen, followed
 by **Continue to ChatGPT**. Complete authorization in your browser and return to
 Studio when the card reports **Connected**. Sign-in temporarily needs loopback

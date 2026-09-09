@@ -191,7 +191,7 @@ export interface ModelRole {
 export interface ModelEndpoint {
   id: string;
   label: string;
-  provider: "openai" | "openai-codex";
+  provider: "openai" | "openai-codex" | "cborg";
   url: string;
   timeout: number;
   capabilities: string[];
@@ -241,7 +241,7 @@ export interface ModelConfigEditorRole {
   requires: string[];
 }
 export interface ModelConfigEditorEndpoint {
-  provider: "openai" | "openai-codex";
+  provider: "openai" | "openai-codex" | "cborg";
   base_url: string | null;
   api_key_env: string | null;
   timeout: number | null;
@@ -262,6 +262,7 @@ export interface ModelRolePatch {
   api_key_env?: string | null;
 }
 export interface ModelEndpointPatch {
+  provider?: ModelConfigEditorEndpoint["provider"];
   base_url?: string | null;
   api_key_env?: string | null;
   timeout?: number | null;
@@ -274,7 +275,7 @@ export interface ModelConfigUpdate {
 }
 export interface AssistantSettings {
   enabled: boolean;
-  provider?: "openai" | "openai-codex";
+  provider?: "openai" | "openai-codex" | "cborg";
   config_id: string | null;
   role: string | null;
   model: string | null;

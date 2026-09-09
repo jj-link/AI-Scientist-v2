@@ -226,7 +226,7 @@ class Configs:
 
     # Editable fields are exactly these; anything else the YAML preserved verbatim.
     _ROLE_FIELDS = ("endpoint", "model", "max_tokens", "temperature", "timeout", "api_key_env")
-    _ENDPOINT_FIELDS = ("base_url", "api_key_env", "timeout")
+    _ENDPOINT_FIELDS = ("provider", "base_url", "api_key_env", "timeout")
 
     def _read_role_bytes(self, config_id: str) -> tuple[Path, bytes]:
         """Resolved path plus the exact bytes a revision digest covers.
@@ -280,6 +280,16 @@ class Configs:
                 for item in value:
                     collect(item)
         collect(cfg)
+        for name, endpoint in endpoints.items():
+            if not isinstance(endpoint, dict):
+                continue
+            if endpoint.get("provider", "openai") not in model_routing.ENDPOINT_PROVIDERS:
+                raise InvalidConfiguration("The provider settings are invalid.", [
+                    {"field": f"endpoints.{name}.provider", "message": "Unknown endpoint provider.", "code": "invalid_provider"},
+                ])
+            credential_env = model_routing.endpoint_api_key_env(endpoint)
+            if credential_env:
+                credential_envs.add(credential_env)
         secrets = {os.environ.get(name, "") for name in credential_envs if name}
         secrets.discard("")
         def guarded(value: object) -> object:
@@ -337,7 +347,7 @@ class Configs:
             if not isinstance(endpoint, dict):
                 continue
             provider = endpoint.get("provider", "openai")
-            if provider not in ("openai", model_routing.CODEX_PROVIDER):
+            if provider not in model_routing.ENDPOINT_PROVIDERS:
                 errors.append({"field": f"endpoints.{name}.provider", "message": "Unknown endpoint provider.", "code": "invalid_provider"})
             if provider == model_routing.CODEX_PROVIDER:
                 for field in ("base_url", "api_key_env"):
@@ -360,9 +370,12 @@ class Configs:
         """
         for name, changes in endpoints.items():
             for field, value in changes.items():
-                if value is None and (field != "base_url" or configured_endpoints.get(name, {}).get("provider") == model_routing.CODEX_PROVIDER):
+                if field == "provider":
+                    if value not in model_routing.ENDPOINT_PROVIDERS:
+                        errors.append({"field": f"endpoints.{name}.provider", "message": "Unknown endpoint provider.", "code": "invalid_provider"})
+                elif value is None:
                     continue
-                if field == "base_url":
+                elif field == "base_url":
                     self._check_field(errors, f"endpoints.{name}.{field}", value, "url")
                 elif field == "api_key_env":
                     self._check_field(errors, f"endpoints.{name}.{field}", value, "env")
@@ -494,7 +507,7 @@ class Configs:
                 if field not in role:
                     errors.append({"field": f"roles.{name}.{field}", "message": "This field is required.", "code": "required"})
         for name, endpoint in endpoints_tree.items():
-            if "base_url" not in endpoint and endpoint.get("provider") != model_routing.CODEX_PROVIDER:
+            if not endpoint.get("base_url") and endpoint.get("provider") not in (model_routing.CODEX_PROVIDER, model_routing.CBORG_PROVIDER):
                 errors.append({"field": f"endpoints.{name}.base_url", "message": "Endpoint URL is required.", "code": "required"})
         errors.extend(self._capability_conflicts(roles_tree, endpoints_tree))
         errors.extend(self._provider_conflicts(roles_tree, endpoints_tree))
@@ -574,7 +587,7 @@ class Configs:
                 "url": _url(model_routing.endpoint_base_url(endpoint)), "provider": endpoint.get("provider", "openai"),
                 "timeout": _number(endpoint.get("timeout"), model_routing.DEFAULT_ENDPOINT_TIMEOUT),
                 "capabilities": _strings(endpoint.get("provides")),
-                "credential": _credential(endpoint.get("api_key_env"), provider=endpoint.get("provider", "openai"))})
+                "credential": _credential(model_routing.endpoint_api_key_env(endpoint), provider=endpoint.get("provider", "openai"))})
         for name, role in roles.items():
             if not isinstance(name, str) or not isinstance(role, dict):
                 raise ValueError("Each role must be a named mapping.")
@@ -589,7 +602,7 @@ class Configs:
                 "timeout": _number(role.get("timeout"), _number(endpoint.get("timeout"),
                     model_routing.DEFAULT_ENDPOINT_TIMEOUT)),
                 "requires": _strings(role.get("requires")),
-                "credential": _credential(role.get("api_key_env") or endpoint.get("api_key_env"),
+                "credential": _credential(role.get("api_key_env") or model_routing.endpoint_api_key_env(endpoint),
                                           provider=endpoint.get("provider", "openai"))})
         view = {"config_id": config_id, "roles": role_rows, "endpoints": endpoint_rows}
         # Also remove any configured credential value accidentally embedded in a display field.
@@ -655,7 +668,12 @@ class Configs:
                 for item in value:
                     collect(item)
         collect(cfg)
-        api_key_env = selected.get("api_key_env", endpoint.get("api_key_env"))
+        for configured_endpoint in endpoints.values():
+            if isinstance(configured_endpoint, dict):
+                credential_env = model_routing.endpoint_api_key_env(configured_endpoint)
+                if credential_env:
+                    credential_envs.add(credential_env)
+        api_key_env = selected.get("api_key_env") or model_routing.endpoint_api_key_env(endpoint)
         if api_key_env is not None and (not isinstance(api_key_env, str) or not _ENV_NAME.fullmatch(api_key_env)):
             raise ValueError("The crash-assistant credential must name an environment variable.")
         if provider == model_routing.CODEX_PROVIDER:

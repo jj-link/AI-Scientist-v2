@@ -326,7 +326,7 @@ class IdeaConversations:
             raise TurnFailure("The ideation endpoint must provide text and the role's required capabilities. Check Models and retry.")
         return {"model": selected["model"].strip(), "provider": model_routing.endpoint_provider(endpoint),
                 "base_url": model_routing.endpoint_base_url(endpoint), "timeout": timeout,
-                "api_key_env": selected.get("api_key_env") or endpoint.get("api_key_env"),
+                "api_key_env": selected.get("api_key_env") or model_routing.endpoint_api_key_env(endpoint),
                 "max_tokens": selected.get("max_tokens"), "temperature": selected.get("temperature")}
 
     async def _complete(self, assignment, messages):

@@ -15,6 +15,7 @@ import {
   type AssistantSettings,
   type Credential,
   type ModelConfigEditor,
+  type ModelConfigEditorEndpoint,
   type ModelConfigEditorRole,
   type ModelEndpointPatch,
   type ModelRolePatch,
@@ -36,11 +37,17 @@ const CUSTOM_MODEL_HINT =
   "Enter the model ID exactly as served by the endpoint.";
 
 const DRAFT_STORAGE_PREFIX = "studio.models.draft.";
+const CBORG_BASE_URL = "https://api.cborg.lbl.gov/v1";
+const CBORG_API_KEY_ENV = "CBORG_API_KEY";
+
+type EndpointDraft = ModelEndpointPatch & {
+  provider: ModelConfigEditorEndpoint["provider"];
+};
 
 interface StoredDraft {
   baseRevision: string;
   roles: Record<string, ModelConfigEditorRole>;
-  endpoints: Record<string, ModelEndpointPatch>;
+  endpoints: Record<string, EndpointDraft>;
 }
 
 function draftKey(configId: string) {
@@ -80,7 +87,7 @@ function clearStoredDraft(configId: string) {
 function countChangedFields(
   saved: ModelConfigEditor,
   roles: Record<string, ModelConfigEditorRole>,
-  endpoints: Record<string, ModelEndpointPatch>,
+  endpoints: Record<string, EndpointDraft>,
 ): number {
   let count = 0;
   for (const [name, draft] of Object.entries(roles)) {
@@ -100,7 +107,7 @@ function countChangedFields(
   for (const [id, draft] of Object.entries(endpoints)) {
     const original = saved.endpoints[id];
     if (!original) continue;
-    for (const field of ["base_url", "api_key_env", "timeout"] as const) {
+    for (const field of ["provider", "base_url", "api_key_env", "timeout"] as const) {
       if (draft[field] !== original[field]) count++;
     }
   }
@@ -354,7 +361,7 @@ export default function Models() {
     Record<string, ModelConfigEditorRole>
   >({});
   const [endpointDrafts, setEndpointDrafts] = useState<
-    Record<string, ModelEndpointPatch>
+    Record<string, EndpointDraft>
   >({});
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [apiError, setApiError] = useState<unknown>(null);
@@ -392,8 +399,10 @@ export default function Models() {
     (role.max_tokens !== null && !Number.isInteger(role.max_tokens)) ||
     (role.temperature !== null && (typeof role.temperature !== "number" ||
       !Number.isFinite(role.temperature) || role.temperature < 0 || role.temperature > 2))) ||
-    Object.entries(endpointDrafts).some(([id, endpoint]) =>
-      (saved?.endpoints[id]?.provider !== "openai-codex" && !endpoint.base_url?.trim()) || !positive(endpoint.timeout));
+    Object.values(endpointDrafts).some((endpoint) =>
+      (endpoint.provider !== "openai-codex" &&
+        !(endpoint.base_url ?? (endpoint.provider === "cborg" ? CBORG_BASE_URL : "")).trim()) ||
+      !positive(endpoint.timeout));
   const savingRequest = useRef(false);
   const editorSurface = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -469,6 +478,31 @@ export default function Models() {
       [id]: { ...current[id], ...patch },
     }));
   }
+  function setProvider(id: string, provider: EndpointDraft["provider"]) {
+    if (endpointDrafts[id]?.provider === provider) return;
+    clearAvailability();
+    setEndpoint(id, {
+      provider,
+      ...(provider === "cborg"
+        ? { base_url: CBORG_BASE_URL, api_key_env: CBORG_API_KEY_ENV }
+        : provider === "openai-codex"
+          ? { base_url: null, api_key_env: null }
+          : {}),
+    });
+    if (provider === "openai-codex") {
+      const affectedRoles = Object.entries(roleDrafts)
+        .filter(([, role]) => role.endpoint === id)
+        .map(([name]) => name);
+      setRoleDrafts((current) => {
+        const next = { ...current };
+        for (const name of affectedRoles) {
+          next[name] = { ...current[name], max_tokens: null, temperature: null, api_key_env: null };
+        }
+        return next;
+      });
+      setExpandedRoles((current) => [...new Set([...current, ...affectedRoles])]);
+    }
+  }
   function switchPreset(nextId: string): boolean {
     if (dirty && !window.confirm("Discard unsaved edits to this preset?"))
       return false;
@@ -499,6 +533,7 @@ export default function Models() {
     const connection = endpointDrafts[endpoint];
     const original = saved.endpoints[endpoint];
     if (!connection || !original ||
+        connection.provider !== original.provider ||
         connection.base_url !== original.base_url ||
         connection.api_key_env !== original.api_key_env ||
         connection.timeout !== original.timeout) return;
@@ -560,6 +595,7 @@ export default function Models() {
       const original = saved.endpoints[id];
       if (!original) continue;
       const patch: ModelEndpointPatch = {};
+      if (draft.provider !== original.provider) (patch.provider = draft.provider);
       if (draft.base_url !== original.base_url) (patch.base_url = draft.base_url);
       if (draft.api_key_env !== original.api_key_env) (patch.api_key_env = draft.api_key_env);
       if (draft.timeout !== original.timeout) (patch.timeout = draft.timeout);
@@ -751,7 +787,7 @@ export default function Models() {
               {Object.entries(saved.roles).map(([name, original]) => {
                 const draft = roleDrafts[name];
                 if (!draft) return null;
-                const codex = saved.endpoints[draft.endpoint ?? ""]?.provider === "openai-codex";
+                const codex = endpointDrafts[draft.endpoint ?? ""]?.provider === "openai-codex";
                 const help = Object.hasOwn(ROLE_HELP, name) ? ROLE_HELP[name] : CUSTOM_ROLE_HELP;
                 const displayRole = currentDisplay?.roles.find(
                   (item) => item.name === name,
@@ -766,7 +802,8 @@ export default function Models() {
                 const connection = endpointDrafts[draft.endpoint ?? ""];
                 const originalConnection = saved.endpoints[draft.endpoint ?? ""];
                 const connectionDirty = Boolean(connection && originalConnection &&
-                  (connection.base_url !== originalConnection.base_url ||
+                  (connection.provider !== originalConnection.provider ||
+                   connection.base_url !== originalConnection.base_url ||
                    connection.api_key_env !== originalConnection.api_key_env ||
                    connection.timeout !== originalConnection.timeout));
                 const listedModels = connectionDirty ? [] : discovery?.models ?? [];
@@ -822,7 +859,7 @@ export default function Models() {
                           onChange={(event) => {
                             const next = event.target.value || null;
                             if ((draft.endpoint ?? null) !== next) {
-                              const codex = saved.endpoints[next ?? ""]?.provider === "openai-codex";
+                              const codex = endpointDrafts[next ?? ""]?.provider === "openai-codex";
                               setRole(name, {
                                 endpoint: next, model: null,
                                 ...(codex ? { max_tokens: null, temperature: null, api_key_env: null } : {}),
@@ -1157,15 +1194,21 @@ export default function Models() {
                 const displayEndpoint = currentDisplay?.endpoints.find(
                   (item) => item.id === id,
                 );
-                const capabilities = displayEndpoint?.capabilities ?? [];
-                const codex = original.provider === "openai-codex";
+                const capabilities = original.provides;
+                const codex = draft.provider === "openai-codex";
+                const cborg = draft.provider === "cborg";
                 const endpointId = (field: string) => `endpoint-${id}-${field}`;
                 const endpointErrorId = (field: string) =>
                   `${endpointId(field)}-error`;
                 const endpointDescribedBy = (field: string) =>
-                  fieldErrors[`endpoints.${id}.${field}`]
-                    ? endpointErrorId(field)
-                    : undefined;
+                  [
+                    ["provider", "base_url", "api_key_env"].includes(field)
+                      ? endpointId(`${field}-hint`)
+                      : null,
+                    fieldErrors[`endpoints.${id}.${field}`]
+                      ? endpointErrorId(field)
+                      : null,
+                  ].filter(Boolean).join(" ") || undefined;
                 return (
                   <fieldset
                     key={id}
@@ -1177,6 +1220,33 @@ export default function Models() {
                       Provides:{" "}
                       {capabilities.length ? capabilities.join(", ") : "None declared"}
                     </p>
+                    <div className="field" data-changed={draft.provider !== original.provider}>
+                      <label htmlFor={endpointId("provider")}>Provider</label>
+                      <select
+                        id={endpointId("provider")}
+                        value={draft.provider}
+                        onChange={(event) => setProvider(id, event.target.value as EndpointDraft["provider"])}
+                        aria-invalid={!!fieldErrors[`endpoints.${id}.provider`]}
+                        aria-describedby={endpointDescribedBy("provider")}
+                      >
+                        <option value="openai">OpenAI-compatible API</option>
+                        <option value="cborg">CBORG</option>
+                        <option value="openai-codex">OpenAI Codex</option>
+                      </select>
+                      <small className="muted" id={endpointId("provider-hint")}>
+                        {cborg
+                          ? "CBORG uses the existing OpenAI-compatible API. Selecting it supplies its address and credential environment-variable name; custom overrides remain editable."
+                          : codex
+                            ? "Selecting Codex clears the endpoint address and credential name, plus token, temperature, and credential overrides for its roles, in this draft."
+                            : "Use any compatible HTTP(S) API address. An endpoint URL is required."}
+                        {" "}Changes apply only after Save configuration.
+                      </small>
+                      {fieldErrors[`endpoints.${id}.provider`] && (
+                        <p className="field-error" role="alert" id={endpointErrorId("provider")}>
+                          {fieldErrors[`endpoints.${id}.provider`].message}
+                        </p>
+                      )}
+                    </div>
                     {codex && <p className="muted">Managed Codex server and OAuth credentials. Sign in above; no API key or custom server address is used.</p>}
                     <div
                       className="field"
@@ -1186,7 +1256,8 @@ export default function Models() {
                       <input
                         id={endpointId("base_url")}
                         type="text"
-                        value={codex ? displayEndpoint?.url ?? "Managed by Codex" : draft.base_url ?? ""}
+                        value={codex ? "Managed by Codex" : draft.base_url ?? ""}
+                        placeholder={cborg ? CBORG_BASE_URL : "https://api.example.org/v1"}
                         disabled={codex}
                         onChange={(event) =>
                           setEndpoint(id, {
@@ -1196,6 +1267,9 @@ export default function Models() {
                         aria-invalid={!!fieldErrors[`endpoints.${id}.base_url`]}
                         aria-describedby={endpointDescribedBy("base_url")}
                       />
+                      <small className="muted" id={endpointId("base_url-hint")}>
+                        {cborg ? `Blank uses ${CBORG_BASE_URL}.` : codex ? "Address managed by Codex." : "Required for an OpenAI-compatible API."}
+                      </small>
                       {fieldErrors[`endpoints.${id}.base_url`] && (
                         <p
                           className="field-error"
@@ -1217,7 +1291,7 @@ export default function Models() {
                         <input
                           id={endpointId("api_key_env")}
                           disabled={codex}
-                          placeholder={codex ? "ChatGPT sign-in" : undefined}
+                          placeholder={codex ? "ChatGPT sign-in" : cborg ? CBORG_API_KEY_ENV : undefined}
                           type="text"
                           value={draft.api_key_env ?? ""}
                           onChange={(event) =>
@@ -1230,6 +1304,10 @@ export default function Models() {
                           }
                           aria-describedby={endpointDescribedBy("api_key_env")}
                         />
+                        <small className="muted" id={endpointId("api_key_env-hint")}>
+                          {cborg ? `Blank uses ${CBORG_API_KEY_ENV}.` : codex ? "Credentials managed by Codex." : "Blank uses the keyless endpoint convention."}
+                          {" "}Environment-variable names only, never secret values.
+                        </small>
                         {fieldErrors[`endpoints.${id}.api_key_env`] && (
                           <p
                             className="field-error"

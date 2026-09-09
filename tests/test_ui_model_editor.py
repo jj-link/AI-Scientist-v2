@@ -430,3 +430,148 @@ class EditorApiTests(EditorBase):
         self.assertEqual(again["roles"]["ideation"]["temperature"], 0.4)
         self.assertEqual(again["roles"]["ideation"]["timeout"], 30)
         self.assertEqual(again["roles"]["ideation"]["max_tokens"], 2048)
+
+
+class CborgEditorTests(EditorBase):
+    def test_saving_named_provider_preserves_other_preset_and_enrolled_assignment(self):
+        from fastapi.testclient import TestClient
+
+        cfg = minimal_config(extra_roles=("review",))
+        cfg["custom"] = {"retain": True}
+        target = self.write_preset(cfg=cfg)
+        target.write_text("# keep this comment\n" + target.read_text(encoding="utf-8"), encoding="utf-8")
+        other = self.write_preset("ais_roles.other.yaml")
+        other_bytes = other.read_bytes()
+        os.environ[model_routing.ROLE_CONFIG_ENV] = str(target)
+        app = create_app(self.root)
+        with TestClient(app, base_url="http://127.0.0.1:8765") as client:
+            headers = self.editor_headers(client)
+            selected = self.preset_id(client, "ais_roles.yaml")
+            enrolled = client.put("/api/crash-assistant/settings", headers=headers,
+                json={"enabled": True, "config_id": selected, "role": "ideation"})
+            self.assertEqual(enrolled.status_code, 200, enrolled.text)
+            before = client.get(f"/api/models/editor?config_id={selected}").json()
+            cached = model_routing.load_role_config(target)
+            response = client.patch("/api/models/editor", headers=headers, json={
+                "config_id": selected, "expected_revision": before["revision"],
+                "endpoints": {"alpha": {"provider": "cborg", "base_url": "https://api.cborg.lbl.gov/v1", "api_key_env": "CBORG_API_KEY"}},
+                "roles": {"ideation": {"model": "lbl/cborg-mini"}},
+            })
+            self.assertEqual(response.status_code, 200, response.text)
+            saved = response.json()
+            self.assertEqual(saved["endpoints"]["alpha"]["provider"], "cborg")
+            self.assertEqual(saved["endpoints"]["alpha"]["base_url"], "https://api.cborg.lbl.gov/v1")
+            self.assertEqual(saved["endpoints"]["alpha"]["api_key_env"], "CBORG_API_KEY")
+            self.assertEqual(client.get(f"/api/models/editor?config_id={selected}").json(), saved)
+            current = client.get("/api/crash-assistant/settings").json()
+            self.assertEqual(current["provider"], "openai")
+            self.assertEqual(current["model"], enrolled.json()["model"])
+            assignment = Configs(self.root).diagnostic_assignment(selected, "ideation")
+            self.assertEqual(assignment["provider"], "cborg")
+            self.assertEqual(assignment["api_key_env"], "CBORG_API_KEY")
+            self.assertEqual(cached["roles"]["ideation"]["model"], "m1")
+            self.assertEqual(model_routing.load_role_config(target)["roles"]["ideation"]["model"], "lbl/cborg-mini")
+        self.assertEqual(other.read_bytes(), other_bytes)
+        on_disk = yaml.safe_load(target.read_bytes())
+        self.assertEqual(on_disk["custom"], cfg["custom"])
+        self.assertEqual(on_disk["roles"]["review"], cfg["roles"]["review"])
+        self.assertTrue(target.read_text(encoding="utf-8").startswith("# keep this comment"))
+
+    def test_cborg_defaults_and_explicit_role_credentials_follow_inheritance(self):
+        cfg = minimal_config()
+        cfg["endpoints"]["alpha"] = {"provider": "cborg", "provides": ["text"]}
+        target = self.write_preset(cfg=cfg)
+        with patch.dict(os.environ, {model_routing.ROLE_CONFIG_ENV: str(target),
+                "CBORG_API_KEY": "fixture-default", "ENDPOINT_KEY": "fixture-endpoint", "ROLE_KEY": "fixture-role"}):
+            configs = Configs(self.root)
+            selected = configs.presets()["selected_role_config_id"]
+            editor = configs.editor(selected)
+            self.assertIsNone(editor["endpoints"]["alpha"]["base_url"])
+            self.assertIsNone(editor["endpoints"]["alpha"]["api_key_env"])
+            view = configs.models(selected)
+            self.assertEqual(view["endpoints"][0]["url"], "https://api.cborg.lbl.gov/v1")
+            self.assertEqual(view["roles"][0]["credential"], {"env": "CBORG_API_KEY", "present": True})
+            snapshot = configs.diagnostic_assignment(selected, "ideation")
+            self.assertEqual(snapshot["api_key_env"], "CBORG_API_KEY")
+            self.assertIn("CBORG_API_KEY", snapshot["credential_envs"])
+            with model_routing.create_selfhosted_client("role/ideation") as client:
+                self.assertEqual(str(client.base_url).rstrip("/"), "https://api.cborg.lbl.gov/v1")
+                self.assertEqual(client.api_key, "fixture-default")
+            saved = configs.save_editor(selected, editor["revision"],
+                {"ideation": {"api_key_env": "ROLE_KEY"}},
+                {"alpha": {"base_url": "http://127.0.0.1:9/v1", "api_key_env": "ENDPOINT_KEY"}})
+            with model_routing.create_selfhosted_client("role/ideation") as client:
+                self.assertEqual(str(client.base_url).rstrip("/"), "http://127.0.0.1:9/v1")
+                self.assertEqual(client.api_key, "fixture-role")
+            self.assertEqual(configs.diagnostic_assignment(selected, "ideation")["api_key_env"], "ROLE_KEY")
+            saved = configs.save_editor(selected, saved["revision"], {"ideation": {"api_key_env": None}}, {})
+            with model_routing.create_selfhosted_client("role/ideation") as client:
+                self.assertEqual(client.api_key, "fixture-endpoint")
+            cleared = configs.save_editor(selected, saved["revision"], {}, {"alpha": {"base_url": None, "api_key_env": None}})
+            self.assertIsNone(cleared["endpoints"]["alpha"]["base_url"])
+            self.assertIsNone(cleared["endpoints"]["alpha"]["api_key_env"])
+            with model_routing.create_selfhosted_client("role/ideation") as client:
+                self.assertEqual(client.api_key, "fixture-default")
+            self.assertEqual(snapshot["base_url"], "https://api.cborg.lbl.gov/v1")
+            self.assertNotIn("fixture-default", json.dumps(configs.models(selected)))
+
+    def test_provider_switch_validates_final_state_and_rejects_unknown_or_null(self):
+        from fastapi.testclient import TestClient
+
+        cfg = minimal_config()
+        cfg["roles"]["ideation"].update(max_tokens=4096, temperature=0.4, api_key_env="ROLE_KEY")
+        target = self.write_preset(cfg=cfg)
+        os.environ[model_routing.ROLE_CONFIG_ENV] = str(target)
+        with TestClient(create_app(self.root), base_url="http://127.0.0.1:8765") as client:
+            headers = self.editor_headers(client)
+            selected = self.preset_id(client, "ais_roles.yaml")
+            before = client.get(f"/api/models/editor?config_id={selected}").json()
+            original = target.read_bytes()
+            def save(endpoint_patch, roles=None, revision=before["revision"]):
+                return client.patch("/api/models/editor", headers=headers, json={
+                    "config_id": selected, "expected_revision": revision,
+                    "endpoints": {"alpha": endpoint_patch}, "roles": roles or {}})
+            for provider in ("unknown-fixture-provider", None):
+                response = save({"provider": provider})
+                self.assertEqual(response.status_code, 422, response.text)
+                self.assertEqual(target.read_bytes(), original)
+                self.assertNotIn("unknown-fixture-provider", response.text)
+            rejected = save({"provider": "openai-codex"})
+            self.assertEqual(rejected.status_code, 422, rejected.text)
+            self.assertEqual(target.read_bytes(), original)
+            rejected = save({"provider": "openai-codex", "base_url": None, "api_key_env": None})
+            self.assertEqual(rejected.status_code, 422, rejected.text)
+            self.assertEqual(target.read_bytes(), original)
+            accepted = save({"provider": "openai-codex", "base_url": None, "api_key_env": None},
+                {"ideation": {"max_tokens": None, "temperature": None, "api_key_env": None}})
+            self.assertEqual(accepted.status_code, 200, accepted.text)
+            codex_bytes = target.read_bytes()
+            revision = accepted.json()["revision"]
+            for endpoint_patch in ({"provider": "openai", "base_url": None},
+                    {"provider": "openai"}, {"base_url": "https://attacker.invalid/v1"}, {"api_key_env": "OTHER_KEY"}):
+                rejected = save(endpoint_patch, revision=revision)
+                self.assertEqual(rejected.status_code, 422, rejected.text)
+                self.assertEqual(target.read_bytes(), codex_bytes)
+            compatible = save({"provider": "cborg", "base_url": None, "api_key_env": None}, revision=revision)
+            self.assertEqual(compatible.status_code, 200, compatible.text)
+            self.assertEqual(compatible.json()["endpoints"]["alpha"]["provider"], "cborg")
+
+    def test_implicit_cborg_credential_is_guarded_and_invalid_source_provider_is_rejected(self):
+        cfg = minimal_config()
+        cfg["endpoints"]["alpha"] = {"provider": "cborg", "provides": ["text"]}
+        cfg["roles"]["ideation"]["model"] = "prefix-fixture-private-key-suffix"
+        target = self.write_preset(cfg=cfg)
+        with patch.dict(os.environ, {model_routing.ROLE_CONFIG_ENV: str(target), "CBORG_API_KEY": "fixture-private-key"}):
+            configs = Configs(self.root)
+            selected = configs.presets()["selected_role_config_id"]
+            with self.assertRaises(InvalidConfiguration):
+                configs.editor(selected)
+            self.assertNotIn("fixture-private-key", json.dumps(configs.models(selected)))
+            cfg["roles"]["ideation"]["model"] = "m1"
+            for provider in ("unknown", None):
+                cfg["endpoints"]["alpha"]["provider"] = provider
+                target.write_text(yaml.safe_dump(cfg), encoding="utf-8")
+                with self.assertRaises(InvalidConfiguration):
+                    configs.editor(selected)
+                with self.assertRaises(model_routing.RoleConfigError):
+                    model_routing.create_selfhosted_client("role/ideation")

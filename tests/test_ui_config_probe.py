@@ -15,10 +15,11 @@ from ai_scientist.ui.configs import Configs
 
 
 @contextmanager
-def endpoint(model, status=200):
+def endpoint(model, status=200, expected_api_key=None):
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):
-            self.send_response(status)
+            authorized = expected_api_key is None or self.headers.get("Authorization") == f"Bearer {expected_api_key}"
+            self.send_response(status if authorized else 401)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
             self.wfile.write(json.dumps({"object":"list", "data":[{"id":model,"object":"model","created":0,"owned_by":"test"}]}).encode())
@@ -81,3 +82,20 @@ class SelectedConfigProbe(unittest.TestCase):
                 self.assertNotIn(secret, serialized)
             self.assertEqual(view["endpoints"][0]["url"], "https://example.com/v1?safe=1")
             self.assertEqual(view["endpoints"][0]["credential"], {"env":"STUDIO_TEST_KEY","present":True})
+
+    def test_cborg_model_listing_uses_default_credential_and_explicit_compatible_url(self):
+        with endpoint("cborg-served-model", expected_api_key="fixture-cborg-key") as url:
+            target = self.root / "ais_roles.yaml"
+            target.write_text(yaml.safe_dump({
+                "endpoints": {"cborg": {"provider": "cborg", "base_url": url, "provides": ["text"]}},
+                "roles": {"ideation": {"endpoint": "cborg", "model": "cborg-served-model", "requires": ["text"]}},
+            }), encoding="utf-8")
+            with patch.dict("os.environ", {model_routing.ROLE_CONFIG_ENV: str(target), "CBORG_API_KEY": "fixture-cborg-key"}):
+                configs = Configs(self.root)
+                selected = configs.presets()["selected_role_config_id"]
+                listed = configs.endpoint_models(selected, "cborg")
+                self.assertTrue(listed["ok"], listed["error"])
+                self.assertEqual(listed["models"], ["cborg-served-model"])
+                checked = configs.check(selected)
+                self.assertTrue(checked["ok"], checked)
+                self.assertNotIn("fixture-cborg-key", json.dumps(checked))
