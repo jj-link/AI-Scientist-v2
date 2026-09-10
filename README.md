@@ -92,8 +92,9 @@ refine the design. The agent uses `role/ideation` from the selected configuratio
 and presents the complete candidate for review. Approve it in the conversation;
 the agent saves exactly that candidate to the ideas backlog. There is no separate
 Save or Approve button, and a refinement request does not approve the previous
-candidate. Reopen a saved idea to continue discussing it; further changes require
-another approval before replacing the saved artifact.
+candidate. Approved discussions leave the **Conversations** list but remain saved.
+Use **Refine idea** on a saved idea to reopen its existing discussion; further
+changes require another approval before replacing the saved artifact.
 
 **New conversation** starts a separate discussion and keeps the old one.
 **Delete conversation** removes the current discussion, retrieved sources, pending

@@ -349,6 +349,7 @@ export default function Ideas() {
   const navigate = useNavigate();
   const conversations = useApi<{ conversations: IdeaConversation[] }>("/api/idea-conversations");
   const ideas = useApi<{ ideas: IdeaRecord[] }>("/api/ideas");
+  const discussions = conversations.data?.conversations.filter((conversation) => !conversation.idea_id);
   const associated = ideaId ? conversations.data?.conversations
     .filter((conversation) => conversation.idea_id === ideaId)
     .sort((left, right) => right.updated_at.localeCompare(left.updated_at))[0] : undefined;
@@ -375,17 +376,17 @@ export default function Ideas() {
       <div className="ideas-workspace">
         <nav className="card stack conversation-navigation" aria-labelledby="conversations-heading">
           <h2 id="conversations-heading">Conversations</h2>
-          <p className="metadata">Discussions and unapproved designs stay here, separate from the backlog.</p>
+          <p className="metadata">New idea discussions stay here. Approved discussions stay with their saved idea.</p>
           <ErrorNotice error={conversations.error} />
           {Boolean(conversations.error) && <button className="button secondary" type="button" onClick={conversations.refresh}>Reload conversations</button>}
           {conversations.loading && !conversations.data && <p role="status">Loading conversations…</p>}
-          {conversations.data?.conversations.length === 0 && <p className="muted">Your first conversation starts when you send a message.</p>}
+          {discussions?.length === 0 && <p className="muted">No new idea discussions. Use Refine idea below to reopen a saved discussion.</p>}
           <ul className="conversation-list">
-            {conversations.data?.conversations.map((conversation) => (
+            {discussions?.map((conversation) => (
               <li key={conversation.id}>
                 <Link to={`/ideas?conversation=${encodeURIComponent(conversation.id)}`} aria-current={conversation.id === conversationId ? "page" : undefined}>
                   <span>{conversation.title || "Untitled conversation"}</span>
-                  <span className="metadata">{conversation.state === "running" ? "Running" : conversation.state === "failed" ? "Needs attention" : conversation.pending_idea ? "Design awaiting your reply" : conversation.idea_id ? "Linked to saved idea" : "Discussion"}</span>
+                  <span className="metadata">{conversation.state === "running" ? "Running" : conversation.state === "failed" ? "Needs attention" : conversation.pending_idea ? "Design awaiting your reply" : "Discussion"}</span>
                 </Link>
               </li>
             ))}
@@ -420,7 +421,7 @@ export default function Ideas() {
                     Prepare experiment <ArrowRight size={16} aria-hidden="true" />
                   </Link>
                 )}
-                <Link className="button secondary" to={`/ideas/${encodeURIComponent(item.id)}`}>Open / refine idea <ArrowRight size={16} aria-hidden="true" /></Link>
+                <Link className="button secondary" to={`/ideas/${encodeURIComponent(item.id)}`}>Refine idea <ArrowRight size={16} aria-hidden="true" /></Link>
               </div>
             </article>
           ))}
