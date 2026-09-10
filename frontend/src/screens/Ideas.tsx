@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { ArrowRight, Download, MessageSquare, Plus, Send, Square } from "lucide-react";
+import { ArrowRight, Download, MessageSquare, Plus, Send, Square, Trash2 } from "lucide-react";
 import {
   ApiError,
   mutate,
@@ -86,11 +86,12 @@ function SavedIdeaSummary({ record }: { record: IdeaRecord }) {
   );
 }
 
-function ConversationWorkspace({ conversationId, seedIdea, onChange, onOpen }: {
+function ConversationWorkspace({ conversationId, seedIdea, onChange, onOpen, onDelete }: {
   conversationId: string;
   seedIdea?: IdeaRecord;
   onChange: () => void;
   onOpen: (id: string) => void;
+  onDelete: () => void;
 }) {
   const storageKey = `scientist-studio-idea-chat-${conversationId || (seedIdea ? `idea-${seedIdea.id}` : "new")}`;
   const [draft, setDraft] = useState(() => readDraft(storageKey));
@@ -101,6 +102,7 @@ function ConversationWorkspace({ conversationId, seedIdea, onChange, onOpen }: {
   const [error, setError] = useState<unknown>(null);
   const [submitting, setSubmitting] = useState(false);
   const [stopping, setStopping] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [reload, setReload] = useState(0);
   const busy = useRef(false);
   const mounted = useRef(true);
@@ -227,10 +229,53 @@ function ConversationWorkspace({ conversationId, seedIdea, onChange, onOpen }: {
     }
   }
 
+  async function deleteConversation() {
+    if (busy.current || !conversation || running) return;
+    const confirmation = "Delete this conversation and start a new one? All messages, source history, pending designs and your unsent draft will be removed. Saved ideas and experiments will not be changed. This cannot be undone.";
+    if (!window.confirm(confirmation)) return;
+    busy.current = true;
+    epoch.current += 1;
+    setDeleting(true);
+    setError(null);
+    try {
+      const path = `/api/idea-conversations/${encodeURIComponent(conversationId)}`;
+      await mutate<{ deleted: boolean }>(
+        path,
+        { expected_revision: conversation.revision },
+        "DELETE",
+      );
+      writeDraft(storageKey, { message: "" });
+      if (!mounted.current) return;
+      updateDraft({ message: "" });
+      setLoadError(null);
+      onChange();
+      writeDraft("scientist-studio-idea-chat-new", { message: "" });
+      onDelete();
+    } catch (failure) {
+      if (mounted.current) setError(failure);
+    } finally {
+      busy.current = false;
+      if (mounted.current) {
+        setDeleting(false);
+        setReload((value) => value + 1);
+      }
+    }
+  }
+
   const conflict = error instanceof ApiError && error.status === 409;
   return (
     <section className="card stack conversation-workspace" aria-labelledby="conversation-heading">
       <h2 id="conversation-heading">{conversation?.title || (seedIdea ? `Refine: ${ideaTitle(seedIdea.idea)}` : "Let's develop an idea")}</h2>
+      {conversation && (
+        <div className="actions">
+          <button className="button danger" type="button" disabled={running || submitting || stopping || deleting}
+            onClick={() => void deleteConversation()}>
+            <Trash2 size={18} aria-hidden="true" />
+            {deleting ? "Deleting…" : "Delete conversation"}
+          </button>
+        </div>
+      )}
+      {running && <p className="metadata">Stop the response before deleting this conversation.</p>}
       {!conversationId && (
         <p className="muted">{seedIdea ? "Tell the agent what to discuss or change in this saved idea." : "Bring an existing idea, ask a question about a paper, or ask for suggestions. Discuss and refine it here."} The agent will present a complete design for you to approve or revise in your own words.</p>
       )}
@@ -289,7 +334,7 @@ function ConversationWorkspace({ conversationId, seedIdea, onChange, onOpen }: {
         {draft.pending && !submitting && <p className="notice">The last request has not been confirmed. Retry sends the identical message and request ID so it cannot create a duplicate turn.</p>}
         <div className="actions">
           <button className="button primary" type="submit"
-            disabled={submitting || stopping || !draft.message.trim() || (!draft.pending && (running || (Boolean(conversationId) && (!conversation || Boolean(loadError)))))}>
+            disabled={submitting || stopping || deleting || !draft.message.trim() || (!draft.pending && (running || (Boolean(conversationId) && (!conversation || Boolean(loadError)))))}>
             <Send size={16} aria-hidden="true" /> {submitting ? "Sending…" : draft.pending ? "Retry message" : "Send message"}
           </button>
         </div>
@@ -317,7 +362,7 @@ export default function Ideas() {
   }, [conversations.refresh, ideas.refresh, approved.refresh]);
   const record = approved.data?.id === savedId ? approved.data : undefined;
   const openConversation = (id: string) => {
-    navigate(`${ideaId ? `/ideas/${encodeURIComponent(ideaId)}` : "/ideas"}?conversation=${encodeURIComponent(id)}`, { replace: true });
+    navigate(`/ideas?conversation=${encodeURIComponent(id)}`, { replace: true });
   };
   return (
     <div className="stack">
@@ -348,7 +393,7 @@ export default function Ideas() {
         </nav>
         <div className="stack conversation-column">
           {(!ideaId || (record && conversations.data)) && (
-            <ConversationWorkspace key={conversationId || `new-${ideaId || "idea"}`} conversationId={conversationId} seedIdea={record} onChange={refresh} onOpen={openConversation} />
+            <ConversationWorkspace key={conversationId || `new-${ideaId || "idea"}`} conversationId={conversationId} seedIdea={record} onChange={refresh} onOpen={openConversation} onDelete={() => navigate("/ideas", { replace: true })} />
           )}
         </div>
       </div>

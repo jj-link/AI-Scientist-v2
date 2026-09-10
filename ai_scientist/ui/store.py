@@ -523,6 +523,23 @@ class Store:
             return self.conversation_record(db.execute(
                 "SELECT * FROM idea_conversations WHERE id=?", (id,)).fetchone(), internal=internal)
 
+    def delete_conversation(self, id, expected_revision):
+        """Delete a discussion without touching saved ideas or experiment jobs."""
+        with self.connection() as db:
+            db.execute("BEGIN IMMEDIATE")
+            record = self.conversation_record(db.execute(
+                "SELECT * FROM idea_conversations WHERE id=?", (id,)).fetchone(), internal=True)
+            if record["revision"] != expected_revision:
+                raise Conflict({"message": "This conversation changed. Reload before deleting it.",
+                                "revision": record["revision"]})
+            if record["state"] == "running":
+                raise Conflict({"message": "Stop the response before deleting this conversation."})
+            db.execute("DELETE FROM idea_conversation_sources WHERE conversation_id=?", (id,))
+            # Keep request IDs as tombstones, but remove fingerprints containing old messages.
+            # Delayed retries must not recreate deleted conversations.
+            db.execute("UPDATE idea_conversation_requests SET fingerprint='' WHERE conversation_id=?", (id,))
+            db.execute("DELETE FROM idea_conversations WHERE id=?", (id,))
+
     def claim_conversation(self, request_id, message, owner, *, conversation_id=None,
                            expected_revision=None, role_config_id=None, idea_id=None):
         """Persist user input and its unique turn claim before scheduling any network work."""
@@ -581,8 +598,10 @@ class Store:
         from .idea_conversations import explicit_approval
         with self.connection() as db:
             db.execute("BEGIN IMMEDIATE")
-            record = self.conversation_record(db.execute(
-                "SELECT * FROM idea_conversations WHERE id=?", (id,)).fetchone(), internal=True)
+            row = db.execute("SELECT * FROM idea_conversations WHERE id=?", (id,)).fetchone()
+            if row is None:
+                return False
+            record = self.conversation_record(row, internal=True)
             if record["state"] != "running" or record["active_request"] != request_id:
                 return False
             stamp = now()
@@ -636,8 +655,10 @@ class Store:
     def stop_conversation(self, id, *, request_id=None, interrupted=False):
         with self.connection() as db:
             db.execute("BEGIN IMMEDIATE")
-            record = self.conversation_record(db.execute(
-                "SELECT * FROM idea_conversations WHERE id=?", (id,)).fetchone(), internal=True)
+            row = db.execute("SELECT * FROM idea_conversations WHERE id=?", (id,)).fetchone()
+            if row is None and request_id is not None:
+                return None
+            record = self.conversation_record(row, internal=True)
             if record["state"] == "running" and (request_id is None or request_id == record["active_request"]):
                 error = {"message": "The response was interrupted. Your discussion is retained; send a message to continue."} if interrupted else None
                 messages = record["messages"] + [{"role": "assistant", "content":
@@ -646,7 +667,8 @@ class Store:
                     "UPDATE idea_conversations SET state=?,revision=revision+1,messages=?,error=?,progress=NULL,"
                     "owner=NULL,active_request=NULL,approval_revision=NULL,updated_at=? WHERE id=?",
                     ("failed" if interrupted else "idle", json.dumps(messages), json.dumps(error) if error else None, now(), id))
-        return self.get_conversation(id)
+            return self.conversation_record(db.execute(
+                "SELECT * FROM idea_conversations WHERE id=?", (id,)).fetchone())
 
     def conversation_sources(self, id):
         with self.connection() as db:

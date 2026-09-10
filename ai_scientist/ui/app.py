@@ -23,7 +23,7 @@ from .artifacts import artifact_file, list_runs, run_detail
 from .configs import Configs, EditorConflict, InvalidConfiguration, assistant_settings_view
 from .diagnostics import CrashAssistant, PublishUnknown, PublishUnavailable, REPOSITORY, sanitize_text
 from .idea_conversations import IdeaConversations
-from .schemas import IdeaConversationCreate, IdeaConversationMessage
+from .schemas import IdeaConversationCreate, IdeaConversationDelete, IdeaConversationMessage
 from .schemas import AssistantSettingsUpdate, EndpointModelsRequest, ExperimentRequest, ModelConfigUpdate, IdeaJobRequest, IdeaUpdate, IssueDraftUpdate, IssuePublish
 from .schemas import Request as ProviderAction
 from .store import Conflict, Store
@@ -214,6 +214,11 @@ def create_app(root: Path | None = None, *, development: bool = False) -> FastAP
     @app.post("/api/idea-conversations/{conversation_id}/stop")
     async def stop_conversation(conversation_id: str, body: ProviderAction):
         return await idea_conversations.stop(conversation_id)
+
+    @app.delete("/api/idea-conversations/{conversation_id}")
+    def delete_conversation(conversation_id: str, body: IdeaConversationDelete):
+        store.delete_conversation(conversation_id, body.expected_revision)
+        return {"deleted": True}
 
     @app.get("/api/ideas/{idea_id}")
     def idea(idea_id: str):

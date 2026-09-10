@@ -95,6 +95,12 @@ Save or Approve button, and a refinement request does not approve the previous
 candidate. Reopen a saved idea to continue discussing it; further changes require
 another approval before replacing the saved artifact.
 
+**New conversation** starts a separate discussion and keeps the old one.
+**Delete conversation** removes the current discussion, retrieved sources, pending
+design, and unsent draft, then opens an empty composer for a new conversation.
+Deletion requires confirmation and leaves saved ideas and experiments unchanged.
+Stop an active response before deleting the conversation. Deletion cannot be undone.
+
 Discussions have no fixed five-call cutoff. **Stop** cancels the current turn
 without approving a design. Incomplete designs can be approved and saved, but
 cannot run until the experiment plan is complete. **Prepare experiment** remains

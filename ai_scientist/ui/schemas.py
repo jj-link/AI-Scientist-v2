@@ -38,6 +38,10 @@ class Request(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class IdeaConversationDelete(Request):
+    expected_revision: int = Field(ge=1, strict=True)
+
+
 class IdeaConversationCreate(Request):
     request_id: UUID
     message: str = Field(min_length=1, max_length=20000)
