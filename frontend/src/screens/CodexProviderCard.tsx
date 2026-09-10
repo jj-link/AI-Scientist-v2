@@ -47,31 +47,12 @@ export default function CodexProviderCard({ onAuthChange }: { onAuthChange: () =
   }
 
   return (
-    <section className="card stack" id="codex-provider" aria-labelledby="codex-provider-heading">
-      <div className="card-header">
-        <h2 id="codex-provider-heading">Codex — ChatGPT sign-in</h2>
+    <section className="card stack models-utility-card" id="codex-provider" aria-labelledby="codex-provider-heading">
+      <div className="models-utility-header">
+        <h2 id="codex-provider-heading">Codex sign-in</h2>
         <span className="badge" role="status">
           {status.data?.pending ? "Waiting for sign-in" : status.data?.connected ? "Connected" : "Not connected"}
         </span>
-      </div>
-      <p className="muted">
-        Use your ChatGPT account's Codex models and usage limits, separately from
-        OpenAI API-key billing. Credentials stay in this computer's OS credential
-        vault, outside YAML and browser storage.
-      </p>
-      <p className="muted">
-        Sign in, choose the Codex endpoint for a role, then detect models and save
-        the assignment. Codex manages output-token limits and sampling; selecting
-        it clears unsupported token, temperature, and API-key overrides in your draft.
-      </p>
-      <ErrorNotice error={error || status.error} />
-      {status.data?.error && <p className="notice" role="alert">{status.data.error}</p>}
-      {authorizationUrl && (
-        <p role="status">
-          <a className="button primary" href={authorizationUrl} target="_blank" rel="noopener noreferrer">Continue to ChatGPT</a>
-          {" "}Complete sign-in in the new tab, then return here.
-        </p>
-      )}
       <div className="toolbar">
         {!status.data?.pending && (
           <button className="button secondary" disabled={busy || status.loading} onClick={() => void act("login")}>
@@ -86,6 +67,28 @@ export default function CodexProviderCard({ onAuthChange }: { onAuthChange: () =
         )}
         <button className="button secondary" disabled={busy || status.loading} onClick={status.refresh}>Refresh sign-in status</button>
       </div>
+      </div>
+      <details className="models-utility-details">
+        <summary>Details</summary>
+      <p className="muted">
+        Use your ChatGPT account's Codex models and usage limits, separately from
+        OpenAI API-key billing. Credentials stay in this computer's OS credential
+        vault, outside YAML and browser storage.
+      </p>
+      <p className="muted">
+        Sign in, choose the Codex endpoint for a role, then detect models and save
+        the assignment. Codex manages output-token limits and sampling; selecting
+        it clears unsupported token, temperature, and API-key overrides in your draft.
+      </p>
+      </details>
+      <ErrorNotice error={error || status.error} />
+      {status.data?.error && <p className="notice" role="alert">{status.data.error}</p>}
+      {authorizationUrl && (
+        <p role="status">
+          <a className="button primary" href={authorizationUrl} target="_blank" rel="noopener noreferrer">Continue to ChatGPT</a>
+          {" "}Complete sign-in in the new tab, then return here.
+        </p>
+      )}
     </section>
   );
 }

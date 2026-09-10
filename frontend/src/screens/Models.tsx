@@ -199,21 +199,12 @@ function CrashAssistantCard({
   }
   const canEnable = Boolean(role && textRoles.some((item) => item.name === role));
   return (
-    <section className="card stack" aria-labelledby="assistant-heading">
-      <div className="card-header">
-        <div>
-          <h2 id="assistant-heading">Crash assistant</h2>
-          <p className="muted">
-            Saved separately from the configuration above. When enabled, a
-            failed job sends one bounded, credential-redacted Technical
-            details excerpt to the selected endpoint for newly started jobs
-            only; redaction may not remove private research content. GitHub
-            reports are public on <code>jj-link/AI-Scientist-v2</code> and
-            require separate exact-content approval.
-          </p>
-          <p className="muted">After editing a role above, click Save assistant settings to capture its new assignment. Existing job snapshots do not change.</p>
-        </div>
+    <section className="card stack models-utility-card" aria-labelledby="assistant-heading">
+      <div className="models-utility-header">
+        <h2 id="assistant-heading">Crash assistant</h2>
       </div>
+      <p className="muted">Help diagnose failed jobs. Excerpts go to the selected model; public reports require separate approval.</p>
+      <div className="models-assistant-controls">
       <div className="field">
         <label htmlFor="assistant-enabled">Enable crash assistant</label>
         <select
@@ -279,7 +270,19 @@ function CrashAssistantCard({
           </div>
         </>
       ) : null}
+      </div>
       <ErrorNotice error={saveError} />
+      <details className="models-utility-details">
+        <summary>Details</summary>
+          <p className="muted">
+            Saved separately from the configuration above. When enabled, a
+            failed job sends one bounded, credential-redacted Technical
+            details excerpt to the selected endpoint for newly started jobs
+            only; redaction may not remove private research content. GitHub
+            reports are public on <code>jj-link/AI-Scientist-v2</code> and
+            require separate exact-content approval.
+          </p>
+          <p className="muted">After editing a role above, click Save assistant settings to capture its new assignment. Existing job snapshots do not change.</p>
       {shown && (
         <dl className="results-record metadata">
           <dt>Saved assignment</dt>
@@ -306,6 +309,7 @@ function CrashAssistantCard({
           </dd>
         </dl>
       )}
+      </details>
     </section>
   );
 }
@@ -1087,10 +1091,6 @@ export default function Models() {
                   </fieldset>
                 );
               })}
-            </div>
-          </section>
-        </div>
-      )}
       <div
         className="models-savebar"
         data-dirty={dirty}
@@ -1145,6 +1145,10 @@ export default function Models() {
           </div>
         </div>
       </div>
+            </div>
+          </section>
+        </div>
+      )}
       <CrashAssistantCard
         configurationRevision={(saved?.revision ?? null)}
       />
