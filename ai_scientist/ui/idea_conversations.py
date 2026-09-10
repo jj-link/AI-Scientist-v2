@@ -40,7 +40,7 @@ def explicit_approval(message: str) -> bool:
     text = re.sub(r"\s+", " ", message.strip().lower()).rstrip(".!").strip()
     # Anchoring excludes questions, negatives, conditions, quotes, and change requests.
     target = r"(?:it|this|(?:this|the) (?:idea|design|proposal|version|artifact))"
-    approval = rf"(?:i approve(?: {target})?|approved)"
+    approval = rf"(?:(?:i )?approve(?: {target})?|approved)"
     affirmative = rf"(?:yes(?: please)?|yep|yeah|{approval}|looks good(?: to me)?|go ahead|(?:please )?save {target}|add {target} to (?:the )?backlog)"
     followup = rf"(?:{approval}|(?:please )?save {target}|go ahead|add {target} to (?:the )?backlog)"
     return re.fullmatch(affirmative + rf"(?:,? {followup})?", text) is not None

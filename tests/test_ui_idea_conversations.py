@@ -134,6 +134,17 @@ class IdeaConversationApproval(unittest.TestCase):
         # An incomplete experimental design is a valid idea artifact, not permission to run.
         self.assertIn("Experiments", saved[0]["errors"])
 
+    def test_bare_approve_saves_exact_presented_design(self):
+        presented = self.start({
+            "action": "present", "message": "Review this design.", "idea": self.design,
+        })
+        result = self.turn(presented, "approve\n", self.approval(presented))
+        saved = self.backlog()
+        self.assertEqual(len(saved), 1)
+        self.assertEqual(saved[0]["idea"], self.design)
+        self.assertEqual(result["idea_id"], saved[0]["id"])
+        self.assertIsNone(result["pending_idea"])
+
     def test_conditional_approval_cannot_be_promoted_by_model_into_save(self):
         first = self.start({"action": "present", "message": "Please review this design.", "idea": self.design})
         result = self.turn(first, "Yes, but change the model to Gemma before saving.", self.approval(first))
@@ -219,3 +230,41 @@ class IdeaConversationApproval(unittest.TestCase):
         self.assertNotEqual(conversation["state"], "running")
         self.assertIsNone(conversation["pending_idea"])
         self.assertEqual(self.backlog(), [])
+
+    def test_delete_preserves_saved_idea_and_blocks_delayed_creation_retry(self):
+        saved = self.app.state.store.add_idea("fixture", self.design)
+        body = {"request_id": str(uuid4()), "message": "Discuss this saved design.", "idea_id": saved["id"]}
+        created = self.post("/api/idea-conversations", body)
+        self.assertEqual(created.status_code, 202, created.text)
+        first = self.settled(created.json()["id"])
+        path = f"/api/idea-conversations/{first['id']}"
+        deleted = self.client.request("DELETE", path, json={"expected_revision": first["revision"]},
+                                      headers=self.headers)
+        self.assertEqual(deleted.status_code, 200, deleted.text)
+        self.assertEqual(self.client.get(path).status_code, 404)
+        self.assertEqual(self.client.get("/api/idea-conversations").json()["conversations"], [])
+        self.assertEqual(self.backlog(), [saved])
+        replay = self.post("/api/idea-conversations", body)
+        self.assertEqual(replay.status_code, 409, replay.text)
+        # A transport in another process can still report completion after Stop and Delete.
+        self.app.state.store.finish_conversation(first["id"], body["request_id"], candidate=self.design)
+        self.app.state.store.stop_conversation(first["id"], request_id=body["request_id"], interrupted=True)
+        self.assertEqual(self.client.get(path).status_code, 404)
+        self.assertEqual(self.backlog(), [saved])
+
+    def test_delete_rejects_running_and_stale_conversations(self):
+        self.release.clear()
+        created = self.post("/api/idea-conversations", {
+            "request_id": str(uuid4()), "message": "Do not delete an active response."})
+        self.assertEqual(created.status_code, 202, created.text)
+        running = created.json()
+        path = f"/api/idea-conversations/{running['id']}"
+        blocked = self.client.request("DELETE", path, json={"expected_revision": running["revision"]},
+                                      headers=self.headers)
+        self.assertEqual(blocked.status_code, 409, blocked.text)
+        stopped = self.post(f"{path}/stop", {}).json()
+        self.release.set()
+        stale = self.client.request("DELETE", path, json={"expected_revision": running["revision"]},
+                                    headers=self.headers)
+        self.assertEqual(stale.status_code, 409, stale.text)
+        self.assertEqual(self.client.get(path).json()["messages"], stopped["messages"])
