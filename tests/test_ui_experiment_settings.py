@@ -12,6 +12,7 @@ import yaml
 
 from ai_scientist import model_routing
 from ai_scientist.ui.app import create_app
+from ai_scientist.ui import model_settings
 from test_ui_config_probe import endpoint
 
 
@@ -69,11 +70,15 @@ class ExperimentSettingsTests(unittest.TestCase):
             "Experiments": ["Measure each setting in the reserved run snapshot."],
             "Risk Factors and Limitations": [],
         })
+        editor = self.client.get("/api/models/editor").json()
         self.body = {
             "request_id": str(uuid4()), "idea_id": self.idea["id"],
             "idea_revision": self.idea["revision"],
             "bfts_config_id": bootstrap["selected_bfts_config_id"],
             "execution_acknowledged": True,
+            "model_settings_revision": editor["revision"],
+            "role_assignments": {name: {key: value for key, value in role.items() if key != "requires"}
+                                 for name, role in editor["roles"].items()},
             "run_settings": {"num_workers": 7, "num_seeds": 9, "execution_timeout": 12.5,
                              "stage_iterations": {"stage1": 11, "stage2": 13,
                                                   "stage3": 17, "stage4": 19}},
@@ -221,7 +226,7 @@ class ExperimentSettingsTests(unittest.TestCase):
         self.assertEqual(self.baseline_path.read_bytes(), original)
 
     def test_missing_and_extra_settings_are_rejected_before_reservation(self):
-        required = [("run_settings",)] + [
+        required = [("run_settings",), ("model_settings_revision",), ("role_assignments",)] + [
             ("run_settings", name) for name in
             ("num_workers", "num_seeds", "execution_timeout", "stage_iterations")
         ] + [("run_settings", "stage_iterations", f"stage{i}") for i in range(1, 5)]
@@ -267,10 +272,72 @@ class ExperimentSettingsTests(unittest.TestCase):
         self.assertIn("Fixture TeX is unavailable.", response.json()["detail"]["blockers"])
         self.assert_unreserved()
         self.tools.return_value = {"ok": True, "tools": []}
-        from ai_scientist.ui.configs import Configs
-        configs = Configs(self.root)
-        configs.save_editor(configs.editor()["revision"],
-                            {"experiment_code": {"model": "not-served"}}, {})
+        self.body["role_assignments"]["experiment_code"]["model"] = "not-served"
         response = self.client.post("/api/experiments", headers=self.headers, json=self.body)
+        self.assertEqual(response.status_code, 422, response.text)
+        self.assert_unreserved()
+
+    def test_stale_model_settings_refuse_reservation_without_probing(self):
+        configs = self.app.state.configs
+        configs.save_editor(self.body["model_settings_revision"], {"ideation": {"timeout": 42.5}}, {})
+        with patch.object(model_routing, "list_endpoint_models") as probe:
+            response = self.client.post("/api/experiments", headers=self.headers, json=self.body)
+        self.assertEqual(response.status_code, 409, response.text)
+        self.assertEqual(response.json()["detail"]["errors"][0]["field"], "model_settings_revision")
+        probe.assert_not_called()
+        self.assert_unreserved()
+
+    def test_selected_models_and_fractional_overrides_reach_immutable_snapshot(self):
+        selected_url = self.enterContext(endpoint("selected-model"))
+        model_settings.save_settings_atomic(self.root, {
+            "selected": {"api_format": "openai", "address": selected_url,
+                         "capabilities": ["text", "vision"], "timeout": 88.25}}, {})
+        self.body["model_settings_revision"] = self.client.get("/api/models/editor").json()["revision"]
+        for role in self.body["role_assignments"].values():
+            role.update(endpoint="selected", model="selected-model", temperature=0.375,
+                        timeout=19.25, max_tokens=512)
+        defaults = self.app.state.store.current_settings()
+
+        def change_defaults_during_readiness():
+            model_settings.save_settings_atomic(self.root, {
+                "selected": {"api_format": "openai", "address": "http://127.0.0.1:1/v1",
+                             "capabilities": [], "timeout": 1}}, {})
+            return {"ok": True, "tools": []}
+
+        self.tools.side_effect = change_defaults_during_readiness
+        job_id = self.launch(self.body)
+        path = self.snapshot(job_id).parent / "model_settings.json"
+        original = path.read_bytes()
+        snapshot = json.loads(original)
+        self.assertEqual(snapshot["endpoints"]["selected"]["base_url"], selected_url)
+        for name, role in snapshot["roles"].items():
+            self.assertEqual(role["model"], "selected-model")
+            self.assertEqual(role["timeout"], 19.25)
+            self.assertEqual(role["temperature"], 0.375)
+            self.assertEqual(role["max_tokens"], 512)
+            self.assertNotIn("api_key_env", role)
+            self.assertEqual(role["requires"], defaults["roles"][name]["requires"])
+        self.assertEqual(self.app.state.store.current_settings()["roles"], defaults["roles"])
+        self.assertEqual(self.launch(self.body), job_id)
+        self.assertEqual(path.read_bytes(), original)
+        self.assertEqual(self.launch_worker.call_count, 1)
+
+    def test_missing_role_assignment_never_falls_back_to_defaults(self):
+        del self.body["role_assignments"]["experiment_code"]
+        response = self.client.post("/api/experiments", headers=self.headers, json=self.body)
+        self.assertEqual(response.status_code, 422, response.text)
+        self.assertTrue(any("experiment_code" in blocker for blocker in response.json()["detail"]["blockers"]))
+        self.assert_unreserved()
+
+    def test_role_assignment_entries_require_all_fields_and_reject_metadata(self):
+        for field in self.body["role_assignments"]["ideation"]:
+            with self.subTest(missing=field):
+                body = deepcopy(self.body)
+                del body["role_assignments"]["ideation"][field]
+                response = self.client.post("/api/experiments", headers=self.headers, json=body)
+                self.assertEqual(response.status_code, 422, response.text)
+        body = deepcopy(self.body)
+        body["role_assignments"]["visual_feedback"]["requires"] = []
+        response = self.client.post("/api/experiments", headers=self.headers, json=body)
         self.assertEqual(response.status_code, 422, response.text)
         self.assert_unreserved()

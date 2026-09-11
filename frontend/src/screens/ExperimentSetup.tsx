@@ -1,15 +1,16 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, ArrowRight, Play, ShieldAlert } from "lucide-react";
-import { ApiError, isActive, mutate, useApi, type IdeaRecord, type ModelsView, type ModelRole, type RunSettings, type Workload } from "../api";
+import { ApiError, isActive, mutate, useApi, type IdeaRecord, type ModelConfigEditor, type ModelConfigEditorRole, type RoleAssignments, type RunSettings, type Workload } from "../api";
 import {
   ErrorNotice,
   JsonText,
   PageHeading,
-  ROLE_HELP,
-  CUSTOM_ROLE_HELP,
 } from "../components";
 import { useStudio } from "../studio";
+import RoleAssignmentsEditor from "../RoleAssignmentsEditor";
+import RoleProfiles from "../RoleProfiles";
+import { applyRoleAssignments, serializeRoleAssignments, validRoleAssignments } from "../roleAssignments";
 import "./ideas.css";
 
 type LaunchRequest = {
@@ -19,13 +20,16 @@ type LaunchRequest = {
   bfts_config_id: string;
   execution_acknowledged: boolean;
   run_settings: RunSettings;
+  role_assignments: RoleAssignments;
+  model_settings_revision: string;
 };
 function savedRequest(ideaId: string): LaunchRequest | null {
   try {
     const value = JSON.parse(
       sessionStorage.getItem(`scientist-studio-launch-${ideaId}`) || "null",
     ) as LaunchRequest | null;
-    if (value?.idea_id === ideaId && validRunSettings(value.run_settings)) return value;
+    if (value?.idea_id === ideaId && validRunSettings(value.run_settings) &&
+      typeof value.model_settings_revision === "string" && savedAssignments(value.role_assignments)) return value;
     sessionStorage.removeItem(`scientist-studio-launch-${ideaId}`);
     return null;
   } catch {
@@ -104,7 +108,17 @@ function runDraft(settings: Workload | RunSettings | null | undefined): RunDraft
   };
 }
 
-function savedDraft(ideaId: string): { configId: string; values: RunDraft } | null {
+function savedAssignments(value: unknown): value is RoleAssignments {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const assignments = Object.values(value);
+  return assignments.length > 0 && assignments.every((role) =>
+    role && typeof role === "object" && !Array.isArray(role) &&
+    ["endpoint", "model", "api_key_env"].every((field) => role[field] === null || typeof role[field] === "string") &&
+    ["max_tokens", "temperature", "timeout"].every((field) => role[field] === null ||
+      (typeof role[field] === "number" && Number.isFinite(role[field]))));
+}
+
+function savedDraft(ideaId: string): { configId: string; values: RunDraft; modelRevision?: string; roles?: RoleAssignments } | null {
   try {
     const draft = JSON.parse(sessionStorage.getItem(`scientist-studio-run-settings-${ideaId}`) || "null");
     return draft && typeof draft.configId === "string" && draft.values &&
@@ -114,38 +128,6 @@ function savedDraft(ideaId: string): { configId: string; values: RunDraft } | nu
   }
 }
 
-function ResearchModels() {
-  const view = useApi<ModelsView>("/api/models");
-  const models = view.data;
-  const researchRoles = models?.roles.filter((role) => role.name !== "ideation") || [];
-  function assignment(role: ModelRole) {
-    const help = Object.hasOwn(ROLE_HELP, role.name) ? ROLE_HELP[role.name] : CUSTOM_ROLE_HELP;
-    const endpoint = models?.endpoints.find((item) => item.id === role.endpoint);
-    return (
-      <div className="setup-model" key={role.name}>
-        <dt>{help.title}</dt>
-        <dd>
-          <strong>{role.model || "No model assigned"}</strong>
-          <span className="metadata">{endpoint?.label || role.endpoint || "No endpoint assigned"}</span>
-          <span className="metadata">{help.description}</span>
-        </dd>
-      </div>
-    );
-  }
-  return (
-    <>
-      <ErrorNotice error={view.error} />
-      {Boolean(view.error) && <button className="button secondary" type="button" onClick={view.refresh}>Reload model assignments</button>}
-      {!models && !view.error && <p role="status">Loading saved model assignments…</p>}
-      {models && (
-        <>
-          {researchRoles.length === 0 && <p className="notice">No research roles are configured. Review the assignments in Models.</p>}
-          <dl className="setup-models">{researchRoles.map(assignment)}</dl>
-        </>
-      )}
-    </>
-  );
-}
 function Setup({
   idea,
   refreshIdea,
@@ -166,13 +148,39 @@ function Setup({
   const [values, setValues] = useState<RunDraft>(() => restored
     ? runDraft(restored.run_settings)
     : storedDraft?.values || runDraft(bootstrap.bfts_configs.find((item) => item.id === configId)?.settings));
+  const modelEditor = useApi<ModelConfigEditor>("/api/models/editor");
+  const [modelBase, setModelBase] = useState<ModelConfigEditor | null>(null);
+  const [roleDrafts, setRoleDrafts] = useState<Record<string, ModelConfigEditorRole> | null>(null);
+  const [modelRevision, setModelRevision] = useState(
+    restored?.model_settings_revision || storedDraft?.modelRevision || "",
+  );
+  const [roleError, setRoleError] = useState<unknown>(null);
+  const refreshModelsRequested = useRef(false);
+  useEffect(() => {
+    const loaded = modelEditor.data;
+    if (!loaded || (modelBase && !refreshModelsRequested.current)) return;
+    const refreshing = refreshModelsRequested.current;
+    refreshModelsRequested.current = false;
+    const assignments = roleDrafts ? serializeRoleAssignments(roleDrafts) :
+      restored?.role_assignments || (savedAssignments(storedDraft?.roles) ? storedDraft.roles : null);
+    setModelBase(loaded);
+    try {
+      setRoleDrafts(assignments ? applyRoleAssignments(loaded.roles, assignments) : { ...loaded.roles });
+      setModelRevision((current) => refreshing || !current ? loaded.revision : current);
+      setRoleError(null);
+    } catch (failure) {
+      setRoleError(failure);
+    }
+  }, [modelEditor.data]);
   useEffect(() => {
     try {
-      sessionStorage.setItem(`scientist-studio-run-settings-${idea.id}`, JSON.stringify({ configId, values }));
+      sessionStorage.setItem(`scientist-studio-run-settings-${idea.id}`, JSON.stringify({
+        configId, values, modelRevision, roles: roleDrafts ? serializeRoleAssignments(roleDrafts) : storedDraft?.roles,
+      }));
     } catch {
       /* Keep the draft in memory when browser storage is disabled. */
     }
-  }, [configId, idea.id, values]);
+  }, [configId, idea.id, values, modelRevision, roleDrafts, storedDraft]);
   const [acknowledged, setAcknowledged] = useState(
     restored?.execution_acknowledged || false,
   );
@@ -196,11 +204,21 @@ function Setup({
     }
   }
   const invalidSettings = Object.keys(fieldErrors).length > 0;
+  const staleModels = Boolean(modelBase && modelRevision && modelRevision !== modelBase.revision);
+  const invalidRoles = !pending && (!modelBase || !roleDrafts || staleModels ||
+    Object.keys(roleDrafts).some((name) => !Object.hasOwn(modelBase.roles, name)) ||
+    !validRoleAssignments(roleDrafts, modelBase.endpoints));
+  const roleFieldErrors: Record<string, { message: string; code?: string }> = {};
   if (error instanceof ApiError && Array.isArray(error.detail.errors)) {
     for (const issue of error.detail.errors) {
       if (!issue || typeof issue.field !== "string" || typeof issue.message !== "string") continue;
       const field = issue.field.replace(/^run_settings\.(stage_iterations\.)?/, "");
       if (runFields.includes(field as RunField)) fieldErrors[field as RunField] = issue.message;
+      if (issue.field.startsWith("roles.") || issue.field.startsWith("role_assignments.")) {
+        roleFieldErrors[issue.field.replace(/^role_assignments\./, "roles.")] = {
+          message: issue.message, code: issue.code,
+        };
+      }
     }
   }
   const output = `${bootstrap.experiments_directory.replace(/[\\/]$/, "")}/ui_${requestId}`;
@@ -239,16 +257,51 @@ function Setup({
     error instanceof ApiError && typeof error.detail.job_id === "string"
       ? error.detail.job_id
       : null;
+  function changeRole(name: string, patch: Partial<ModelConfigEditorRole>) {
+    if (pendingRef.current || busy.current) return;
+    setRoleDrafts((current) => current ? { ...current, [name]: { ...current[name], ...patch } } : current);
+    setRoleError(null);
+    setError(null);
+  }
+  function loadProfile(assignments: RoleAssignments) {
+    if (!modelBase || pendingRef.current || busy.current) return;
+    try {
+      setRoleDrafts(applyRoleAssignments(modelBase.roles, assignments));
+      setRoleError(null);
+      setError(null);
+    } catch (failure) {
+      setRoleError(failure);
+      throw failure;
+    }
+  }
+  function refreshModelSettings() {
+    if (pendingRef.current || busy.current) return;
+    refreshModelsRequested.current = true;
+    modelEditor.refresh();
+  }
+  function useModelDefaults() {
+    const loaded = modelEditor.data || modelBase;
+    if (!loaded || pendingRef.current || busy.current ||
+      !window.confirm("Replace this experiment's role assignments with the current saved defaults?")) return;
+    setModelBase(loaded);
+    setRoleDrafts({ ...loaded.roles });
+    setModelRevision(loaded.revision);
+    setRoleError(null);
+    setError(null);
+  }
   async function start(event: FormEvent) {
     event.preventDefault();
-    if (busy.current || localBlockers.length || invalidSettings || !acknowledged ||
+    if (busy.current || localBlockers.length || invalidSettings || invalidRoles || !acknowledged ||
       (active && active.id !== requestId)) return;
-    const payload = pendingRef.current || {
+    if (!pendingRef.current && (!roleDrafts || !modelRevision)) return;
+    const payload: LaunchRequest = pendingRef.current || {
       request_id: requestId,
       idea_id: idea.id,
       idea_revision: idea.revision,
       bfts_config_id: configId,
       execution_acknowledged: acknowledged,
+      role_assignments: serializeRoleAssignments(roleDrafts!),
+      model_settings_revision: modelRevision,
       run_settings: {
         num_workers: Number(values.num_workers),
         num_seeds: Number(values.num_seeds),
@@ -308,6 +361,8 @@ function Setup({
     }
     refreshIdea();
     refreshBootstrap();
+    refreshModelsRequested.current = true;
+    modelEditor.refresh();
   }
   function settingInput(field: RunField, label: string, help?: string) {
     const id = `run-${field}`;
@@ -372,13 +427,35 @@ function Setup({
 
       <div className="setup-columns">
         <div className="stack">
-          <details className="card setup-role-assignments">
-            <summary id="setup-research-models">Role assignments</summary>
-            <div className="stack">
-            <ResearchModels />
-            <Link to="/models">Edit research model assignments <ArrowRight size={16} aria-hidden="true" /></Link>
+          <section className="card stack setup-role-assignments" aria-labelledby="setup-research-models">
+            <div>
+              <h2 id="setup-research-models">Role assignments</h2>
+              <p>Edit the server and model for each role here. These selections apply to this experiment only; they do not change your Models defaults.</p>
+              <p className="metadata">Named profiles are shared with Models. Saving a profile records these assignments for reuse; it does not start work or change the defaults.</p>
             </div>
-          </details>
+            <ErrorNotice error={modelEditor.error} />
+            <ErrorNotice error={roleError} />
+            {!modelBase && !modelEditor.error && <p role="status">Loading editable role assignments…</p>}
+            {staleModels && !pending && (
+              <p className="notice">Model settings changed since this draft was saved. Refresh model settings to review the current servers while keeping your role choices before starting.</p>
+            )}
+            <div className="actions">
+              <button className="button secondary" type="button" disabled={submitting || Boolean(pending) || modelEditor.loading}
+                onClick={refreshModelSettings}>Refresh model settings</button>
+              {modelBase && <button className="button secondary" type="button" disabled={submitting || Boolean(pending)}
+                onClick={useModelDefaults}>Use current model defaults</button>}
+            </div>
+            {modelBase && roleDrafts && (
+              <>
+                <RoleProfiles roles={roleDrafts} onLoad={loadProfile}
+                  disabled={submitting || Boolean(pending)}
+                  saveDisabled={Object.entries(roleDrafts).some(([name, role]) => !Object.hasOwn(modelBase.roles, name) ||
+                    (role.endpoint !== null && !Object.hasOwn(modelBase.endpoints, role.endpoint)))} />
+                <RoleAssignmentsEditor saved={modelBase} roles={roleDrafts} onChange={changeRole}
+                  disabled={submitting || Boolean(pending)} errors={roleFieldErrors} />
+              </>
+            )}
+          </section>
         </div>
 
         <aside className="card stack setup-run-settings" aria-labelledby="setup-config">
@@ -444,7 +521,7 @@ function Setup({
         {conflictId && <Link to={`/experiments/${encodeURIComponent(conflictId)}`}>Open the job recorded by the server</Link>}
         <div className="actions">
           <button className="button primary" type="submit"
-            disabled={submitting || !acknowledged || invalidSettings || localBlockers.length > 0 || Boolean(active && active.id !== requestId)}>
+            disabled={submitting || !acknowledged || invalidSettings || invalidRoles || localBlockers.length > 0 || Boolean(active && active.id !== requestId)}>
             <Play size={18} aria-hidden="true" /> {submitting ? "Validating and starting…" : pending ? "Retry Start experiment" : "Start experiment"}
           </button>
           {pending && !submitting && (
@@ -457,6 +534,7 @@ function Setup({
         </div>
         {pending && <p className="metadata">Request ID: {requestId}</p>}
         {invalidSettings && <p className="field-error" role="alert">Correct the highlighted run settings before starting, including any limits under Advanced.</p>}
+        {invalidRoles && modelBase && <p className="field-error" role="alert">Choose valid role assignments above before starting. Each role needs a configured server and model; refresh model settings if this draft is stale.</p>}
         {!acknowledged && !pending && <p className="metadata">Acknowledge the code permissions to enable Start. Opening or reviewing this page never launches work.</p>}
       </section>
     </form>

@@ -12,6 +12,7 @@ import os
 from pathlib import Path
 import shutil
 import unittest
+import sqlite3
 from unittest.mock import patch
 from uuid import uuid4
 
@@ -507,6 +508,30 @@ class EditorApiTests(EditorBase):
         self.assertIsNone(cleared["roles"]["ideation"]["max_tokens"])
         self.assertIsNone(cleared["roles"]["ideation"]["temperature"])
         self.assertIsNone(cleared["roles"]["ideation"]["timeout"])
+
+    def test_legacy_assigned_task_schema_migrates_without_losing_role_requirements(self):
+        before = self.standard_seed()
+        with sqlite3.connect(model_settings.settings_db_path(self.root)) as db:
+            db.executescript("""
+                ALTER TABLE task_models RENAME TO copied_tasks;
+                CREATE TABLE task_models (
+                    task TEXT PRIMARY KEY, server_id TEXT NOT NULL REFERENCES model_servers(id),
+                    model TEXT NOT NULL, max_tokens INTEGER, temperature REAL, timeout REAL,
+                    credential_env TEXT, requires TEXT NOT NULL DEFAULT '[]', updated_at TEXT NOT NULL);
+                INSERT INTO task_models SELECT * FROM copied_tasks;
+                DROP TABLE copied_tasks;
+            """)
+        model_settings.ensure_schema(self.root)
+        configs = Configs(self.root)
+        self.assertEqual(configs.editor(), before)
+        cleared = configs.save_editor(before["revision"], {
+            "ideation": {"endpoint": None, "model": None}}, {})
+        self.assertIsNone(cleared["roles"]["ideation"]["endpoint"])
+        self.assertEqual(cleared["roles"]["ideation"]["requires"], ["text"])
+        reassigned = configs.save_editor(cleared["revision"], {
+            "ideation": {"endpoint": "alpha", "model": "new-model"}}, {})
+        self.assertEqual(reassigned["roles"]["ideation"]["model"], "new-model")
+        self.assertEqual(reassigned["roles"]["ideation"]["requires"], ["text"])
 
 
 class CborgEditorTests(EditorBase):

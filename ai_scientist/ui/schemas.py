@@ -91,6 +91,35 @@ class ExperimentRunSettings(Request):
     stage_iterations: StageIterations
 
 
+class RoleAssignment(Request):
+    endpoint: str | None
+    model: str | None
+    max_tokens: int | None = Field(strict=True, gt=0)
+    temperature: float | None = Field(strict=True, ge=0, le=2, allow_inf_nan=False)
+    timeout: float | None = Field(strict=True, gt=0, allow_inf_nan=False)
+    api_key_env: str | None
+
+
+class RoleProfileCreate(Request):
+    name: str
+    roles: dict[str, RoleAssignment]
+
+    @field_validator("name")
+    @classmethod
+    def profile_name(cls, value):
+        if any(ord(char) < 32 or 127 <= ord(char) <= 159 for char in value):
+            raise ValueError("Profile names must not contain control characters.")
+        value = value.strip()
+        if not 1 <= len(value) <= 100:
+            raise ValueError("Use a profile name between 1 and 100 characters.")
+        return value
+
+
+class RoleProfileUpdate(Request):
+    expected_revision: int = Field(strict=True, ge=1)
+    roles: dict[str, RoleAssignment]
+
+
 class ExperimentRequest(Request):
     request_id: UUID
     idea_id: str
@@ -99,6 +128,13 @@ class ExperimentRequest(Request):
     bfts_config_id: str
     execution_acknowledged: bool
     run_settings: ExperimentRunSettings
+    role_assignments: dict[str, RoleAssignment]
+    model_settings_revision: str = Field(min_length=1)
+
+
+class ExperimentRestart(Request):
+    request_id: UUID
+    execution_acknowledged: bool = Field(strict=True)
 
 
 class IdeaUpdate(Request):
@@ -198,9 +234,9 @@ class IssuePublish(Request):
 class ModelRolePatch(Request):
     endpoint: str | None = None
     model: str | None = None
-    max_tokens: int | None = None
-    temperature: float | None = None
-    timeout: float | None = None
+    max_tokens: int | None = Field(default=None, strict=True)
+    temperature: float | None = Field(default=None, strict=True, allow_inf_nan=False)
+    timeout: float | None = Field(default=None, strict=True, allow_inf_nan=False)
     api_key_env: str | None = None
 
 
@@ -208,7 +244,7 @@ class ModelEndpointPatch(Request):
     provider: Literal["openai", "openai-codex", "cborg"] = "openai"
     base_url: str | None = Field(default=None, max_length=2048)
     api_key_env: str | None = Field(default=None, max_length=256)
-    timeout: float | None = None
+    timeout: float | None = Field(default=None, strict=True, allow_inf_nan=False)
 
 
 class ModelConfigUpdate(Request):

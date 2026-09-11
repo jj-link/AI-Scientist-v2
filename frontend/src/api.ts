@@ -233,6 +233,16 @@ export interface ModelConfigEditorRole {
   api_key_env: string | null;
   requires: string[];
 }
+export type RoleAssignment = Omit<ModelConfigEditorRole, "requires">;
+export type RoleAssignments = Record<string, RoleAssignment>;
+export interface RoleProfile {
+  id: string;
+  name: string;
+  revision: number;
+  roles: RoleAssignments;
+  created_at: string;
+  updated_at: string;
+}
 export interface ModelConfigEditorEndpoint {
   provider: "openai" | "openai-codex" | "cborg";
   base_url: string | null;

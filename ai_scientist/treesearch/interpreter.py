@@ -82,7 +82,7 @@ class Interpreter:
     def __init__(
         self,
         working_dir: Path | str,
-        timeout: int = 3600,
+        timeout: float = 3600,
         format_tb_ipython: bool = False,
         agent_file_name: str = "runfile.py",
         env_vars: dict[str, str] = {},
@@ -92,7 +92,7 @@ class Interpreter:
 
         Args:
             working_dir (Path | str): working directory of the agent
-            timeout (int, optional): Timeout for each code execution step. Defaults to 3600.
+            timeout (float, optional): Timeout in seconds for each code execution step. Defaults to 3600.
             format_tb_ipython (bool, optional): Whether to use IPython or default python REPL formatting for exceptions. Defaults to False.
             agent_file_name (str, optional): The name for the agent's code file. Defaults to "runfile.py".
             env_vars (dict[str, str], optional): Environment variables to set in the child process. Defaults to {}.

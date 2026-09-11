@@ -46,6 +46,9 @@ class Store:
                 );
                 CREATE UNIQUE INDEX IF NOT EXISTS one_compute_slot ON jobs((1))
                     WHERE state IN ('starting','running','stopping');
+                CREATE TABLE IF NOT EXISTS deleted_jobs (
+                    id TEXT PRIMARY KEY, request_id TEXT UNIQUE NOT NULL, kind TEXT NOT NULL
+                );
                 CREATE TABLE IF NOT EXISTS ideas (
                     id TEXT PRIMARY KEY, job_id TEXT NOT NULL, revision INTEGER NOT NULL,
                     idea TEXT NOT NULL, original TEXT NOT NULL,
@@ -137,20 +140,38 @@ class Store:
     def job_dir(self, id):
         return self.data_dir / "jobs" / str(UUID(str(id)))
 
-    def create_job(self, kind, request_id, request, idea_id=None, idea_revision=None):
+    def job_for_request(self, request_id):
+        request_id = str(UUID(str(request_id)))
+        with self.connection() as db:
+            if db.execute("SELECT 1 FROM deleted_jobs WHERE request_id=?", (request_id,)).fetchone():
+                raise Conflict({"message": "This run was deleted. Use a new request to start another run."})
+            row = db.execute("SELECT * FROM jobs WHERE request_id=?", (request_id,)).fetchone()
+            return self.job_record(row) if row else None
+
+    def create_job(self, kind, request_id, request, idea_id=None, idea_revision=None, *, restart_from=None):
         request_id = str(UUID(str(request_id)))
         request = dict(request)
         with self.connection() as db:
             db.execute("BEGIN IMMEDIATE")
+            if db.execute("SELECT 1 FROM deleted_jobs WHERE request_id=?", (request_id,)).fetchone():
+                raise Conflict({"message": "This run was deleted. Use a new request to start another run."})
             prior = db.execute("SELECT * FROM jobs WHERE request_id=?", (request_id,)).fetchone()
             if prior:
-                if prior["kind"] != kind:
+                if prior["kind"] != kind or json.loads(prior["request"]).get("restart_of") != restart_from:
                     raise Conflict({"message": "Request ID already used for another job", "job_id": prior["id"]})
                 return self.job_record(prior)
             active = db.execute("SELECT id FROM jobs WHERE state IN ('starting','running','stopping')").fetchone()
             if active:
                 raise Conflict({"message": "Another job is active", "job_id": active["id"]})
-            if idea_id is not None:
+            if restart_from is not None:
+                if db.execute("SELECT 1 FROM deleted_jobs WHERE id=?", (restart_from,)).fetchone():
+                    raise Conflict({"message": "This run is being deleted and cannot be restarted."})
+                source = self.job_record(db.execute("SELECT * FROM jobs WHERE id=?", (restart_from,)).fetchone())
+                if kind != "experiment" or source["kind"] != "experiment" or source["state"] != "failed":
+                    raise Conflict({"message": "Only failed experiments can be restarted."})
+                request = {**source["request"], "request_id": request_id,
+                           "execution_acknowledged": True, "restart_of": restart_from}
+            elif idea_id is not None:
                 idea = self.idea_record(db.execute("SELECT * FROM ideas WHERE id=?", (idea_id,)).fetchone())
                 if idea["revision"] != idea_revision:
                     raise Conflict({"message": "Proposal changed; reload the saved revision", "revision": idea["revision"]})
@@ -464,6 +485,11 @@ class Store:
         if len(payload) > 16384:
             raise ValueError("Event metadata too large")
         with self.connection() as db:
+            db.execute("BEGIN IMMEDIATE")
+            if not db.execute("SELECT 1 FROM jobs WHERE id=?", (id,)).fetchone() or db.execute(
+                "SELECT 1 FROM deleted_jobs WHERE id=?", (id,)
+            ).fetchone():
+                raise KeyError("Job not found")
             cursor = db.execute("INSERT INTO events(job_id,timestamp,type,phase,data) VALUES(?,?,?,?,?)", (id, stamp, type, phase, payload))
             sequence = cursor.lastrowid
             db.execute("UPDATE jobs SET updated_at=? WHERE id=?", (stamp, id))

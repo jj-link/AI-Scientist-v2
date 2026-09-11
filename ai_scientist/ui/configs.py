@@ -12,6 +12,8 @@ from __future__ import annotations
 import hashlib
 import math
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
+from copy import deepcopy
 from datetime import datetime, timezone
 import os
 from pathlib import Path
@@ -98,8 +100,16 @@ def _number(value: object, default: int | float | None = None):
 
 
 class Configs:
-    def __init__(self, root: Path):
+    def __init__(self, root: Path, *, settings: dict | None = None):
         self.root = Path(root).resolve()
+        if settings is not None:
+            if any(not isinstance(settings.get(key), dict) for key in ("endpoints", "roles")):
+                raise ValueError("Saved model settings must contain endpoints and roles.")
+            if any(not isinstance(name, str) or not isinstance(row, dict)
+                   for key in ("endpoints", "roles") for name, row in settings[key].items()):
+                raise ValueError("Saved model settings contain invalid entries.")
+            _environment_credentials_only(settings)
+        self._settings = deepcopy(settings)
 
     # ------------------------------------------------------------------ workloads
 
@@ -177,7 +187,7 @@ class Configs:
 
     def _settings_dicts(self) -> tuple[dict[str, dict], dict[str, dict]]:
         """Current rows in the routing layer's internal shape, plus name index."""
-        settings = model_settings.current_settings(self.root)
+        settings = deepcopy(self._settings) if self._settings is not None else model_settings.current_settings(self.root)
         return settings["endpoints"], settings["roles"]
 
     def _endpoint_rows(self, endpoints: dict[str, dict]) -> list[dict]:
@@ -221,7 +231,8 @@ class Configs:
 
     def editor(self) -> dict:
         """Lossless editable projection: configured values or None, never a default."""
-        endpoints, roles = self._settings_dicts()
+        revision, settings = model_settings.read_snapshot(self.root)
+        endpoints, roles = settings["endpoints"], settings["roles"]
         endpoint_rows = {name: {field: endpoint.get({"provider": "provider", "base_url": "base_url",
             "api_key_env": "api_key_env", "timeout": "timeout"}[field])
             for field in _SERVER_FIELDS}
@@ -237,8 +248,90 @@ class Configs:
                 "api_key_env": "api_key_env"}[field])
                 for field in _TASK_FIELDS}
             role_rows[name]["requires"] = _strings(role.get("requires"))
-        return {"revision": model_settings.revision(self.root),
+        return {"revision": revision,
                 "roles": role_rows, "endpoints": endpoint_rows}
+
+    @contextmanager
+    def settings_lock(self):
+        self.root.joinpath("ui_data").mkdir(parents=True, exist_ok=True)
+        try:
+            with FileLock(str(self.root / "ui_data" / ".model_settings.lock"), timeout=3):
+                yield
+        except _LockTimeout:
+            raise EditorConflict("Another Studio save is in progress; try again.", [
+                {"field": "expected_revision", "message": "Another save is in progress. Wait a moment and retry.", "code": "locked"}]) from None
+        except model_settings.SettingsConflict as exc:
+            raise EditorConflict(str(exc), []) from None
+
+    def assignment_snapshot(self, expected_revision: str, assignments: dict) -> dict:
+        """Capture selected assignments and their checked server definitions, never defaults."""
+        with self.settings_lock():
+            revision, settings = model_settings.read_snapshot(self.root)
+            if revision != expected_revision:
+                raise EditorConflict("Model settings changed. Reload Experiment Setup before starting.", [
+                    {"field": "model_settings_revision", "message": "Reload current model settings and review your assignments.", "code": "configuration_changed"}])
+            settings["roles"] = self.validate_assignments(assignments, settings)
+            return settings
+
+    def validate_assignments(self, assignments: dict, settings: dict) -> dict:
+        errors = []
+        roles = self._merge_roles(settings["roles"], assignments, settings["endpoints"], errors, full=True)
+        if errors:
+            raise InvalidConfiguration("Check the selected role assignments.", errors)
+        return roles
+
+    def save_profile(self, roles: dict, *, name: str | None = None,
+                     profile_id: str | None = None, expected_revision: int | None = None) -> dict:
+        with self.settings_lock():
+            return model_settings.save_profile_atomic(
+                self.root, roles, self.validate_assignments, name=name,
+                profile_id=profile_id, expected_revision=expected_revision)
+
+    def _merge_roles(self, current: dict, changes: dict, servers: dict,
+                     errors: list[dict], *, full: bool = False, deleted=()) -> dict:
+        known = set(current) | set(_REQUIRED_ROLES)
+        final = {name: ({"requires": _strings(current.get(name, {}).get("requires"))}
+                        if full else dict(current.get(name, {}))) for name in known if name not in deleted}
+        for name, patch in changes.items():
+            if name not in known or name in deleted:
+                errors.append({"field": f"roles.{name}", "message": "Unknown task.", "code": "unknown_entry"})
+                continue
+            if not isinstance(patch, dict):
+                errors.append({"field": f"roles.{name}", "message": "Task entries must be mappings.", "code": "unknown_entry"})
+                continue
+            if full:
+                for field in set(_TASK_FIELDS) - set(patch):
+                    errors.append({"field": f"roles.{name}.{field}", "message": "Include this field explicitly, using null to inherit.", "code": "required"})
+            for field, value in patch.items():
+                if field not in _TASK_FIELDS:
+                    errors.append({"field": f"roles.{name}.{field}", "message": "Unknown field.", "code": "unknown_field"})
+                    continue
+                if value is None:
+                    final[name].pop(field, None)
+                else:
+                    final[name][field] = value
+        kinds = {"model": "model", "max_tokens": "tokens", "temperature": "ratio",
+                 "timeout": "duration", "api_key_env": "env"}
+        for name, task in final.items():
+            for field, kind in kinds.items():
+                if task.get(field) is not None:
+                    self._check_field(errors, f"roles.{name}.{field}", task[field], kind)
+            endpoint = task.get("endpoint")
+            if endpoint is None and task.get("model") is None:
+                continue
+            if not isinstance(endpoint, str) or endpoint not in servers:
+                errors.append({"field": f"roles.{name}.endpoint", "message": "Select an existing server.", "code": "invalid_endpoint_reference"})
+                continue
+            if task.get("model") is None:
+                errors.append({"field": f"roles.{name}.model", "message": "Select a model for this server.", "code": "required"})
+            server = servers[endpoint]
+            if server.get("provider", "openai") == model_routing.CODEX_PROVIDER:
+                for field in ("max_tokens", "temperature", "api_key_env"):
+                    if task.get(field) is not None:
+                        errors.append({"field": f"roles.{name}.{field}", "message": "Codex manages token limits, sampling, and ChatGPT credentials. Clear this override.", "code": "managed_by_provider"})
+            if set(_strings(task.get("requires"))) - set(_strings(server.get("provides"))):
+                errors.append({"field": f"roles.{name}", "message": "The selected server does not declare a required capability.", "code": "capability_mismatch"})
+        return final
 
     def save_editor(self, expected_revision: str, roles: dict, endpoints: dict,
                     delete_servers: list[str] | None = None,
@@ -248,24 +341,18 @@ class Configs:
             raise InvalidConfiguration("Only listed task and server entries may be edited.", [])
         if not any(roles.values()) and not any(endpoints.values()) and not delete_servers and not delete_tasks:
             raise InvalidConfiguration("Submit at least one changed field.", [])
-        lock_path = self.root / "ui_data" / ".model_settings.lock"
-        lock = FileLock(str(lock_path), timeout=3)
-        try:
-            with lock:
-                return self._save_editor_locked(expected_revision, roles, endpoints,
-                                                delete_servers or [], delete_tasks or [])
-        except _LockTimeout as exc:
-            raise EditorConflict("Another Studio save is in progress; try again.", [
-                {"field": "expected_revision", "message": "Another save is in progress. Wait a moment and retry.", "code": "locked"}])
+        with self.settings_lock():
+            return self._save_editor_locked(expected_revision, roles, endpoints,
+                                            delete_servers or [], delete_tasks or [])
 
     def _save_editor_locked(self, expected_revision: str, roles: dict, endpoints: dict,
                             delete_servers: list[str], delete_tasks: list[str]) -> dict:
-        current_revision = model_settings.revision(self.root)
+        current_revision, settings = model_settings.read_snapshot(self.root)
         if current_revision != expected_revision:
             raise EditorConflict("The configuration changed elsewhere. Reload before saving.", [
                 {"field": "expected_revision", "message": "The configuration was modified while you were editing. Reload to continue.", "code": "configuration_changed"},
             ])
-        endpoints_now, tasks_now = self._settings_dicts()
+        endpoints_now, tasks_now = settings["endpoints"], settings["roles"]
         errors: list[dict] = []
 
         known_servers = set(endpoints_now)
@@ -298,8 +385,6 @@ class Configs:
         for name in delete_tasks or []:
             if name not in tasks_now and name not in _REQUIRED_ROLES:
                 errors.append({"field": f"roles.{name}", "message": "Unknown task.", "code": "unknown_entry"})
-        if set(delete_servers or []) & set(delete_tasks or []):
-            pass  # disjoint namespaces; no action needed
 
         # Final server state after applying patches (base_url default resolves at request time).
         final_servers: dict[str, dict] = {}
@@ -337,63 +422,15 @@ class Configs:
             elif not server.get("base_url") and provider not in (model_routing.CODEX_PROVIDER, model_routing.CBORG_PROVIDER):
                 errors.append({"field": f"endpoints.{name}.base_url", "message": "Endpoint URL is required.", "code": "required"})
 
-        # Final task state.
-        final_tasks: dict[str, dict] = {}
-        for name, task in tasks_now.items():
-            final_tasks[name] = dict(task)
-        for name, changes in roles.items():
-            if not isinstance(name, str) or not isinstance(changes, dict):
-                continue
-            if name not in final_tasks and name not in _REQUIRED_ROLES:
-                errors.append({"field": f"roles.{name}", "message": "Unknown task.", "code": "unknown_entry"})
-                continue
-            target = final_tasks.setdefault(name, {})
-            for field, value in changes.items():
-                if field == "endpoint":
-                    if value is None:
-                        target.pop("endpoint", None)
-                    else:
-                        target["endpoint"] = value
-                elif field == "model":
-                    if value is None:
-                        target.pop("model", None)
-                    else:
-                        target["model"] = value
-                elif value is None:
-                    target.pop(field, None)
-                else:
-                    target[field] = value
-
-        for name, task in final_tasks.items():
-            endpoint_name = task.get("endpoint")
-            if not endpoint_name:
-                if name in _REQUIRED_ROLES and not delete_tasks:
-                    continue  # unassigned required task; the run check reports it
-                errors.append({"field": f"roles.{name}.endpoint", "message": "This field is required.", "code": "required"})
-                continue
-            if endpoint_name not in final_servers:
-                errors.append({"field": f"roles.{name}.endpoint", "message": "Role endpoint must be an existing server.", "code": "invalid_endpoint_reference"})
-                continue
-            if not task.get("model"):
-                errors.append({"field": f"roles.{name}.model", "message": "This field is required.", "code": "required"})
-                continue
-            server = final_servers[endpoint_name]
-            provider = server.get("provider", "openai")
-            if provider == model_routing.CODEX_PROVIDER and any(
-                    task.get(key) is not None for key in ("max_tokens", "temperature", "api_key_env")):
-                errors.append({"field": f"roles.{name}.max_tokens", "message": "Codex manages token limits, sampling, and ChatGPT credentials. Clear this override.", "code": "managed_by_provider"})
-            missing = sorted(set(_strings(task.get("requires"))) - set(_strings(server.get("provides"))))
-            if missing:
-                errors.append({"field": f"roles.{name}", "message": "The selected server does not declare a required capability.", "code": "capability_mismatch"})
+        for name in delete_servers:
+            final_servers.pop(name, None)
+        final_tasks = self._merge_roles(tasks_now, roles, final_servers, errors, deleted=delete_tasks)
 
         if errors:
             raise InvalidConfiguration("The change was rejected.", errors)
 
-        deleted_server_names = set(delete_servers or [])
         server_writes = {}
         for name, server in final_servers.items():
-            if name in deleted_server_names:
-                continue
             server_writes[name] = {
                 "api_format": server.get("provider", "openai"),
                 "address": server.get("base_url"),
@@ -404,13 +441,11 @@ class Configs:
             }
         task_writes = {}
         for name, task in final_tasks.items():
-            if name in (delete_tasks or []):
+            if name not in tasks_now and name not in roles:
                 continue
-            if not task.get("endpoint") or not task.get("model"):
-                continue  # unassigned required task stays absent from the table
             task_writes[name] = {
-                "server": task["endpoint"],
-                "model": task["model"],
+                "server": task.get("endpoint"),
+                "model": task.get("model"),
                 "max_tokens": task.get("max_tokens"),
                 "temperature": task.get("temperature"),
                 "timeout": task.get("timeout"),
@@ -419,7 +454,8 @@ class Configs:
             }
         model_settings.save_settings_atomic(self.root, server_writes, task_writes,
                                             delete_servers=delete_servers or [],
-                                            delete_tasks=delete_tasks or [])
+                                            delete_tasks=delete_tasks or [],
+                                            expected_revision=expected_revision)
         return self.editor()
 
     def _check_field(self, errors: list[dict], field: str, value: object, kind: str) -> None:
@@ -548,8 +584,11 @@ class Configs:
         }
         return MappingProxyType(assignment)
 
-    def check(self) -> dict:
+    def check(self, *, assigned_only: bool = False) -> dict:
         endpoints, roles = self._settings_dicts()
+        if assigned_only:
+            selected = {role.get("endpoint") for role in roles.values() if isinstance(role.get("endpoint"), str)}
+            endpoints = {name: row for name, row in endpoints.items() if name in selected}
         for name in _REQUIRED_ROLES:
             roles.setdefault(name, {})
         view = {"roles": self._task_rows(endpoints, roles), "endpoints": self._endpoint_rows(endpoints)}
@@ -605,10 +644,11 @@ class Configs:
             tools.append({"name": name, "available": available, "error": message})
         return {"ok": all(tool["available"] for tool in tools), "tools": tools}
 
-    def validate_experiment(self, cfg: dict) -> list[str]:
+    def validate_experiment(self, cfg: dict, *, settings: dict | None = None) -> list[str]:
         errors = []
         try:
-            view = self.models()
+            snapshot = self if settings is None else Configs(self.root, settings=settings)
+            view = snapshot.models()
             names = {role["name"] for role in view["roles"]}
             unassigned = {role["name"] for role in view["roles"] if not role["endpoint"] or not role["model"]}
             missing = sorted(set(_REQUIRED_ROLES) - names)
@@ -638,7 +678,7 @@ class Configs:
                 errors.append("Execution timeout must be a positive number.")
         errors.extend(tool["error"] for tool in self.prerequisites()["tools"] if not tool["available"])
         if not errors:
-            result = self.check()
+            result = snapshot.check(assigned_only=True)
             errors.extend(f"Server {endpoint['label']}: {endpoint['error']}" for endpoint in result["endpoints"]
                           if not endpoint["ok"])
             if result["unassigned_tasks"]:
@@ -670,7 +710,7 @@ def _environment_credentials_only(value: object) -> None:
                         raise ValueError("Credential settings must name environment variables.")
                 else:
                     raise ValueError("Inline credentials are not supported; use environment-variable references.")
-            if key == "base_url":
+            if key == "base_url" and item is not None:
                 if not _url(item):
                     raise ValueError("Endpoint base URLs must be valid HTTP or HTTPS URLs.")
                 parts = urlsplit(item)

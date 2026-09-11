@@ -7,6 +7,7 @@ import json
 import logging
 from pathlib import Path
 import secrets
+import sqlite3
 import threading
 from uuid import uuid4
 
@@ -18,13 +19,14 @@ from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Str
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from ai_scientist.codex_auth import CodexAuthError, get_auth
-from . import diagnostics
+from . import diagnostics, model_settings
 from .artifacts import artifact_file, list_runs, run_detail
-from .configs import Configs, EditorConflict, InvalidConfiguration, assistant_settings_view
+from .configs import Configs, EditorConflict, InvalidConfiguration, assistant_settings_view, _environment_credentials_only
 from .diagnostics import CrashAssistant, PublishUnknown, PublishUnavailable, REPOSITORY, sanitize_text
 from .idea_conversations import IdeaConversations
-from .schemas import IdeaConversationCreate, IdeaConversationDelete, IdeaConversationMessage
-from .schemas import AssistantSettingsUpdate, EndpointModelsRequest, ExperimentRequest, ModelConfigUpdate, IdeaJobRequest, IdeaUpdate, IssueDraftUpdate, IssuePublish
+from .schemas import IdeaConversationCreate, IdeaConversationDelete, IdeaConversationMessage, RoleProfileCreate, RoleProfileUpdate
+from .job_lifecycle import delete_failed_job, restart_snapshots
+from .schemas import AssistantSettingsUpdate, EndpointModelsRequest, ExperimentRequest, ExperimentRestart, ModelConfigUpdate, IdeaJobRequest, IdeaUpdate, IssueDraftUpdate, IssuePublish
 from .schemas import Request as ProviderAction
 from .store import Conflict, Store
 from .worker import Supervisor, identity, log_download, log_preview, now, write_json
@@ -169,6 +171,10 @@ def create_app(root: Path | None = None, *, development: bool = False) -> FastAP
     async def missing_file(request, exc):
         return JSONResponse({"detail": {"message": "The requested output is not available."}}, status_code=404)
 
+    @app.exception_handler(EditorConflict)
+    async def editor_conflict(request, exc):
+        return JSONResponse({"detail": {"message": exc.message, "errors": exc.errors}}, status_code=409)
+
     @app.exception_handler(InvalidConfiguration)
     async def invalid_configuration(request, exc):
         return JSONResponse({"detail": {"message": str(exc), "errors": exc.errors}}, status_code=422)
@@ -235,19 +241,50 @@ def create_app(root: Path | None = None, *, development: bool = False) -> FastAP
             raise HTTPException(422, detail={"message": "Save a valid internal Name before exporting.", "errors": {"Name": record["errors"]["Name"]}})
         return PlainTextResponse(json.dumps([record["idea"]], ensure_ascii=False, indent=2), media_type="application/json", headers={"Content-Disposition": 'attachment; filename="proposal.json"'})
 
-    def existing_request(request_id: str, kind: str) -> dict | None:
-        for job in store.jobs():
-            if job.get("request_id") == request_id:
-                if job["kind"] != kind:
-                    raise Conflict({"message": "Request ID already used for another job", "job_id": job["id"]})
-                return job
-        return None
+    def existing_request(request_id: str, kind: str, restart_of: str | None = None) -> dict | None:
+        job = store.job_for_request(request_id)
+        if job and (job["kind"] != kind or job["request"].get("restart_of") != restart_of):
+            raise Conflict({"message": "Request ID already used for another job", "job_id": job["id"]})
+        return job
 
     def accepted(job: dict) -> dict:
         result = {"job_id": job["id"]}
         if job.get("run_id"):
             result["run_id"] = job["run_id"]
         return result
+
+    def launch_prepared(kind: str, payload: dict, role_bytes: bytes, bfts_bytes: bytes | None = None,
+                        *, restart_from: str | None = None) -> dict:
+        job = store.create_job(kind, payload["request_id"], payload,
+                               idea_id=payload.get("idea_id"), idea_revision=payload.get("idea_revision"),
+                               restart_from=restart_from)
+        directory = store.job_dir(job["id"])
+        try:
+            try:
+                directory.mkdir(parents=True, exist_ok=False)
+            except FileExistsError:
+                # A second application instance may have claimed this idempotent request.
+                return accepted(store.get_job(job["id"]))
+            write_json(directory / "request.json", job["request"], exclusive=True)
+            with (directory / "model_settings.json").open("xb") as handle:
+                handle.write(role_bytes)
+            if kind == "experiment":
+                with (directory / "bfts_config.yaml").open("xb") as handle:
+                    handle.write(bfts_bytes)
+                write_json(directory / "idea.json", [job["request"]["idea"]], exclusive=True)
+                parent = (root / "experiments").resolve()
+                if parent != root / "experiments":
+                    raise ValueError("Experiments directory must not redirect outside the repository")
+                parent.mkdir(exist_ok=True)
+                (parent / job["run_id"]).mkdir(exist_ok=False)
+            store.add_event(job["id"], "reserved", phase="preparing", data={"message": "Job reserved; starting worker"})
+            supervisor.launch(job)
+        except Exception:
+            logging.exception("Unable to prepare or launch Studio worker %s", job["id"])
+            store.update_job(job["id"], state="failed", finished_at=now(), error={"code": "worker_start_failed", "message": "The worker could not be started. Check local filesystem permissions and Python dependencies."})
+            store.add_event(job["id"], "failed", data={"code": "worker_start_failed", "message": "Worker startup failed"})
+            raise HTTPException(503, detail={"message": "The worker could not be started. Saved request files were retained.", "job_id": job["id"]}) from None
+        return accepted(job)
 
     def launch(kind: str, payload: dict) -> dict:
         with launch_lock:
@@ -256,6 +293,7 @@ def create_app(root: Path | None = None, *, development: bool = False) -> FastAP
                 return accepted(prior)
             # Local validation and endpoint availability happen before reserving compute.
             bfts_bytes = None
+            settings = None
             if kind == "experiment":
                 if not payload["execution_acknowledged"]:
                     raise HTTPException(422, detail={"message": "Acknowledge that generated Python code runs with your account permissions.", "errors": {"execution_acknowledged": "Acknowledgement is required"}})
@@ -265,45 +303,20 @@ def create_app(root: Path | None = None, *, development: bool = False) -> FastAP
                 if record["errors"]:
                     raise HTTPException(422, detail={"message": "Save a valid proposal before starting an experiment.", "errors": record["errors"]})
                 candidate = configs.experiment_config(payload["bfts_config_id"], payload["run_settings"])
-                blockers = configs.validate_experiment(candidate)
+                settings = configs.assignment_snapshot(payload["model_settings_revision"], payload["role_assignments"])
+                blockers = configs.validate_experiment(candidate, settings=settings)
                 if blockers:
                     raise HTTPException(422, detail={"message": "Experiment prerequisites are not satisfied.", "blockers": blockers})
                 bfts_bytes = yaml.safe_dump(candidate, allow_unicode=True, sort_keys=False).encode("utf-8")
             elif not payload["research_question"].strip():
                 raise HTTPException(422, detail={"message": "Enter a research question.", "errors": {"research_question": "Enter nonempty text"}})
-            settings = store.current_settings()
+            if settings is None:
+                settings = store.current_settings()
             role_bytes = json.dumps({"endpoints": settings["endpoints"],
                                      "roles": settings["roles"],
                                      "experiment_execution": settings["experiment_execution"]},
                                     indent=1, sort_keys=True).encode("utf-8")
-            job = store.create_job(kind, payload["request_id"], payload, idea_id=payload.get("idea_id"), idea_revision=payload.get("idea_revision"))
-            directory = store.job_dir(job["id"])
-            try:
-                try:
-                    directory.mkdir(parents=True, exist_ok=False)
-                except FileExistsError:
-                    # A second application instance may have claimed this idempotent request.
-                    return accepted(store.get_job(job["id"]))
-                write_json(directory / "request.json", job["request"], exclusive=True)
-                with (directory / "model_settings.json").open("xb") as handle:
-                    handle.write(role_bytes)
-                if kind == "experiment":
-                    with (directory / "bfts_config.yaml").open("xb") as handle:
-                        handle.write(bfts_bytes)
-                    write_json(directory / "idea.json", [job["request"]["idea"]], exclusive=True)
-                    parent = (root / "experiments").resolve()
-                    if parent != root / "experiments":
-                        raise ValueError("Experiments directory must not redirect outside the repository")
-                    parent.mkdir(exist_ok=True)
-                    (parent / job["run_id"]).mkdir(exist_ok=False)
-                store.add_event(job["id"], "reserved", phase="preparing", data={"message": "Job reserved; starting worker"})
-                supervisor.launch(job)
-            except Exception:
-                logging.exception("Unable to prepare or launch Studio worker %s", job["id"])
-                store.update_job(job["id"], state="failed", finished_at=now(), error={"code": "worker_start_failed", "message": "The worker could not be started. Check local filesystem permissions and Python dependencies."})
-                store.add_event(job["id"], "failed", data={"code": "worker_start_failed", "message": "Worker startup failed"})
-                raise HTTPException(503, detail={"message": "The worker could not be started. Saved request files were retained.", "job_id": job["id"]}) from None
-            return accepted(job)
+            return launch_prepared(kind, payload, role_bytes, bfts_bytes)
 
     @app.post("/api/idea-jobs", status_code=202)
     def create_idea_job(body: IdeaJobRequest):
@@ -312,6 +325,38 @@ def create_app(root: Path | None = None, *, development: bool = False) -> FastAP
     @app.post("/api/experiments", status_code=202)
     def create_experiment(body: ExperimentRequest):
         return launch("experiment", body.model_dump(mode="json"))
+
+    @app.post("/api/jobs/{job_id}/restart", status_code=202)
+    def restart_experiment(job_id: str, body: ExperimentRestart):
+        with launch_lock:
+            if not body.execution_acknowledged:
+                raise HTTPException(422, detail={"message": "Acknowledge that generated Python code runs with your account permissions."})
+            request_id = str(body.request_id)
+            prior = existing_request(request_id, "experiment", restart_of=job_id)
+            if prior:
+                return accepted(prior)
+            source = store.get_job(job_id)
+            bfts_bytes, role_bytes, candidate, settings = restart_snapshots(store, source)
+            try:
+                _environment_credentials_only(candidate)
+                Configs(root, settings=settings)
+            except ValueError:
+                raise Conflict({"message": "The saved configuration is invalid. Prepare a new experiment from the saved idea instead."}) from None
+            blockers = configs.validate_experiment(candidate, settings=settings)
+            if blockers:
+                raise HTTPException(422, detail={"message": "Experiment prerequisites are not satisfied.", "blockers": blockers})
+            payload = {**source["request"], "request_id": request_id, "execution_acknowledged": True}
+            return launch_prepared("experiment", payload, role_bytes, bfts_bytes, restart_from=job_id)
+
+    @app.delete("/api/jobs/{job_id}")
+    def delete_experiment(job_id: str, body: ProviderAction):
+        with launch_lock, supervisor.lock:
+            try:
+                delete_failed_job(store, job_id)
+            except OSError:
+                logging.exception("Could not finish deleting failed run %s", job_id)
+                raise HTTPException(503, detail={"message": "Some run files could not be removed. Close programs using those files and retry Delete failed run."}) from None
+            return {"deleted": True}
 
     @app.get("/api/jobs")
     def jobs():
@@ -468,6 +513,25 @@ def create_app(root: Path | None = None, *, development: bool = False) -> FastAP
             return configs.endpoint_models(body.endpoint)
         except KeyError:
             raise HTTPException(404, detail={"message": "The selected server was not found."}) from None
+
+    @app.get("/api/models/profiles")
+    def read_profiles():
+        return {"profiles": model_settings.list_profiles(root)}
+
+    def save_role_profile(roles, **selection):
+        try:
+            return configs.save_profile(
+                {name: assignment.model_dump() for name, assignment in roles.items()}, **selection)
+        except (OSError, sqlite3.Error):
+            raise HTTPException(503, detail={"message": "The profile could not be saved. Check local database permissions and file locks, then retry. Your draft is retained."}) from None
+
+    @app.post("/api/models/profiles", status_code=201)
+    def create_profile(body: RoleProfileCreate):
+        return save_role_profile(body.roles, name=body.name)
+
+    @app.put("/api/models/profiles/{profile_id}")
+    def update_profile(profile_id: str, body: RoleProfileUpdate):
+        return save_role_profile(body.roles, profile_id=profile_id, expected_revision=body.expected_revision)
 
     @app.get("/api/models/editor")
     def read_editor():

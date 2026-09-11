@@ -1191,14 +1191,14 @@ dialog::backdrop {
   font-size:15px;
 }
 
-.models-page .field-row {
+.models-page .field-row,.models-role-list .field-row,.role-profiles .field-row {
   display:grid;
   grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));
   gap:16px;
 }
 
 @media(max-width:899px) {
-  .models-page .editor-grid,.models-page .field-row {
+  .models-page .editor-grid,.models-page .field-row,.models-role-list .field-row,.role-profiles .field-row {
     grid-template-columns:1fr;
   }
 }
@@ -1218,6 +1218,20 @@ dialog::backdrop {
 .models-role-list:not([hidden]) {
   display:grid;
   gap:12px;
+}
+
+.role-profiles {
+  min-width:0;
+}
+
+.role-profiles .toolbar {
+  align-self:end;
+  flex-wrap:wrap;
+}
+
+.role-profiles input,.role-profiles select {
+  min-width:0;
+  width:100%;
 }
 
 .models-role {
@@ -1277,7 +1291,7 @@ dialog::backdrop {
   font-size:12px;
 }
 
-.models-page .models-content .field {
+.models-page .models-content .field,.models-role-list .field,.role-profiles .field {
   margin-bottom:0;
 }
 
@@ -1389,7 +1403,7 @@ dialog::backdrop {
   max-width:640px;
 }
 
-.models-page .field[data-changed=true]>label:after {
+.models-page .field[data-changed=true]>label:after,.models-role-list .field[data-changed=true]>label:after {
   content:"Edited";
   display:inline-block;
   margin-left:8px;
@@ -1398,12 +1412,13 @@ dialog::backdrop {
   font-weight:600;
 }
 
-.models-page .field[data-changed=true]>input,.models-page .field[data-changed=true]>select {
+.models-page .field[data-changed=true]>input,.models-page .field[data-changed=true]>select,
+.models-role-list .field[data-changed=true]>input,.models-role-list .field[data-changed=true]>select {
   background:#fffaf0;
   border-color:#a88548;
 }
 
-.models-page .field>[aria-invalid=true] {
+.models-page .field>[aria-invalid=true],.models-role-list .field>[aria-invalid=true],.role-profiles .field>[aria-invalid=true] {
   border-color:var(--primary);
 }
 
@@ -1489,7 +1504,7 @@ dialog::backdrop {
 }
 
 @media(min-width:640px) {
-  .models-page .models-role-advanced .field-row {
+  .models-role-advanced .field-row {
     grid-template-columns:repeat(3,minmax(0,1fr));
   }
 }

@@ -1,11 +1,14 @@
+import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ArrowLeft, ArrowRight, FlaskConical } from "lucide-react";
 import { useApi, type Job } from "../api";
 import { ErrorNotice, PageHeading, Status } from "../components";
 import JobMonitor from "../JobMonitor";
+import FailedRunActions from "../FailedRunActions";
 
 export default function Experiments() {
   const { jobId } = useParams();
+  const [deletedJobIds, setDeletedJobIds] = useState<Set<string>>(() => new Set());
   const { data, error, loading, refresh } = useApi<{ jobs: Job[] }>(
     jobId ? null : "/api/jobs",
     2000,
@@ -23,7 +26,9 @@ export default function Experiments() {
         <JobMonitor key={jobId} jobId={jobId} />
       </div>
     );
-  const jobs = data?.jobs.filter((job) => job.kind === "experiment") || [];
+  const jobs = data?.jobs.filter(
+    (job) => job.kind === "experiment" && !deletedJobIds.has(job.id),
+  ) || [];
   return (
     <div className="stack">
       <PageHeading eyebrow="Experiments" title="Experiments">
@@ -102,6 +107,13 @@ export default function Experiments() {
                     <Link to={`/results/${job.run_id}`}>Saved outputs</Link>
                   )}
                 </div>
+                <FailedRunActions
+                  job={job}
+                  onDeleted={() => {
+                    setDeletedJobIds((current) => new Set(current).add(job.id));
+                    refresh();
+                  }}
+                />
               </article>
             );
           })}

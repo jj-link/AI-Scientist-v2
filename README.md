@@ -115,7 +115,14 @@ research-stage iteration limits. Values start from the existing experiment
 configuration and are copied into the new job's snapshot; saved configuration files
 are not changed. Invalid or incomplete values block Start. Draft values survive
 page reloads, and retrying a submitted request keeps its original settings.
-All role assignments are under one initially collapsed **Role assignments** section.
+Execution time limits accept positive whole or fractional seconds; worker,
+seed, and stage-iteration counts must be positive whole numbers.
+**Role assignments** has editable endpoint/model selectors and Advanced overrides,
+using the same controls as **Models**. Choices start from saved defaults but apply
+only to this experiment. Start validates and snapshots these exact assignments;
+neither editing them nor saving a profile changes global defaults. Role drafts
+survive reloads. If server settings changed, **Refresh model settings** keeps your
+role choices while loading the current servers for review before starting.
 The assigned models write and evaluate
 the experiment; models named as experimental subjects remain requirements in the
 saved design, not automatically loaded assignments. **Advanced** exposes the named
@@ -131,7 +138,8 @@ not upload source code, install missing tools, start models, download datasets
 implicitly through a UI control, or reroute model assignments automatically. Generated Python
 itself executes with your account's permissions.
 
-Model settings are saved in `ui_data/ui.sqlite3`, with one current configuration.
+Model settings and named role profiles are saved in `ui_data/ui.sqlite3`; there is
+one current default configuration, separate from profiles and per-run selections.
 Studio imports the legacy `ais_roles.yaml` on first use and retains an import backup.
 `AI_SCIENTIST_ROLE_CONFIG` now selects a frozen JSON settings snapshot, not YAML.
 The workload defaults to `bfts_config.yaml`. If present,
@@ -144,7 +152,7 @@ and `pdftotext`. The existing TeX resolver honors `AI_SCIENTIST_TEX_BIN_DIR`;
 launch with their names. A model listing and declared capability do not prove a
 text or image generation request works.
 
-On **Models**, select an endpoint for each role. **Detect models**
+On **Models** and **Experiment Setup**, select an endpoint for each role. **Detect models**
 lists that endpoint's advertised IDs in the **Model** dropdown; **Refresh models**
 retries the listing. These are explicit, bounded requests against the selected
 server, not generation requests. A failed or empty listing preserves the current
@@ -158,14 +166,24 @@ Role cards identify each task with plain-language titles and its exact
 role chooses a model and settings, not a separate agent or a
 shared conversation, so tasks can reuse one model with different contexts.
 
+Both screens can save, load, and update **named role profiles**. Choose a
+**Saved role profile** and click **Load profile** to replace the editable role
+draft, or enter a **Profile name** and click **Save profile** to store the current
+draft. Saving an existing name requires overwrite confirmation; concurrent changes
+are rejected without discarding your edits. Profiles include role assignments and
+overrides, not server connection definitions or resolved credential values.
+Unavailable servers or removed roles remain visible and must be corrected before
+use. Saving/loading a profile does not start work, probe models, or change defaults.
+
 **Save configuration** updates the local settings database atomically.
 Endpoint edits must be saved before their new connection is probed.
 API-key credentials are environment-variable names only; key values are never editable.
 Stale saves retain the draft and require **Reload configuration**; there is no
 force-save. Unsaved edits survive navigation within the same browser tab.
 
-Future Studio jobs and command-line reads use the saved settings. Existing Studio
-jobs retain their configuration snapshots; running command-line jobs are not
+New experiment drafts start from saved defaults, and command-line reads use the
+saved settings. Experiment Setup can override assignments for one run. Existing
+Studio jobs retain their configuration snapshots; running command-line jobs are not
 snapshot-isolated by this editor. Crash assistant settings are saved separately:
 click **Save assistant settings** after changing its role to capture the new
 assignment. Saving model settings never silently changes that enrollment.
@@ -212,6 +230,20 @@ closed. **Stop** preserves outputs and stops only the recorded worker and its
 descendants after a ten-second cooperative grace period. There is no
 computational pause/resume or automatic research restart. On server restart,
 missing worker identities become **Interrupted**, not completed.
+
+Failed experiments have **Restart experiment** and **Delete failed run** controls
+on the experiment list and detail page. Both require confirmation. Restart creates
+a new job and output directory using the original proposal, model settings, and
+workload snapshots; current edits and partial checkpoints are not used. The old
+run stays available, and readiness is checked against the saved settings. Missing
+or invalid snapshots require preparing a new experiment from the saved idea.
+
+Delete permanently removes the selected run's outputs, snapshots, logs, events,
+and diagnostics, but preserves saved ideas, conversations, and other runs. It
+refuses deletion while owned processes, crash analysis, or unresolved issue
+publication remain. If filesystem cleanup fails, the failed run stays listed so
+deletion can be retried. Old Start or Restart requests cannot recreate a deleted
+run; repeated restart requests recover the same new job instead of launching twice.
 
 Local state, including conversations, retrieved source evidence, and approved
 ideas, is stored in `ui_data/ui.sqlite3`; immutable worker requests/configuration

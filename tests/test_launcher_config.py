@@ -5,11 +5,15 @@ import sys
 from pathlib import Path
 from uuid import uuid4
 
+import pytest
 import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import launch_scientist_bfts as launcher
+from ai_scientist.treesearch.utils.config import load_cfg
+from ai_scientist.ui.configs import Configs
+from ai_scientist.ui.schemas import ExperimentRunSettings
 
 
 def test_selected_workload_is_preserved_in_run_config():
@@ -47,5 +51,36 @@ def test_selected_workload_is_preserved_in_run_config():
         assert Path(actual["log_dir"]).is_dir()
         assert Path(actual["data_dir"]).is_dir()
         assert source.read_bytes() == original
+    finally:
+        shutil.rmtree(root)
+
+
+@pytest.mark.parametrize("timeout", [3600, 12.5])
+def test_ui_timeout_snapshot_loads_without_truncation(timeout):
+    root = Path(__file__).parent / f"launcher_config_{uuid4().hex}"
+    root.mkdir()
+    try:
+        source = root / "bfts_config.yaml"
+        source.write_bytes((Path(__file__).resolve().parents[1] / "bfts_config.yaml").read_bytes())
+        settings = ExperimentRunSettings(
+            num_workers=1, num_seeds=1, execution_timeout=timeout,
+            stage_iterations={"stage1": 1, "stage2": 1, "stage3": 1, "stage4": 1},
+        )
+        configs = Configs(root)
+        candidate = configs.experiment_config(
+            configs.presets()["selected_bfts_config_id"], settings.model_dump(),
+        )
+        snapshot = root / "requested.yaml"
+        snapshot.write_text(yaml.safe_dump(candidate), encoding="utf-8")
+        run = root / "run"
+        run.mkdir()
+        idea = run / "idea.json"
+        idea.write_text('{"Name": "timeout_boundary"}', encoding="utf-8")
+        args = launcher.parse_arguments(["--bfts-config", str(snapshot)])
+
+        prepared = Path(launcher.prepare_bfts_config(args, str(run), str(idea)))
+        cfg = load_cfg(prepared)
+
+        assert cfg.exec.timeout == timeout
     finally:
         shutil.rmtree(root)

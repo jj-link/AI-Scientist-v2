@@ -26,7 +26,7 @@ import json
 import os
 import sqlite3
 import threading
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from pathlib import Path
 
 _SCHEMA = """
@@ -44,8 +44,8 @@ CREATE TABLE IF NOT EXISTS model_servers (
 );
 CREATE TABLE IF NOT EXISTS task_models (
     task TEXT PRIMARY KEY,
-    server_id TEXT NOT NULL REFERENCES model_servers(id),
-    model TEXT NOT NULL,
+    server_id TEXT REFERENCES model_servers(id),
+    model TEXT,
     max_tokens INTEGER,
     temperature REAL,
     timeout REAL,
@@ -56,6 +56,15 @@ CREATE TABLE IF NOT EXISTS task_models (
 CREATE TABLE IF NOT EXISTS model_settings_extra (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS role_profiles (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    name_key TEXT NOT NULL UNIQUE,
+    revision INTEGER NOT NULL CHECK(revision >= 1),
+    roles TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
 );
 """
 
@@ -85,14 +94,29 @@ _TASK_FIELDS = ("server_id", "model", "max_tokens", "temperature", "timeout",
 _stamp_lock = threading.Lock()
 
 
+class SettingsConflict(Exception):
+    """A revision or profile-name constraint prevented an atomic write."""
+
+
+
 def ensure_schema(root: str | os.PathLike) -> None:
     """Create the settings tables if missing; safe to call at every startup."""
-    with _connect(settings_db_path(root)):
-        pass
+    with _connect(settings_db_path(root)) as db:
+        db.execute("BEGIN IMMEDIATE")
+        columns = db.execute("PRAGMA table_info(task_models)").fetchall()
+        if any(row["name"] in ("server_id", "model") and row["notnull"] for row in columns):
+            db.execute("ALTER TABLE task_models RENAME TO task_models_assigned")
+            db.execute("""CREATE TABLE task_models (
+                task TEXT PRIMARY KEY, server_id TEXT REFERENCES model_servers(id), model TEXT,
+                max_tokens INTEGER, temperature REAL, timeout REAL, credential_env TEXT,
+                requires TEXT NOT NULL DEFAULT '[]', updated_at TEXT NOT NULL)""")
+            db.execute("INSERT INTO task_models SELECT * FROM task_models_assigned")
+            db.execute("DROP TABLE task_models_assigned")
 
 
 def save_settings_atomic(root: str | os.PathLike, servers: dict[str, dict],
-                         tasks: dict[str, dict], delete_servers=(), delete_tasks=()) -> None:
+                         tasks: dict[str, dict], delete_servers=(), delete_tasks=(),
+                         *, expected_revision: str | None = None) -> None:
     """Write already-validated server/task rows in one transaction.
 
     ``servers`` maps name -> {api_format, address, credential_env, timeout,
@@ -102,13 +126,8 @@ def save_settings_atomic(root: str | os.PathLike, servers: dict[str, dict],
     stamp = _now()
     with _connect(settings_db_path(root)) as db:
         db.execute("BEGIN IMMEDIATE")
-        for name in delete_servers:
-            used = db.execute(
-                "SELECT COUNT(*) AS uses FROM task_models t JOIN model_servers s "
-                "ON s.id=t.server_id WHERE s.name=?", (name,)).fetchone()["uses"]
-            if used:
-                raise ValueError(f"Server {name!r} still has tasks assigned; reassign them first.")
-            db.execute("DELETE FROM model_servers WHERE name=?", (name,))
+        if expected_revision is not None and read_snapshot(root, db=db)[0] != expected_revision:
+            raise SettingsConflict("The configuration changed elsewhere. Reload before saving.")
         for task in delete_tasks:
             db.execute("DELETE FROM task_models WHERE task=?", (task,))
         for name, server in servers.items():
@@ -129,7 +148,7 @@ def save_settings_atomic(root: str | os.PathLike, servers: dict[str, dict],
         for task, entry in tasks.items():
             server_row = db.execute("SELECT id FROM model_servers WHERE name=?",
                                     (entry["server"],)).fetchone()
-            if server_row is None:
+            if entry.get("server") is not None and server_row is None:
                 raise KeyError(f"Unknown server {entry['server']!r}.")
             db.execute(
                 "INSERT INTO task_models(task,server_id,model,max_tokens,temperature,timeout,"
@@ -138,9 +157,16 @@ def save_settings_atomic(root: str | os.PathLike, servers: dict[str, dict],
                 "max_tokens=excluded.max_tokens,temperature=excluded.temperature,"
                 "timeout=excluded.timeout,credential_env=excluded.credential_env,"
                 "requires=excluded.requires,updated_at=excluded.updated_at",
-                (task, server_row["id"], entry["model"], entry.get("max_tokens"),
+                (task, server_row["id"] if server_row else None, entry.get("model"), entry.get("max_tokens"),
                  entry.get("temperature"), entry.get("timeout"), entry.get("credential_env"),
                  json.dumps(entry.get("requires") or [], separators=(",", ":")), stamp))
+        for name in delete_servers:
+            used = db.execute(
+                "SELECT COUNT(*) AS uses FROM task_models t JOIN model_servers s "
+                "ON s.id=t.server_id WHERE s.name=?", (name,)).fetchone()["uses"]
+            if used:
+                raise ValueError(f"Server {name!r} still has tasks assigned; reassign them first.")
+            db.execute("DELETE FROM model_servers WHERE name=?", (name,))
 
 
 def settings_db_path(root: str | os.PathLike | None = None) -> Path:
@@ -183,7 +209,7 @@ def list_tasks(root: str | os.PathLike | None = None) -> list[dict]:
     with _connect(settings_db_path(root), read_only=True) as db:
         rows = db.execute(
             "SELECT t.*, s.name AS server_name FROM task_models t "
-            "JOIN model_servers s ON s.id = t.server_id ORDER BY t.task").fetchall()
+            "LEFT JOIN model_servers s ON s.id = t.server_id ORDER BY t.task").fetchall()
     tasks = []
     for row in rows:
         record = _decode(row, _TASK_FIELDS, json_fields=("requires",)) | {
@@ -204,42 +230,89 @@ def extra_setting(key: str, root: str | os.PathLike | None = None) -> dict | Non
         return None
 
 
+def read_snapshot(root: str | os.PathLike | None = None, *, db=None) -> tuple[str, dict]:
+    """Read the revision and routing configuration from one SQLite snapshot."""
+    with nullcontext(db) if db is not None else _connect(settings_db_path(root), read_only=True) as connection:
+        if not connection.in_transaction:
+            connection.execute("BEGIN")
+        servers = [_decode(row, _SERVER_FIELDS, json_fields=("capabilities",)) | {"id": row["id"]}
+                   for row in connection.execute("SELECT * FROM model_servers ORDER BY name")]
+        tasks = []
+        for row in connection.execute(
+                "SELECT t.*, s.name AS server_name FROM task_models t "
+                "LEFT JOIN model_servers s ON s.id=t.server_id ORDER BY t.task"):
+            task = _decode(row, _TASK_FIELDS, json_fields=("requires",)) | {
+                "task": row["task"], "server": row["server_name"]}
+            task.pop("server_id")
+            tasks.append(task)
+        extra_row = connection.execute(
+            "SELECT value FROM model_settings_extra WHERE key='experiment_execution'").fetchone()
+        extra = json.loads(extra_row["value"]) if extra_row else None
+        canonical = json.dumps({"servers": servers, "tasks": tasks,
+                                "extra": {"experiment_execution": extra}},
+                               sort_keys=True, separators=(",", ":"))
+        token = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+        endpoints = {server["name"]: {
+            "provider": server["api_format"], "base_url": server["address"],
+            "api_key_env": server["credential_env"], "timeout": server["timeout"],
+            "provides": list(server["capabilities"]),
+            "requires_user_message": bool(server["requires_user_message"]),
+        } for server in servers}
+        roles = {}
+        for task in tasks:
+            entry = {"endpoint": task["server"], "model": task["model"]}
+            for field in ("max_tokens", "temperature", "timeout", "credential_env"):
+                if task[field] is not None:
+                    entry[{"credential_env": "api_key_env"}.get(field, field)] = task[field]
+            if task["requires"]:
+                entry["requires"] = list(task["requires"])
+            roles[task["task"]] = entry
+        return token, {"endpoints": endpoints, "roles": roles, "experiment_execution": extra or {}}
+
+
 def revision(root: str | os.PathLike | None = None) -> str:
-    """Digest over every settings row; optimistic-concurrency token for the editor."""
-    payload = {"servers": list_servers(root), "tasks": list_tasks(root),
-               "extra": {key: extra_setting(key, root)
-                         for key in ("experiment_execution",)}}
-    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
-    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    return read_snapshot(root)[0]
 
 
 def current_settings(root: str | os.PathLike | None = None) -> dict:
-    """Merged view in the routing layer's shape: endpoints/roles by name.
+    return read_snapshot(root)[1]
 
-    Keys mirror the historical in-memory configuration so ``model_routing``
-    needs no per-call special cases.
-    """
-    endpoints: dict[str, dict] = {}
-    for server in list_servers(root):
-        endpoints[server["name"]] = {
-            "provider": server["api_format"],
-            "base_url": server["address"],
-            "api_key_env": server["credential_env"],
-            "timeout": server["timeout"],
-            "provides": list(server["capabilities"]),
-            "requires_user_message": bool(server["requires_user_message"]),
-        }
-    roles: dict[str, dict] = {}
-    for task in list_tasks(root):
-        entry = {"endpoint": task["server"], "model": task["model"]}
-        for field in ("max_tokens", "temperature", "timeout", "credential_env"):
-            if task[field] is not None:
-                entry[{"credential_env": "api_key_env"}.get(field, field)] = task[field]
-        if task["requires"]:
-            entry["requires"] = list(task["requires"])
-        roles[task["task"]] = entry
-    return {"endpoints": endpoints, "roles": roles,
-            "experiment_execution": extra_setting("experiment_execution", root) or {}}
+
+def _profile(row: sqlite3.Row) -> dict:
+    return {key: row[key] for key in ("id", "name", "revision", "created_at", "updated_at")} | {
+        "roles": json.loads(row["roles"])}
+
+
+def list_profiles(root: str | os.PathLike) -> list[dict]:
+    with _connect(settings_db_path(root), read_only=True) as db:
+        return [_profile(row) for row in db.execute("SELECT * FROM role_profiles ORDER BY name_key, id")]
+
+
+def save_profile_atomic(root: str | os.PathLike, roles: dict, validate, *,
+                        name: str | None = None, profile_id: str | None = None,
+                        expected_revision: int | None = None) -> dict:
+    """Validate against current servers and change only one profile in a transaction."""
+    with _connect(settings_db_path(root)) as db:
+        db.execute("BEGIN IMMEDIATE")
+        if profile_id is not None:
+            row = db.execute("SELECT * FROM role_profiles WHERE id=?", (profile_id,)).fetchone()
+            if row is None:
+                raise KeyError("Unknown role profile.")
+            if row["revision"] != expected_revision:
+                raise SettingsConflict("This profile changed elsewhere. Reload it before overwriting.")
+        elif db.execute("SELECT 1 FROM role_profiles WHERE name_key=?", (name.casefold(),)).fetchone():
+            raise SettingsConflict("A profile with this name already exists. Select it to overwrite explicitly.")
+        validate(roles, read_snapshot(root, db=db)[1])
+        stamp = _now()
+        encoded = json.dumps(roles, sort_keys=True, separators=(",", ":"), allow_nan=False)
+        if profile_id is None:
+            profile_id = _uuid()
+            db.execute("INSERT INTO role_profiles(id,name,name_key,revision,roles,created_at,updated_at) "
+                       "VALUES(?,?,?,1,?,?,?)", (profile_id, name, name.casefold(), encoded, stamp, stamp))
+        else:
+            db.execute("UPDATE role_profiles SET roles=?,revision=revision+1,updated_at=? "
+                       "WHERE id=? AND revision=?", (encoded, stamp, profile_id, expected_revision))
+        return _profile(db.execute("SELECT * FROM role_profiles WHERE id=?", (profile_id,)).fetchone())
 
 
 # -------------------------------------------------------------------------- write
