@@ -664,11 +664,6 @@ export default function Models() {
                 display={display.data}
               />
             </div>
-      <div
-        className="models-savebar"
-        data-dirty={dirty}
-        aria-label="Configuration save controls"
-      >
         {(revisionConflict || staleDraft) && (
           <div className="models-save-feedback" role="alert">
             <p>
@@ -686,6 +681,13 @@ export default function Models() {
           </div>
         )}
         <ErrorNotice error={apiError} />
+        {!dirty && saveNotice && <p className="metadata" role="status">{saveNotice}</p>}
+      {dirty && (
+      <div
+        className="models-savebar"
+        data-dirty={dirty}
+        aria-label="Configuration save controls"
+      >
         <div className="models-save-main">
           <p
             className="models-save-status"
@@ -695,9 +697,7 @@ export default function Models() {
           >
             {saving
               ? "Saving configuration…"
-              : dirty
-                ? `${changed} unsaved ${changed === 1 ? "change" : "changes"}`
-                : saveNotice || "No unsaved changes"}
+              : `${changed} unsaved ${changed === 1 ? "change" : "changes"}`}
           </p>
           <div className="models-save-buttons">
             <button
@@ -718,6 +718,7 @@ export default function Models() {
           </div>
         </div>
       </div>
+      )}
           </section>
         </div>
       )}

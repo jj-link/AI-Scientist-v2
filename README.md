@@ -178,6 +178,9 @@ Unavailable servers or removed roles remain visible and must be corrected before
 use. Saving/loading a profile does not start work, probe models, or change defaults.
 
 **Save configuration** updates the local settings database atomically.
+The **Save configuration / Discard changes** bar appears only while there are
+unsaved configuration edits. Saving, discarding, or reverting those edits hides it;
+save confirmation and any required conflict-reload action remain separate.
 Endpoint edits must be saved before their new connection is probed.
 API-key credentials are environment-variable names only; key values are never editable.
 Stale saves retain the draft and require **Reload configuration**; there is no
