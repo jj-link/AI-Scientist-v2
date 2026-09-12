@@ -4,9 +4,10 @@ import { ApiError, mutate, useApi, type ModelConfigEditorRole, type RoleAssignme
 import { ErrorNotice } from "./components";
 import { serializeRoleAssignments } from "./roleAssignments";
 
-export default function RoleProfiles({ roles, onLoad, disabled = false, saveDisabled = false }: {
+export default function RoleProfiles({ roles, onLoad, showSave, disabled = false, saveDisabled = false }: {
   roles: Record<string, ModelConfigEditorRole>;
   onLoad: (roles: RoleAssignments) => void;
+  showSave: boolean;
   disabled?: boolean;
   saveDisabled?: boolean;
 }) {
@@ -26,8 +27,6 @@ export default function RoleProfiles({ roles, onLoad, disabled = false, saveDisa
     setRefreshNeeded(false);
   }, [listing.data]);
   const selected = profiles.find((profile) => profile.id === selectedId);
-  const trimmedName = name.trim();
-  const invalidName = !trimmedName || trimmedName.length > 100 || /[\u0000-\u001f\u007f-\u009f]/.test(trimmedName);
   const positive = (value: unknown) => value === null ||
     (typeof value === "number" && Number.isFinite(value) && value > 0);
   const invalidRoles = Object.values(roles).some((role) =>
@@ -43,8 +42,17 @@ export default function RoleProfiles({ roles, onLoad, disabled = false, saveDisa
     : [];
 
   async function saveProfile() {
-    if (disabled || saveDisabled || invalidName || invalidRoles || savingRequest.current ||
+    if (!showSave || disabled || saveDisabled || invalidRoles || savingRequest.current ||
       refreshNeeded || listing.loading || !listing.data || listing.error) return;
+    const enteredName = window.prompt("Save role profile\nEnter a profile name (1–100 characters).", name);
+    if (enteredName === null) return;
+    setName(enteredName);
+    const trimmedName = enteredName.trim();
+    if (!trimmedName || trimmedName.length > 100 || /[\u0000-\u001f\u007f-\u009f]/.test(trimmedName)) {
+      setError(new Error("Enter a profile name with 1–100 characters and no control characters."));
+      setNotice("");
+      return;
+    }
     const existing = profiles.find((profile) => profile.name.toLowerCase() === trimmedName.toLowerCase());
     if (existing && !window.confirm(`Overwrite role profile "${existing.name}" with the current role assignments? This does not change model defaults.`)) return;
     savingRequest.current = true;
@@ -113,24 +121,15 @@ export default function RoleProfiles({ roles, onLoad, disabled = false, saveDisa
             onClick={() => listing.refresh()}>
             <RefreshCw size={16} aria-hidden="true" /> Refresh profiles
           </button>
+          {showSave && (
+            <button type="button" className="button secondary" disabled={disabled || saveDisabled || saving || invalidRoles || listing.loading || refreshNeeded || !listing.data || Boolean(listing.error)}
+              onClick={() => void saveProfile()}>
+              <Save size={16} aria-hidden="true" /> {saving ? "Saving profile…" : "Save profile"}
+            </button>
+          )}
         </div>
       </div>
-      <div className="field-row">
-        <div className="field">
-          <label htmlFor={`${id}-name`}>Profile name</label>
-          <input id={`${id}-name`} value={name} disabled={disabled || saving} maxLength={100}
-            aria-describedby={`${id}-name-hint`} aria-invalid={Boolean(name) && invalidName}
-            onChange={(event) => { setName(event.target.value); setNotice(""); }} />
-          <small className="muted" id={`${id}-name-hint`}>Use 1–100 characters. Saving an existing name asks before overwriting that profile.</small>
-        </div>
-        <div className="toolbar">
-          <button type="button" className="button secondary" disabled={disabled || saveDisabled || saving || invalidName || invalidRoles || listing.loading || refreshNeeded || !listing.data || Boolean(listing.error)}
-            onClick={() => void saveProfile()}>
-            <Save size={16} aria-hidden="true" /> {saving ? "Saving profile…" : "Save profile"}
-          </button>
-        </div>
-      </div>
-      {invalidRoles && <p className="field-error">Correct invalid overrides and pair each endpoint with a model before saving a profile. A role may be fully unassigned.</p>}
+      {showSave && invalidRoles && <p className="field-error">Correct invalid overrides and pair each endpoint with a model before saving a profile. A role may be fully unassigned.</p>}
       {listing.loading && <p className="muted" role="status">Loading role profiles…</p>}
       <ErrorNotice error={listing.error} />
       <ErrorNotice error={error} />

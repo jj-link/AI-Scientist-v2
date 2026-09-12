@@ -447,7 +447,7 @@ function Setup({
             </div>
             {modelBase && roleDrafts && (
               <>
-                <RoleProfiles roles={roleDrafts} onLoad={loadProfile}
+                <RoleProfiles roles={roleDrafts} onLoad={loadProfile} showSave
                   disabled={submitting || Boolean(pending)}
                   saveDisabled={Object.entries(roleDrafts).some(([name, role]) => !Object.hasOwn(modelBase.roles, name) ||
                     (role.endpoint !== null && !Object.hasOwn(modelBase.endpoints, role.endpoint)))} />

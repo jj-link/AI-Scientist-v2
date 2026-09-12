@@ -634,6 +634,7 @@ export default function Models() {
             </div>
             <RoleProfiles
               roles={roleDrafts}
+              showSave={rolesOpen}
               disabled={saving}
               saveDisabled={unknownRoles.length > 0 || profileEndpointProblems.length > 0 || revisionConflict || staleDraft}
               onLoad={(assignments) => {

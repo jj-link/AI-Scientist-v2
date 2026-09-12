@@ -168,9 +168,11 @@ shared conversation, so tasks can reuse one model with different contexts.
 
 Both screens can save, load, and update **named role profiles**. Choose a
 **Saved role profile** and click **Load profile** to replace the editable role
-draft, or enter a **Profile name** and click **Save profile** to store the current
-draft. Saving an existing name requires overwrite confirmation; concurrent changes
-are rejected without discarding your edits. Profiles include role assignments and
+draft. On **Models**, expand **Show role assignments** to reveal **Save profile**.
+Click **Save profile** and enter the name in the popup to store the current draft;
+the name field is not shown inline. Saving an existing name requires overwrite
+confirmation; concurrent changes are rejected without discarding your edits.
+Profiles include role assignments and
 overrides, not server connection definitions or resolved credential values.
 Unavailable servers or removed roles remain visible and must be corrected before
 use. Saving/loading a profile does not start work, probe models, or change defaults.

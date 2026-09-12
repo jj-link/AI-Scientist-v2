@@ -1229,7 +1229,7 @@ dialog::backdrop {
   flex-wrap:wrap;
 }
 
-.role-profiles input,.role-profiles select {
+.role-profiles select {
   min-width:0;
   width:100%;
 }
@@ -1418,7 +1418,7 @@ dialog::backdrop {
   border-color:#a88548;
 }
 
-.models-page .field>[aria-invalid=true],.models-role-list .field>[aria-invalid=true],.role-profiles .field>[aria-invalid=true] {
+.models-page .field>[aria-invalid=true],.models-role-list .field>[aria-invalid=true] {
   border-color:var(--primary);
 }
 
