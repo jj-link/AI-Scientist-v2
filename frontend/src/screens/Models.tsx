@@ -189,6 +189,7 @@ function CrashAssistantCard({
     <section className="card stack models-utility-card" aria-labelledby="assistant-heading">
       <div className="models-utility-header">
         <h2 id="assistant-heading">Crash assistant</h2>
+        <span className="badge">Coming soon</span>
       </div>
       <p className="muted">Help diagnose failed jobs. Excerpts go to the selected model; public reports require separate approval.</p>
       <div className="models-assistant-controls">
