@@ -204,6 +204,11 @@ API-key credentials are environment-variable names only; key values are never ed
 Stale saves retain the draft and require **Reload configuration**; there is no
 force-save. Unsaved edits survive navigation within the same browser tab.
 
+Use **Settings → Endpoint connections → Add server** to register another endpoint.
+Leave **Credential environment name** blank for a keyless HTTP server. New and
+existing server forms show validation errors beside the affected fields, and
+failed saves display feedback without discarding the draft.
+
 New experiment drafts start from saved defaults, and command-line reads use the
 saved settings. Experiment Setup can override assignments for one run. Existing
 Studio jobs retain their configuration snapshots; running command-line jobs are not

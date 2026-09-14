@@ -193,7 +193,7 @@ export default function Settings() {
         if (id.trim()) endpointPatch[id] = {
           provider: draft.provider,
           base_url: draft.base_url,
-          api_key_env: draft.api_key_env,
+          api_key_env: draft.api_key_env || null,
           timeout: draft.timeout,
         };
         continue;
@@ -278,40 +278,10 @@ export default function Settings() {
             <div className="editor-grid">
               {Object.entries(endpointDrafts).map(([id, draft]) => {
                 const original = saved.endpoints[id];
-                if (!original) {
-                  const endpointId = (field: string) => `endpoint-${id}-${field}`;
-                  return (
-                    <fieldset key={id} className="card stack editor-card" disabled={saving}>
-                      <legend className="editor-entry">{id}</legend>
-                      <p className="muted metadata">New server — fill the URL, then Save configuration.</p>
-                      <div className="field">
-                        <label htmlFor={endpointId("provider")}>Provider</label>
-                        <select id={endpointId("provider")} value={draft.provider}
-                          onChange={(event) => setProvider(id, event.target.value as EndpointDraft["provider"])}>
-                          <option value="openai">OpenAI-compatible API</option>
-                          <option value="openai-codex">OpenAI Codex</option>
-                          <option value="cborg">CBORG</option>
-                        </select>
-                      </div>
-                      {draft.provider !== "openai-codex" && (
-                        <div className="field">
-                          <label htmlFor={endpointId("base_url")}>Endpoint URL</label>
-                          <input id={endpointId("base_url")} type="url" value={fieldValue(draft.base_url ?? "")}
-                            onChange={(event) => setEndpoint(id, { base_url: event.target.value })} />
-                        </div>
-                      )}
-                      <div className="field">
-                        <label htmlFor={endpointId("api_key_env")}>Credential environment name</label>
-                        <input id={endpointId("api_key_env")} value={fieldValue(draft.api_key_env ?? "")}
-                          onChange={(event) => setEndpoint(id, { api_key_env: event.target.value })} />
-                      </div>
-                    </fieldset>
-                  );
-                }
                 const displayEndpoint = currentDisplay?.endpoints.find(
                   (item) => item.id === id,
                 );
-                const capabilities = original.provides;
+                const capabilities = original?.provides ?? [];
                 const codex = draft.provider === "openai-codex";
                 const cborg = draft.provider === "cborg";
                 const endpointId = (field: string) => `endpoint-${id}-${field}`;
@@ -334,10 +304,11 @@ export default function Settings() {
                   >
                     <legend className="editor-entry">{displayEndpoint?.label ?? id}</legend>
                     <p className="muted metadata">
-                      Provides:{" "}
-                      {capabilities.length ? capabilities.join(", ") : "None declared"}
+                      {original
+                        ? `Provides: ${capabilities.length ? capabilities.join(", ") : "None declared"}`
+                        : "New server — fill the URL, then Save configuration."}
                     </p>
-                    <div className="field" data-changed={draft.provider !== original.provider}>
+                    <div className="field" data-changed={draft.provider !== original?.provider}>
                       <label htmlFor={endpointId("provider")}>Provider</label>
                       <select
                         id={endpointId("provider")}
@@ -367,7 +338,7 @@ export default function Settings() {
                     {codex && <p className="muted">Managed Codex server and OAuth credentials. Sign in above; no API key or custom server address is used.</p>}
                     <div
                       className="field"
-                      data-changed={draft.base_url !== original.base_url}
+                      data-changed={draft.base_url !== original?.base_url}
                     >
                       <label htmlFor={endpointId("base_url")}>Endpoint URL</label>
                       <input
@@ -400,7 +371,7 @@ export default function Settings() {
                     <div className="field-row">
                       <div
                         className="field"
-                        data-changed={draft.api_key_env !== original.api_key_env}
+                        data-changed={draft.api_key_env !== original?.api_key_env}
                       >
                         <label htmlFor={endpointId("api_key_env")}>
                           Credential environment name
@@ -437,7 +408,7 @@ export default function Settings() {
                       </div>
                       <div
                         className="field"
-                        data-changed={draft.timeout !== original.timeout}
+                        data-changed={draft.timeout !== original?.timeout}
                       >
                         <label htmlFor={endpointId("timeout")}>
                           Timeout seconds (blank = 600)
@@ -489,6 +460,7 @@ export default function Settings() {
         role="status"
         aria-live="polite"
       >
+        <ErrorNotice error={apiError} />
         {(revisionConflict || staleDraft) && (
           <div className="models-save-feedback" role="alert">
             <p>Configuration changed elsewhere. Reload the page before saving.</p>
