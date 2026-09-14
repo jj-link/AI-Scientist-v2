@@ -253,3 +253,23 @@ def test_interrupted_plot_review_cannot_retain_a_successful_verdict(monkeypatch)
     assert node.is_buggy_plots is True
     assert node.plot_analyses == []
     assert not node.datasets_successfully_tested
+
+
+@pytest.mark.parametrize(
+    ("payload", "expected"),
+    [("[]", []), ('["synthetic_noisy_binary"]', ["synthetic_noisy_binary"])],
+)
+def test_dataset_coverage_preserves_empty_and_named_json_arrays(monkeypatch, payload, expected):
+    agent = parallel_agent.MinimalAgent.__new__(parallel_agent.MinimalAgent)
+    agent.cfg = SimpleNamespace(
+        agent=SimpleNamespace(
+            feedback=SimpleNamespace(model="role/experiment_feedback", temp=0)
+        )
+    )
+    monkeypatch.setattr(
+        parallel_agent, "query",
+        lambda **kwargs: f"REASONING: Recorded plot coverage.\nSUCCESSFULLY_TESTED_DATASETS: {payload}",
+    )
+    node = Node(code="pass", plan="Saved experiment")
+
+    assert agent._determine_datasets_successfully_tested(node) == expected

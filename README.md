@@ -239,6 +239,8 @@ Only that model's advertised levels are offered, alongside **Provider default**;
 the advertised default and selected level's description are displayed. Missing
 metadata does not invent choices or silently replace a saved setting. Profiles and
 frozen experiment assignments retain explicit reasoning choices.
+**Provider default** omits the override; it does not force the catalog's default.
+Select a level explicitly to request it.
 
 Tool availability is checked in the server's inherited environment, not across
 the whole PC. On Windows, an already-open terminal, IDE, or service manager can

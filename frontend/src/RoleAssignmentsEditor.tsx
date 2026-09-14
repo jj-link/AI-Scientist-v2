@@ -185,7 +185,7 @@ export default function RoleAssignmentsEditor({
                 const unlistedReasoning = draft.reasoning_effort != null &&
                   !reasoningEfforts.includes(draft.reasoning_effort);
                 const selectedReasoning = reasoning?.levels.find(
-                  (level) => level.effort === (draft.reasoning_effort ?? reasoning.default),
+                  (level) => level.effort === draft.reasoning_effort,
                 );
                 const changeModel = (next: string | null) => {
                   if ((draft.model ?? null) !== next) {
@@ -491,7 +491,7 @@ export default function RoleAssignmentsEditor({
                             aria-describedby={describedBy("reasoning_effort")}
                           >
                             <option value="">
-                              Provider default{reasoning?.default ? ` (${REASONING_LABELS[reasoning.default]})` : ""}
+                              Provider default
                             </option>
                             {unlistedReasoning && draft.reasoning_effort != null && (
                               <option value={draft.reasoning_effort}>
@@ -519,7 +519,7 @@ export default function RoleAssignmentsEditor({
                                     : "Choose a reasoning level advertised by this model."}
                                 {" "}Provider default sends no override.
                                 {reasoning && (reasoning.default
-                                  ? ` The advertised default is ${REASONING_LABELS[reasoning.default]}.`
+                                  ? ` The catalog default is ${REASONING_LABELS[reasoning.default]}; select it explicitly to request that level.`
                                   : " No default reasoning level was advertised.")}
                                 {unlistedReasoning && (reasoning
                                   ? " Your current choice is not advertised and has been preserved. Choose an advertised level or Provider default to replace it."

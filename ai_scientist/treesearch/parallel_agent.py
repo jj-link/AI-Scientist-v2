@@ -3,6 +3,7 @@ from typing import List, Optional, Set, Any, Callable, cast, Dict, Tuple
 import random
 import subprocess
 import os
+import json
 from queue import Queue
 import logging
 import humanize
@@ -827,13 +828,13 @@ class MinimalAgent:
             plot_analyses += f"plot {i+1}: {plot_analysis['analysis']}\n"
 
         determine_prompt = {
-            "Introduction": "You are an AI researcher analyzing experiment results. Based on the plot analyses and feedback, determine which datasets are successfully tested. Return reasoning and the dataset names that are successfully executed, or an empty string if no datasets are successfully executed.",
+            "Introduction": "You are an AI researcher analyzing experiment results. Based on the plot analyses and feedback, determine which datasets are successfully tested. Return reasoning and a JSON array of the dataset names that were successfully executed. Use an empty array when no datasets were successfully executed.",
             "Plot analyses": plot_analyses,
             "VLM feedback summary": node.vlm_feedback_summary,
             "Original plotting code": node.plot_code,
             "Response format": (
                 "Your response should start with 'REASONING: <reasoning>' to think about the plot analysis and feedback in the first line."
-                "In the second line, you should have a list of dataset names that are successfully executed, starting with 'SUCCESSFULLY_TESTED_DATASETS: <list_datasets_successfully_tested>', "
+                'The second line must be SUCCESSFULLY_TESTED_DATASETS: followed by a JSON array of strings, such as ["dataset_name"]. Use [] for no successful datasets. Do not use Markdown or a comma-separated string.'
             ),
         }
 
@@ -858,16 +859,15 @@ class MinimalAgent:
                 f"[green]Datasets successfully tested:[/green] {datasets_successfully_tested_str}"
             )
             if reasoning is not None and datasets_successfully_tested_str is not None:
-                if datasets_successfully_tested_str == "":
-                    return [""]
-                # Split by comma and clean each dataset name
-                datasets = [
-                    ds.strip() for ds in datasets_successfully_tested_str.split(",")
-                ]
-                # Filter out empty strings and ensure all elements are strings
-                datasets = [ds for ds in datasets if isinstance(ds, str) and ds]
-                logger.info(f"Successfully parsed datasets: {datasets}")
-                return datasets
+                try:
+                    datasets = json.loads(datasets_successfully_tested_str)
+                except json.JSONDecodeError:
+                    datasets = None
+                if isinstance(datasets, list) and all(
+                    isinstance(ds, str) and ds.strip() for ds in datasets
+                ):
+                    logger.info(f"Successfully parsed datasets: {datasets}")
+                    return datasets
 
             retry_count += 1
             logger.warning(
@@ -877,7 +877,7 @@ class MinimalAgent:
         logger.error(
             f"Failed to parse successfully tested datasets response after {retry_limit} retries. Falling back to an empty list."
         )
-        return [""]
+        return []
 
     def _analyze_plots_with_vlm(self, node: Node) -> None:
         """Review each selected plot independently, then combine its evidence."""
