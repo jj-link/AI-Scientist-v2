@@ -674,6 +674,10 @@ def load_exp_summaries(base_folder):
         ("logs/0-run/ablation_summary.json", "ABLATION_SUMMARY"),
     ]
     loaded_summaries = {}
+    from ai_scientist.fixed_study import load_fixed_study_summary
+    fixed_summary = load_fixed_study_summary(base_folder)
+    if fixed_summary is not None:
+        loaded_summaries["FIXED_STUDY_SUMMARY"] = fixed_summary
     for fname, key in summary_files:
         path = osp.join(base_folder, fname)
         if osp.exists(path):
@@ -722,6 +726,9 @@ def filter_experiment_summaries(exp_summaries, step_name):
 
     filtered_summaries = {}
     for stage_name in exp_summaries.keys():
+        if stage_name == "FIXED_STUDY_SUMMARY":
+            filtered_summaries[stage_name] = exp_summaries[stage_name]
+            continue
         if stage_name in {"BASELINE_SUMMARY", "RESEARCH_SUMMARY"}:
             filtered_summaries[stage_name] = {}
             for key in exp_summaries[stage_name].keys():

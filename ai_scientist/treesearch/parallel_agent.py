@@ -284,6 +284,9 @@ class MinimalAgent:
 
     @property
     def _prompt_impl_guideline(self):
+        if getattr(self.cfg, "fixed_study_summary", None):
+            from ai_scientist.fixed_study import analysis_guidance
+            return {"Implementation guideline": analysis_guidance(self.cfg.fixed_study_summary)}
         impl_guideline = [
             "COMPUTE REQUIREMENTS - Follow the saved research design's device requirements:",
             "  - If CUDA is required, check torch.cuda.is_available() and raise a clear error if it is false. Never fall back to CPU in that case.",
@@ -645,6 +648,13 @@ class MinimalAgent:
 
     def plan_and_code_query(self, prompt, retries=3) -> tuple[str, str]:
         """Generate a natural language plan + code in the same LLM call and split them apart."""
+        if getattr(self.cfg, "fixed_study_summary", None):
+            # Replace training/tuning/synthetic-loss instructions, rather than contradicting them.
+            prompt["Introduction"] = (
+                "You are an AI researcher implementing reproducible analysis of an already completed "
+                "four-arm repair study. Improve analysis and figures only, never repair outcomes."
+            )
+            prompt["Instructions"] = self._prompt_resp_fmt | self._prompt_impl_guideline | self._prompt_environment
         completion_text = None
         for _ in range(retries):
             completion_text = query(
@@ -762,6 +772,13 @@ class MinimalAgent:
                     plt.close()
             """,
         ]
+        if getattr(self.cfg, "fixed_study_summary", None):
+            from ai_scientist.fixed_study import analysis_guidance
+            prompt_guideline = analysis_guidance(self.cfg.fixed_study_summary) + [
+                "Plot authoritative four-arm resolution with uncertainty, paired issue outcomes, and actual measured costs. "
+                "Use the trusted JSON directly to check any derived experiment_data.npy; fail on disagreement. "
+                "Use matplotlib, save PNG figures to working_dir, and close every figure."
+            ]
         # add instruction for format
         plotting_prompt = {
             "Instructions": {},

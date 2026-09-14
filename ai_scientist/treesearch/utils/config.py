@@ -107,6 +107,7 @@ class Config(Hashable):
     agent: AgentConfig
     experiment: ExperimentConfig
     debug: DebugConfig
+    fixed_study_summary: Optional[str] = None
 
 
 def _get_next_logindex(dir: Path) -> int:

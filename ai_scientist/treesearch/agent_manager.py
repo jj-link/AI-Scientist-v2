@@ -164,6 +164,13 @@ class AgentManager:
                 - Reuse its data and evaluation protocol; do not invent extra datasets or conditions.
                 - If no additional ablation is permitted, analyze the existing comparisons without expanding the study.""",
         }
+        if getattr(cfg, "fixed_study_summary", None):
+            self.main_stage_goals = {
+                1: "Implement reproducible analysis of the completed four-arm frozen evidence.",
+                2: "Check per-arm accounting, denominators and uncertainty; improve analysis clarity, not repair scores.",
+                3: "Analyze all recorded paired issue outcomes and cost/resolution tradeoffs without new repairs.",
+                4: "Interpret the four recorded arms and limitations; no additional interventions or trials.",
+            }
 
         # Create initial stage
         self._create_initial_stage()
@@ -177,6 +184,11 @@ class AgentManager:
         )
 
     def _get_task_desc_str(self) -> str:
+        if getattr(self.cfg, "fixed_study_summary", None):
+            from ai_scientist.fixed_study import analysis_guidance
+            return ("\n".join(analysis_guidance(self.cfg.fixed_study_summary))
+                    + "\nOriginal frozen design (native execution already completed):\n"
+                    + json.dumps(self.task_desc, indent=2, ensure_ascii=False))
         return (
             "You are an AI researcher executing the saved research design.\n"
             "Follow its complete methods, comparisons, limitations, and execution requirements. "
@@ -406,6 +418,8 @@ class AgentManager:
                 return True, "Found working implementation"
 
         if stage.stage_number == 2:
+            if getattr(self.cfg, "fixed_study_summary", None):
+                return bool(journal.good_nodes), "Completed frozen-evidence analysis; repair scores are not tunable."
             best_node = journal.get_best_node(cfg=self.cfg)
             if not best_node:
                 return False, "No best node found"
@@ -714,7 +728,7 @@ class AgentManager:
                         )
                         if main_stage_complete:
                             # After main stage completion, run multi-seed eval on the best node
-                            if current_substage.stage_number in [1, 2, 3, 4]:
+                            if current_substage.stage_number in [1, 2, 3, 4] and not getattr(self.cfg, "fixed_study_summary", None):
                                 best_node = self._get_best_implementation(
                                     current_substage.name
                                 )

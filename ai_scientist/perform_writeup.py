@@ -496,6 +496,10 @@ def perform_writeup(
             ("logs/0-run/ablation_summary.json", "ABLATION_SUMMARY"),
         ]
         loaded_summaries = {}
+        from ai_scientist.fixed_study import load_fixed_study_summary
+        fixed_summary = load_fixed_study_summary(base_folder)
+        if fixed_summary is not None:
+            loaded_summaries["FIXED_STUDY_SUMMARY"] = fixed_summary
         for fname, key in summary_files:
             path = osp.join(base_folder, fname)
             if osp.exists(path):

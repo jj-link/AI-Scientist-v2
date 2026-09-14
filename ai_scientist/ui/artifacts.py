@@ -149,6 +149,13 @@ def _walk(path: Path, run: Path):
 
 def _kind(relative: Path) -> str | None:
     name, suffix = relative.name, relative.suffix.lower()
+    if relative.as_posix() in {
+        "data/safe_results.json", "data/fixed_study_summary.json",
+        "logs/0-run/fixed_study_summary.json",
+    }:
+        return "summary"
+    if relative.parts[0] == "data":
+        return None
     # No pickle/numpy/checkpoints, captured logs, or raw request telemetry.
     if suffix in {".pkl", ".pickle", ".npy", ".npz", ".log", ".jsonl"}:
         return None
@@ -180,7 +187,7 @@ def _manifest(run: Path) -> list[tuple[dict, Path]]:
             resolved.relative_to(run_real)
             if resolved.is_file():
                 candidates.append(child)
-            elif resolved.is_dir() and (child.name in {"figures", "latex", "logs", "experiment_results"}
+            elif resolved.is_dir() and (child.name in {"figures", "latex", "logs", "experiment_results", "data"}
                 or re.fullmatch(r"\d+-run", child.name) or child.name.endswith("_imgs")
                 or child.name == "writeup_attempts"):
                 candidates.extend(_walk(child, run_real))

@@ -135,6 +135,21 @@ def terminate_owned(records: list[dict], *, include: dict | None = None) -> None
                 pass
 
 
+def cleanup_native_study(store: Store, job: dict) -> None:
+    """A native study must acknowledge owned cleanup before releasing the compute slot."""
+    run_id = job.get("run_id")
+    if not run_id:
+        return
+    root = (store.root / "experiments").resolve()
+    run = (root / run_id).resolve()
+    if run.parent != root:
+        raise RuntimeError("Invalid native study run ownership.")
+    if not (run / ".fixed-study.json").is_file() or (run / ".fixed-study-completed.json").is_file():
+        return
+    from ai_scientist.fixed_study import stop_fixed_study
+    stop_fixed_study(run)
+
+
 class Supervisor:
     """Web-side recovery also works when a worker cannot service cancellation."""
 
@@ -213,6 +228,7 @@ class Supervisor:
                     # The worker normally records its own descendants. At forced stop, refresh once
                     # while the root identity still matches, then keep the captured identities.
                     records = capture_descendants(directory, parent) if parent else owned_records(directory)
+                    cleanup_native_study(self.store, job)
                     terminate_owned(records, include={"pid": job.get("pid"), "created": job.get("process_created")})
                     current = self.store.get_job(job["id"])
                     if current["state"] in ACTIVE:
@@ -226,6 +242,7 @@ class Supervisor:
                     age = time.time() - datetime.fromisoformat(job["created_at"]).timestamp()
                     if job["state"] == "starting" and age < 15:
                         continue
+                    cleanup_native_study(self.store, job)
                     terminate_owned(owned_records(directory))
                     terminal = self.store.update_job(job["id"], state="interrupted", finished_at=now(), error={"code": "worker_missing", "message": "Worker process is no longer running"})
                     if terminal["state"] == "interrupted":
@@ -306,8 +323,8 @@ def log_download(directory: Path):
             yield redact(pending, secrets)
 
 
-_EVENT_INTS = {"attempt", "round", "attempts", "rounds", "finalized", "failed", "saved_nodes", "total_nodes", "good_nodes", "buggy_nodes", "working_nodes", "error_nodes", "writeup_attempt", "step", "stage", "stage_index", "node_count", "good_count", "buggy_count"}
-_EVENT_TEXT = {"stage", "stage_name", "substage", "metric_name", "metric_label", "best_metric", "artifact_id", "code"}
+_EVENT_INTS = {"attempt", "round", "attempts", "rounds", "finalized", "failed", "saved_nodes", "total_nodes", "good_nodes", "buggy_nodes", "working_nodes", "error_nodes", "writeup_attempt", "step", "stage", "stage_index", "node_count", "good_count", "buggy_count", "trials"}
+_EVENT_TEXT = {"stage", "stage_name", "substage", "metric_name", "metric_label", "best_metric", "artifact_id", "code", "execution_id", "evidence_execution_id"}
 _PHASES = {"preparing", "generation", "experiments", "figures", "citations", "paper", "reviews"}
 
 
@@ -357,6 +374,7 @@ def run_job(store: Store, job_id: str) -> int:
             try:
                 records = capture_descendants(directory, process)
                 if should_stop() and time.time() - stop_time(directory) >= 10:
+                    cleanup_native_study(store, job)
                     terminate_owned(records)
                     store.update_job(job_id, state="stopped", finished_at=now())
                     store.add_event(job_id, "stopped", data={"message": "Job stopped; saved outputs retained"})
@@ -472,6 +490,7 @@ def run_job(store: Store, job_id: str) -> int:
     finally:
         finished.set()
         watcher.join(timeout=1)
+        cleanup_native_study(store, job)
         terminate_owned(capture_descendants(directory, process))
     # Keep the single compute slot occupied until launcher-owned children are gone.
     if should_stop():

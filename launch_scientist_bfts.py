@@ -33,6 +33,10 @@ from ai_scientist.perform_llm_review import perform_review, load_paper
 from ai_scientist.perform_vlm_review import perform_imgs_cap_ref_review
 from ai_scientist.utils.token_tracker import token_tracker
 from ai_scientist.progress import Cancelled, PipelineFailure, check_stop, emit
+from ai_scientist.fixed_study import (
+    run_fixed_study, configure_fixed_analysis, load_fixed_study_summary,
+    publish_fixed_study_summary,
+)
 
 
 def print_time():
@@ -394,11 +398,19 @@ def run_pipeline(args, *, run_dir=None, on_event=None, should_stop=None):
             idea_config_path = prepare_bfts_config(args, idea_dir, idea_path_json)
 
         with pipeline_phase("experiments", on_event, should_stop):
+            fixed_summary = run_fixed_study(
+                idea, idea_dir, on_event=on_event, should_stop=should_stop,
+            )
+            if fixed_summary is not None:
+                configure_fixed_analysis(idea_config_path, idea_dir)
             log_dir = Path(perform_experiments_bfts(
                 idea_config_path, on_event=on_event, should_stop=should_stop,
             )).resolve()
+            if fixed_summary is not None:
+                publish_fixed_study_summary(idea_dir, log_dir)
 
         with pipeline_phase("figures", on_event, should_stop):
+            load_fixed_study_summary(idea_dir)
             experiment_results_dir = log_dir / "experiment_results"
             copied_results = Path(idea_dir) / "experiment_results"
             if experiment_results_dir.exists():
@@ -421,6 +433,7 @@ def run_pipeline(args, *, run_dir=None, on_event=None, should_stop=None):
                     small_model=args.model_citation,
                 )
             with pipeline_phase("paper", on_event, should_stop):
+                load_fixed_study_summary(idea_dir)
                 writeup_success = False
                 for attempt in range(args.writeup_retries):
                     check_stop(should_stop)
