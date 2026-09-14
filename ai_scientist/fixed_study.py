@@ -205,6 +205,34 @@ def validate_results(results, protocol, digest, execution_id):
         if key in runtime:
             _require(isinstance(runtime[key], str), "invalid runtime provenance.")
             safe_runtime[key] = runtime[key]
+    continuation = protocol.get("continuation")
+    lineage = runtime.get("continuation")
+    if "continuation" not in protocol:
+        _require(lineage is None, "unacknowledged native continuation.")
+    else:
+        pins = ("execution_id", "safe_results_sha256", "protocol_sha256", "runner_sha256")
+        _require(isinstance(continuation, dict) and set(continuation) == set(pins),
+                 "invalid continuation specification.")
+        _require(isinstance(continuation["execution_id"], str) and
+                 re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,159}", continuation["execution_id"]) is not None and
+                 continuation["execution_id"] != execution_id, "invalid continuation source.")
+        _require(all(isinstance(continuation[key], str) and
+                     re.fullmatch(r"[0-9a-f]{64}", continuation[key]) is not None for key in pins[1:]),
+                 "invalid continuation pin.")
+        _require(isinstance(lineage, dict) and all(lineage.get(key) == continuation[key] for key in pins),
+                 "native continuation provenance mismatch.")
+        inherited = lineage.get("inherited_trials")
+        _require(type(inherited) is int and 0 < inherited < len(trials),
+                 "invalid inherited trial count.")
+        row_index, arm_offset = divmod(inherited, len(ARMS))
+        failed_trial = {"instance_id": cohort[row_index]["instance_id"],
+                        "arm": ARMS[(row_index + arm_offset) % len(ARMS)], "repetition": 0}
+        _require(lineage.get("failed_pre_model_trial") == failed_trial and
+                 type(lineage.get("model_generations_repeated")) is int and
+                 lineage["model_generations_repeated"] == 0, "invalid continuation boundary.")
+        safe_runtime["continuation"] = {**continuation, "inherited_trials": inherited,
+                                        "failed_pre_model_trial": failed_trial,
+                                        "model_generations_repeated": 0}
     notes = results.get("notes", [])
     _require(isinstance(notes, list) and all(isinstance(note, str) for note in notes), "invalid caveats.")
     return {"schema_version": 1, "protocol_id": protocol["protocol_id"], "protocol_sha256": digest,

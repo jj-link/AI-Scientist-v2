@@ -38,6 +38,7 @@ EVALUATOR_STORAGE = (("/testbed", 2 * 1024**3),
                      ("/opt/miniconda3/envs/testbed", 2 * 1024**3),
                      ("/root", 512 * 1024**2))
 EVALUATOR_SCRATCH = 512 * 1024**2
+DOCKER_API_TIMEOUT_SECONDS = 60
 SAFE_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,119}\Z")
 HEX = re.compile(r"[0-9a-f]{64}\Z")
 VALID = {"resolved", "unresolved", "empty_patch", "budget_exhausted"}
@@ -1237,7 +1238,7 @@ def evaluate_child(protocol_path, trial_path):
     row = dict(rows[0])
     row["image"] = trial["image"]
     require(not row.get("image_assets"), "Network/image assets not part of this frozen Python study")
-    client = docker.DockerClient(base_url=protocol["resources"]["docker_host"], timeout=5)
+    client = docker.DockerClient(base_url=protocol["resources"]["docker_host"], timeout=DOCKER_API_TIMEOUT_SECONDS)
     image_check(client, trial)
     spec = make_test_spec(row)
     pred = {"instance_id": trial["instance_id"], "model_name_or_path": trial["arm"], "model_patch": patch}
@@ -1371,6 +1372,142 @@ def run_trial(protocol, protocol_path, protocol_sha, execution_id, row, issue, a
     return result
 
 
+def inherit_continuation(protocol, directory):
+    """Import only an audited completed prefix, never an interrupted model call."""
+    if "continuation" not in protocol:
+        return [], None
+    pins = protocol["continuation"]
+    require(isinstance(pins, dict) and set(pins) ==
+            {"execution_id", "safe_results_sha256", "protocol_sha256", "runner_sha256"},
+            "Continuation requires exactly four predecessor pins")
+    require(isinstance(pins["execution_id"], str) and SAFE_ID.fullmatch(pins["execution_id"]),
+            "Invalid continuation execution ID")
+    require(all(isinstance(pins[key], str) and HEX.fullmatch(pins[key])
+                for key in ("safe_results_sha256", "protocol_sha256", "runner_sha256")),
+            "Invalid continuation digest")
+    root = Path(protocol["native"]["run_root"]).resolve()
+    native_root = Path(protocol["native"]["root"]).resolve()
+    directory = Path(directory).resolve()
+    source = root / pins["execution_id"]
+    require(root.is_relative_to(native_root) and directory.parent == root
+            and source != directory and not source.is_symlink()
+            and source.resolve().parent == root and source.is_dir(),
+            "Continuation source must be a distinct contained native execution")
+
+    def artifact(parent, name):
+        path = parent / name
+        require(not path.is_symlink() and path.is_file()
+                and path.resolve().parent == parent.resolve(),
+                "Missing or escaped continuation artifact: " + name)
+        return path
+
+    owner = load(artifact(source, "owner.json"))
+    require(type(owner.get("pid")) is int and owner["pid"] > 0
+            and isinstance(owner.get("start"), str) and owner["start"]
+            and process_identity(owner["pid"]) != owner["start"],
+            "Continuation predecessor has a live or invalid owner")
+    execution = {key: pins[key] for key in ("execution_id", "protocol_sha256", "runner_sha256")}
+    require(load(artifact(source, "execution.json")) == execution,
+            "Continuation execution identity mismatch")
+    frozen_path = artifact(source, "frozen-protocol.json")
+    safe_path = artifact(source, "safe_results.json")
+    require(file_digest(frozen_path) == pins["protocol_sha256"]
+            and file_digest(safe_path) == pins["safe_results_sha256"],
+            "Continuation publication pins mismatch")
+    frozen, safe = load(frozen_path), load(safe_path)
+    science = ("kind", "purpose", "dataset", "target", "cohort", "arms", "repetitions",
+               "budgets", "resources", "prompts", "interpretation", "conversation_policy")
+    require(all(key in frozen and key in protocol and frozen[key] == protocol[key]
+                for key in science), "Continuation changes frozen scientific fields")
+    require(all(frozen["native"][key] == protocol["native"][key] for key in ("root", "run_root")),
+            "Continuation native root mismatch")
+    require(safe.get("schema_version") == 1 and safe.get("completed") is False
+            and not (source / "completed.json").exists()
+            and safe.get("execution_id") == pins["execution_id"]
+            and safe.get("protocol_sha256") == pins["protocol_sha256"]
+            and safe.get("protocol_id") == frozen["protocol_id"]
+            and safe.get("runtime", {}).get("runner_sha256") == pins["runner_sha256"],
+            "Continuation requires an incomplete pinned publication")
+    require(safe.get("cohort") == [{"instance_id": row["instance_id"], "repo": row["repo"]}
+                                  for row in protocol["cohort"]]
+            and safe.get("arms") == ARMS and safe.get("repetitions") == 1,
+            "Continuation publication cohort mismatch")
+    schedule = [(row, arm) for index, row in enumerate(protocol["cohort"])
+                for arm in ARMS[index % 4:] + ARMS[:index % 4]]
+    results = safe.get("trials")
+    require(isinstance(results, list) and 1 < len(results) <= len(schedule),
+            "Continuation requires a completed prefix and one failed tail")
+    trials = source / "trials"
+    require(not trials.is_symlink() and trials.is_dir() and trials.resolve().parent == source,
+            "Continuation trial root escaped")
+    keys = [row["instance_id"] + "--" + arm for row, arm in schedule[:len(results)]]
+    require({path.name for path in trials.iterdir()} == set(keys),
+            "Continuation contains attempts outside the exact schedule prefix")
+    destination = directory / "trials"
+    require(not destination.is_symlink() and destination.is_dir()
+            and not any(destination.iterdir()), "Continuation destination trials must be empty")
+    core = ("identity.json", "result.json", "patch.diff", "completed.json")
+    copies = []
+    for index, (result, (row, arm)) in enumerate(zip(results, schedule)):
+        trial = trials / keys[index]
+        require(not trial.is_symlink() and trial.is_dir() and trial.resolve().parent == trials,
+                "Continuation trial path escaped")
+        identity = {"schema_version": 1, **execution, "instance_id": row["instance_id"],
+                    "repo": row["repo"], "base_commit": row["base_commit"], "image": row["image"],
+                    "image_id": row["image_id"], "arm": arm, "repetition": 0,
+                    "evaluation_id": digest((pins["execution_id"] + "/" + row["instance_id"] + "/" + arm).encode())[:32]}
+        require(load(artifact(trial, "identity.json")) == identity
+                and load(artifact(trial, "result.json")) == result
+                and all(result.get(key) == identity[key] for key in ("instance_id", "repo", "arm", "repetition")),
+                "Continuation trial identity or ordered result mismatch")
+        if index < len(results) - 1:
+            contents = {name: artifact(trial, name).read_bytes() for name in core}
+            ledger = json.loads(contents["completed.json"])
+            require(result.get("status") in VALID and ledger.get("identity") == identity
+                    and json.loads(contents["identity.json"]) == identity
+                    and json.loads(contents["result.json"]) == result
+                    and ledger.get("result_sha256") == digest(contents["result.json"])
+                    and ledger.get("patch_sha256") == result.get("patch_sha256") == digest(contents["patch.diff"])
+                    and contents["patch.diff"].decode("utf-8") == result.get("patch"),
+                    "Continuation completed ledger or patch mismatch")
+            copies.append((trial, contents))
+        else:
+            allowed = {"identity.json", "result.json", "base-source.tar", "base",
+                       "source-identity.json", "pristine.tar", "gpu-samples.jsonl", "failure-private.txt"}
+            require(all(path.name in allowed and not path.is_symlink()
+                        and (path.is_dir() if path.name == "base" else path.is_file())
+                        for path in trial.iterdir()),
+                    "Continuation failed tail contains phase or unknown evidence")
+            values = result.get("metrics", {})
+            nullable = {"prompt_seconds", "generation_seconds", "draft_tokens", "accepted_draft_tokens"}
+            require(set(values) == set(metrics())
+                    and all(values[key] == 0 for key in values
+                            if key not in nullable | {"elapsed_seconds", "peak_gpu_memory_mib"})
+                    and all(values[key] is None or values[key] == 0 for key in nullable)
+                    and result.get("status") == "infrastructure_failure"
+                    and result.get("resolved") is None and result.get("patch") == ""
+                    and result.get("patch_sha256") == digest(b"") and result.get("handoff") == "",
+                    "Continuation failed tail has model, tool, handoff or patch accounting")
+    # Validate every source before publishing any inherited trial. Preserve bytes
+    # and original execution identities; workspaces and partial evidence stay put.
+    require(file_digest(safe_path) == pins["safe_results_sha256"]
+            and file_digest(frozen_path) == pins["protocol_sha256"]
+            and load(source / "execution.json") == execution
+            and load(source / "owner.json") == owner
+            and process_identity(owner["pid"]) != owner["start"],
+            "Continuation predecessor changed during audit")
+    provenance = {**pins, "inherited_trials": len(copies),
+                  "failed_pre_model_trial": {key: results[-1][key] for key in ("instance_id", "arm", "repetition")},
+                  "model_generations_repeated": 0}
+    for trial, contents in copies:
+        target = destination / trial.name
+        target.mkdir(mode=0o700)
+        for name, content in contents.items():
+            atomic(target / name, content)
+        save(target / "source-provenance.json", {**pins, "trial": trial.name})
+    return results[:-1], provenance
+
+
 def stop_execution(protocol, execution_id):
     import docker
     directory = Path("/home/workbench/Projects/personal/AI-Scientist-v2-study-runtime/runs") / execution_id
@@ -1451,7 +1588,7 @@ def main():
         require(trial_path.is_relative_to(expected_root), "Evaluator trial path outside owned execution")
         evaluate_child(protocol_path, trial_path)
         return 0
-    import docker
+    # Continuation is audited before Docker/model imports or runtime requests.
     import fcntl
     root = Path(protocol["native"]["run_root"]).resolve()
     require(root.is_relative_to(Path(protocol["native"]["root"]).resolve()), "Run root outside native runtime")
@@ -1490,14 +1627,19 @@ def main():
         progress("completed_replay", execution_id=args.execution_id, result=str(directory / "safe_results.json"))
         return 0
     save(directory / "owner.json", {"pid": os.getpid(), "pgid": os.getpgrp(), "start": process_identity(os.getpid())})
-    client = docker.DockerClient(base_url=protocol["resources"]["docker_host"], timeout=5)
+    (directory / "trials").mkdir()
+    results, continuation = inherit_continuation(protocol, directory)
+    inherited_trials = len(results)
+    import docker
+    client = docker.DockerClient(base_url=protocol["resources"]["docker_host"], timeout=DOCKER_API_TIMEOUT_SECONDS)
     control = Control(directory, client, args.execution_id)
     signal.signal(signal.SIGTERM, lambda *_: control.stopped.set())
     signal.signal(signal.SIGINT, lambda *_: control.stopped.set())
     endpoint = Endpoint(protocol, control)
-    results = []
     complete = False
     notes = ["Target output usage includes reasoning and tool-call syntax; speculative draft work is separate. Null telemetry means unavailable, not zero.", "GPU memory is sampled device-wide across native visible GPUs, not attributed exclusively to this trial; peaks between samples can be missed.", "Private request reservations retain unknown usage for interrupted requests. Such runs are never scientifically complete.", "Notes-arm diagnosis is allowed; visible notes are retained verbatim for downstream qualitative coding, not automatically claimed as classified.", "Source tool access is kernel-restricted with Landlock; official evaluation uses the installed SWE-bench 5.0.2 scorer after immutable patch freezing."]
+    if continuation is not None:
+        notes.append("Audited continuation inherits an unchanged completed schedule prefix with original execution identities; only the remaining slots run. The predecessor failed before any model phase or request; no model generations are repeated.")
     try:
         require(min(shutil.disk_usage(root).free, shutil.disk_usage("/mnt/c").free)
                 >= protocol["resources"]["minimum_free_bytes"], "Insufficient native/host disk capacity")
@@ -1518,9 +1660,12 @@ def main():
             issues[row["instance_id"]] = {key: record[key] for key in ("instance_id", "repo", "base_commit", "problem_statement")}
         del records, by_id
         runtime_check(protocol, endpoint, directory)
-        (directory / "trials").mkdir()
+        slot = 0
         for index, row in enumerate(protocol["cohort"]):
             for arm in ARMS[index % 4:] + ARMS[:index % 4]:
+                slot += 1
+                if slot <= inherited_trials:
+                    continue
                 control.check()
                 require(file_digest(__file__) == identity["runner_sha256"], "Runner source changed during execution")
                 progress("trial_started", instance_id=row["instance_id"], arm=arm, repetition=0)
@@ -1551,6 +1696,8 @@ def main():
                         "dataset": {key: protocol["dataset"][key] for key in ("name", "revision")},
                         "purpose": protocol["purpose"], "images": [{key: row[key] for key in
                             ("instance_id", "image", "image_id")} for row in protocol["cohort"]]}, "notes": notes}
+    if continuation is not None:
+        safe["runtime"]["continuation"] = continuation
     save(directory / "safe_results.json", safe)
     if complete:
         save(directory / "completed.json", {"identity": identity, "safe_results_sha256": file_digest(directory / "safe_results.json")})
