@@ -1,4 +1,4 @@
-"""Frozen restart inputs and deletion limited to a failed job's owned files."""
+"""Frozen restart inputs and deletion limited to a finished experiment's owned files."""
 from __future__ import annotations
 
 import json
@@ -12,7 +12,7 @@ import yaml
 
 from . import worker
 from .schemas import validate_idea
-from .store import Conflict, Store
+from .store import TERMINAL, Conflict, Store
 
 _SNAPSHOT_LIMIT = 2 * 1024 * 1024
 
@@ -56,7 +56,7 @@ def _read_snapshot(path: Path) -> bytes:
 
 def ensure_worker_exited(job: dict, directory: Path) -> None:
     if worker.job_process(job) is not None:
-        raise Conflict({"message": "The failed worker is still exiting. Wait before restarting or deleting this run."})
+        raise Conflict({"message": "The worker is still exiting. Wait before restarting or deleting this run."})
     ownership = directory / "processes.json"
     if ownership.exists() or ownership.is_symlink():
         try:
@@ -103,10 +103,10 @@ def restart_snapshots(store: Store, source: dict) -> tuple[bytes, bytes, dict, d
         raise Conflict({"message": "The original run snapshots are invalid. Prepare a new experiment from the saved idea instead."}) from None
 
 
-def delete_failed_job(store: Store, job_id: str) -> None:
+def delete_experiment_job(store: Store, job_id: str) -> None:
     """Quarantine under a DB claim, then remove files without blocking worker writes.
 
-    A failed cleanup leaves the failed job visible for retry. The durable request
+    A failed cleanup leaves the finished job visible for retry. The durable request
     tombstone prevents restart or late launch retries during and after deletion.
     """
     job_id = str(UUID(job_id))
@@ -123,8 +123,8 @@ def delete_failed_job(store: Store, job_id: str) -> None:
                     raise KeyError("Job not found")
                 if row is not None:
                     job = store.job_record(row)
-                    if job["kind"] != "experiment" or job["state"] != "failed":
-                        raise Conflict({"message": "Only failed experiments can be deleted."})
+                    if job["kind"] != "experiment" or job["state"] not in TERMINAL:
+                        raise Conflict({"message": "Only finished experiments can be deleted."})
                     directory, outputs = job_directories(store, job)
                     for source, target in ((directory, staging / "job"), (outputs, staging / "run")):
                         _owned_directory(target, store.root)

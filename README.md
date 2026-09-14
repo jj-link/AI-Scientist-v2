@@ -256,17 +256,19 @@ descendants after a ten-second cooperative grace period. There is no
 computational pause/resume or automatic research restart. On server restart,
 missing worker identities become **Interrupted**, not completed.
 
-Failed experiments have **Restart experiment** and **Delete failed run** controls
-on the experiment list and detail page. Both require confirmation. Restart creates
-a new job and output directory using the original proposal, model settings, and
-workload snapshots; current edits and partial checkpoints are not used. The old
+Finished experiments (**Stopped**, **Completed**, **Partial**, **Failed**, or
+**Interrupted**) have a **Delete run** control on the experiment list and detail
+page. Failed experiments also have **Restart experiment**. Both actions require
+confirmation. Restart creates a new job and output directory using the original
+proposal, model settings, and workload snapshots; current edits and partial
+checkpoints are not used. The old
 run stays available, and readiness is checked against the saved settings. Missing
 or invalid snapshots require preparing a new experiment from the saved idea.
 
 Delete permanently removes the selected run's outputs, snapshots, logs, events,
 and diagnostics, but preserves saved ideas, conversations, and other runs. It
 refuses deletion while owned processes, crash analysis, or unresolved issue
-publication remain. If filesystem cleanup fails, the failed run stays listed so
+publication remain. If filesystem cleanup fails, the run stays listed so
 deletion can be retried. Old Start or Restart requests cannot recreate a deleted
 run; repeated restart requests recover the same new job instead of launching twice.
 

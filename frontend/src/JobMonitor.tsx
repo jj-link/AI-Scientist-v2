@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import CrashAssistant from "./CrashAssistant";
-import FailedRunActions from "./FailedRunActions";
+import ExperimentRunActions from "./ExperimentRunActions";
 import {
   CheckCircle2,
   Circle,
@@ -293,7 +293,7 @@ export default function JobMonitor({
         </p>
       ) : null}
       <ErrorNotice error={actionError} />
-      <FailedRunActions key={job.id} job={job} />
+      <ExperimentRunActions key={job.id} job={job} />
       {job.error && (
         <div className="error-notice" role="alert">
           <div>

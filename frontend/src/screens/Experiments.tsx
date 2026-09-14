@@ -4,7 +4,7 @@ import { ArrowLeft, ArrowRight, FlaskConical } from "lucide-react";
 import { useApi, type Job } from "../api";
 import { ErrorNotice, PageHeading, Status } from "../components";
 import JobMonitor from "../JobMonitor";
-import FailedRunActions from "../FailedRunActions";
+import ExperimentRunActions from "../ExperimentRunActions";
 
 export default function Experiments() {
   const { jobId } = useParams();
@@ -107,7 +107,7 @@ export default function Experiments() {
                     <Link to={`/results/${job.run_id}`}>Saved outputs</Link>
                   )}
                 </div>
-                <FailedRunActions
+                <ExperimentRunActions
                   job={job}
                   onDeleted={() => {
                     setDeletedJobIds((current) => new Set(current).add(job.id));

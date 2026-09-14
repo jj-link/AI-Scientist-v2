@@ -25,7 +25,7 @@ from .configs import Configs, EditorConflict, InvalidConfiguration, assistant_se
 from .diagnostics import CrashAssistant, PublishUnknown, PublishUnavailable, REPOSITORY, sanitize_text
 from .idea_conversations import IdeaConversations
 from .schemas import IdeaConversationCreate, IdeaConversationDelete, IdeaConversationMessage, RoleProfileCreate, RoleProfileUpdate
-from .job_lifecycle import delete_failed_job, restart_snapshots
+from .job_lifecycle import delete_experiment_job, restart_snapshots
 from .schemas import AssistantSettingsUpdate, EndpointModelsRequest, ExperimentRequest, ExperimentRestart, ModelConfigUpdate, IdeaJobRequest, IdeaUpdate, IssueDraftUpdate, IssuePublish
 from .schemas import Request as ProviderAction
 from .store import Conflict, Store
@@ -352,10 +352,10 @@ def create_app(root: Path | None = None, *, development: bool = False) -> FastAP
     def delete_experiment(job_id: str, body: ProviderAction):
         with launch_lock, supervisor.lock:
             try:
-                delete_failed_job(store, job_id)
+                delete_experiment_job(store, job_id)
             except OSError:
-                logging.exception("Could not finish deleting failed run %s", job_id)
-                raise HTTPException(503, detail={"message": "Some run files could not be removed. Close programs using those files and retry Delete failed run."}) from None
+                logging.exception("Could not finish deleting experiment run %s", job_id)
+                raise HTTPException(503, detail={"message": "Some run files could not be removed. Close programs using those files and retry Delete."}) from None
             return {"deleted": True}
 
     @app.get("/api/jobs")

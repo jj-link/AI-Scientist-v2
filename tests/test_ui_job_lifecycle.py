@@ -1,4 +1,4 @@
-"""Failed-run lifecycle boundaries, using local snapshots and no experiment workers."""
+"""Experiment lifecycle boundaries, using local snapshots and no experiment workers."""
 import json
 from pathlib import Path
 import shutil
@@ -14,6 +14,7 @@ import yaml
 from ai_scientist import model_routing
 from ai_scientist.ui import model_settings
 from ai_scientist.ui.app import create_app
+from ai_scientist.ui.store import ACTIVE, TERMINAL
 from test_ui_config_probe import endpoint
 
 
@@ -169,7 +170,7 @@ class JobLifecycleTests(unittest.TestCase):
         self.assertEqual(response.status_code, 202, response.text)
         restarted = response.json()
         self.assertEqual(self.restart(source, retry).json(), restarted)
-        self.store.update_job(restarted["job_id"], state="failed")
+        self.store.update_job(restarted["job_id"], state="completed")
         self.assertEqual(self.restart(source, retry).json(), restarted)
         self.assertEqual(self.delete(source).json(), {"deleted": True})
         recovered = self.restart(source, retry)
@@ -258,17 +259,14 @@ class JobLifecycleTests(unittest.TestCase):
     def test_acknowledgement_and_failed_experiment_state_are_required(self):
         source = self.start(state="starting")
         self.assertEqual(self.restart(source).status_code, 409)
-        self.assertEqual(self.delete(source).status_code, 409)
         self.store.update_job(source["job_id"], state="stopped")
         self.assertEqual(self.restart(source).status_code, 409)
-        self.assertEqual(self.delete(source).status_code, 409)
         failed = self.start(body={**self.body, "request_id": str(uuid4())})
         self.assertEqual(self.restart(failed, {"request_id": str(uuid4()),
                                               "execution_acknowledged": False}).status_code, 422)
         idea_job = self.store.create_job("idea", str(uuid4()), {"research_question": "Fixture"})
         self.store.update_job(idea_job["id"], state="failed")
         self.assertEqual(self.restart({"job_id": idea_job["id"]}).status_code, 409)
-        self.assertEqual(self.delete({"job_id": idea_job["id"]}).status_code, 409)
         self.assertEqual(self.restart({"job_id": str(uuid4())}).status_code, 404)
         self.assertEqual(self.launch_worker.call_count, 2)
 
@@ -289,6 +287,52 @@ class JobLifecycleTests(unittest.TestCase):
         claimed = self.store.claim_diagnostic(owner)
         self.assertEqual(claimed["job_id"], source["job_id"])
         return source, owner
+
+    def test_delete_accepts_terminal_experiments_without_broadening_restart(self):
+        for state in TERMINAL:
+            with self.subTest(state=state):
+                source = self.start(state=state, body={**self.body, "request_id": str(uuid4())})
+                self.store.add_event(source["job_id"], state)
+                (self.run_dir(source) / "result.txt").write_text("finished output", encoding="utf-8")
+                if state != "failed":
+                    self.assertEqual(self.restart(source).status_code, 409)
+                response = self.delete(source)
+                self.assertEqual(response.status_code, 200, response.text)
+                self.assert_deleted(source)
+
+    def test_delete_rejects_active_and_unrecognized_states_without_removing_files(self):
+        for state in (*ACTIVE, "unavailable", "unknown"):
+            with self.subTest(state=state):
+                source = self.start(state="starting", body={**self.body, "request_id": str(uuid4())})
+                if state in ACTIVE:
+                    self.store.update_job(source["job_id"], state=state)
+                else:
+                    with self.store.connection() as db:
+                        db.execute("UPDATE jobs SET state=? WHERE id=?", (state, source["job_id"]))
+                snapshots = self.snapshots(source)
+                output = self.run_dir(source) / "result.txt"
+                output.write_bytes(b"retained output")
+                response = self.delete(source)
+                self.assertEqual(response.status_code, 409, response.text)
+                self.assertEqual(self.client.get(f"/api/jobs/{source['job_id']}").json()["state"], state)
+                self.assertEqual(self.snapshots(source), snapshots)
+                self.assertEqual(output.read_bytes(), b"retained output")
+                self.store.update_job(source["job_id"], state="stopped")
+
+    def test_delete_rejects_terminal_non_experiment_jobs(self):
+        source = self.store.create_job("idea", str(uuid4()), {"research_question": "Fixture"})
+        self.store.update_job(source["id"], state="failed")
+        self.store.add_event(source["id"], "failed", data={"code": "fixture_failure"})
+        directory = self.store.job_dir(source["id"])
+        directory.mkdir(parents=True)
+        output = directory / "technical.log"
+        output.write_bytes(b"retained idea log")
+        events = self.store.events(source["id"])
+        response = self.delete({"job_id": source["id"]})
+        self.assertEqual(response.status_code, 409, response.text)
+        self.assertEqual(self.client.get(f"/api/jobs/{source['id']}").json()["state"], "failed")
+        self.assertEqual(output.read_bytes(), b"retained idea log")
+        self.assertEqual(self.store.events(source["id"]), events)
 
     def test_delete_removes_only_owned_artifacts_and_preserves_idea_and_conversation(self):
         source, owner = self.diagnostic_source()
@@ -326,7 +370,7 @@ class JobLifecycleTests(unittest.TestCase):
         self.assertEqual(self.store.get_conversation(conversation["id"]), conversation_before)
 
     def test_delete_refuses_matching_worker_and_recorded_descendant_until_they_exit(self):
-        source = self.start(pid=987654321, process_created=1.0)
+        source = self.start(state="completed", pid=987654321, process_created=1.0)
         directory = self.store.job_dir(source["job_id"])
         child = {"pid": 987654322, "created": 2.0}
         (directory / "processes.json").write_text(json.dumps([child]), encoding="utf-8")

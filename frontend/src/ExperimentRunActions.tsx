@@ -5,7 +5,7 @@ import { mutate, type Job } from "./api";
 import { ErrorNotice } from "./components";
 import { useStudio } from "./studio";
 
-export default function FailedRunActions({
+export default function ExperimentRunActions({
   job,
   onDeleted,
 }: {
@@ -17,14 +17,21 @@ export default function FailedRunActions({
   const busy = useRef(false);
   const [pending, setPending] = useState<"restart" | "delete" | null>(null);
   const [error, setError] = useState<unknown>(null);
-  const eligible = job.kind === "experiment" && job.state === "failed";
+  const canRestart = job.kind === "experiment" && job.state === "failed";
+  const canDelete = job.kind === "experiment" && (
+    job.state === "stopped" ||
+    job.state === "completed" ||
+    job.state === "partial" ||
+    job.state === "failed" ||
+    job.state === "interrupted"
+  );
 
   async function act(action: "restart" | "delete") {
-    if (!eligible || busy.current) return;
+    if (busy.current || !(action === "restart" ? canRestart : canDelete)) return;
     const name = `${job.title || "Research experiment"} (${job.id})`;
     const confirmation = action === "restart"
       ? `Restart experiment "${name}"? This starts a fresh execution using the original saved study, model settings, and run settings—not your current edits. Old outputs are retained; no checkpoints are resumed. Model calls may incur costs. Generated Python runs with your account permissions and is not sandboxed. Continue?`
-      : `Permanently delete failed run "${name}"? Its run outputs, logs, job record, events, and diagnostics will be removed. The saved idea and conversation stay, and other runs are not deleted. This cannot be undone. Continue?`;
+      : `Permanently delete run "${name}"? Its run outputs, logs, job record, events, and diagnostics will be removed. Saved ideas and conversations stay, and other runs are not deleted. This cannot be undone. Continue?`;
     if (!window.confirm(confirmation)) return;
     busy.current = true;
     setPending(action);
@@ -68,28 +75,32 @@ export default function FailedRunActions({
     }
   }
 
-  if (!eligible) return null;
+  if (!canRestart && !canDelete) return null;
   return (
     <div>
       <div className="actions">
-        <button
-          className="button secondary"
-          type="button"
-          disabled={pending !== null}
-          onClick={() => void act("restart")}
-        >
-          <RotateCcw size={16} aria-hidden="true" />
-          {pending === "restart" ? "Restarting experiment…" : "Restart experiment"}
-        </button>
-        <button
-          className="button danger"
-          type="button"
-          disabled={pending !== null}
-          onClick={() => void act("delete")}
-        >
-          <Trash2 size={16} aria-hidden="true" />
-          {pending === "delete" ? "Deleting failed run…" : "Delete failed run"}
-        </button>
+        {canRestart && (
+          <button
+            className="button secondary"
+            type="button"
+            disabled={pending !== null}
+            onClick={() => void act("restart")}
+          >
+            <RotateCcw size={16} aria-hidden="true" />
+            {pending === "restart" ? "Restarting experiment…" : "Restart experiment"}
+          </button>
+        )}
+        {canDelete && (
+          <button
+            className="button danger"
+            type="button"
+            disabled={pending !== null}
+            onClick={() => void act("delete")}
+          >
+            <Trash2 size={16} aria-hidden="true" />
+            {pending === "delete" ? "Deleting run…" : "Delete run"}
+          </button>
+        )}
       </div>
       <ErrorNotice error={error} />
     </div>
