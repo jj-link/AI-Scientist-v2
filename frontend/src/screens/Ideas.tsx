@@ -59,10 +59,68 @@ function CompleteIdea({ idea }: { idea: Idea }) {
 }
 
 function SavedIdeaSummary({ record }: { record: IdeaRecord }) {
+  const { idea } = record;
+  const experiments = idea.Experiments == null ? [] : Array.isArray(idea.Experiments) ? idea.Experiments : [idea.Experiments];
+  const details = Object.entries(idea).filter(([field]) =>
+    !["Title", "Short Hypothesis", "Abstract", "Experiments", "Status", "Open Decisions"].includes(field)
+  );
   return (
-    <section className="card stack" aria-labelledby="saved-idea-heading">
+    <section className="card stack setup-study saved-idea-overview" aria-labelledby="saved-idea-heading">
       <div className="metadata" role="status">Saved · Revision {record.revision}</div>
       <h2 id="saved-idea-heading">{ideaTitle(record.idea)}</h2>
+      <section aria-labelledby="saved-hypothesis-heading">
+        <h3 id="saved-hypothesis-heading">Hypothesis</h3>
+        <div className="setup-hypothesis"><JsonText value={idea["Short Hypothesis"] ?? null} /></div>
+      </section>
+      {idea.Abstract != null && (
+        <section aria-labelledby="saved-overview-heading">
+          <h3 id="saved-overview-heading">Study overview</h3>
+          <JsonText value={idea.Abstract} />
+        </section>
+      )}
+      <section aria-labelledby="saved-comparisons-heading">
+        <h3 id="saved-comparisons-heading">Planned comparisons and procedures</h3>
+        {experiments.length === 0 && <p className="muted">No comparisons saved.</p>}
+        <div className="saved-idea-comparisons">
+          {experiments.map((experiment, index) => {
+            const fields = experiment && typeof experiment === "object" && !Array.isArray(experiment) ? experiment : null;
+            const titleField = fields && typeof fields.Title === "string" ? "Title" : fields && typeof fields.Name === "string" ? "Name" : null;
+            return (
+              <article className="setup-details" key={index}>
+                <h4>{fields && titleField ? String(fields[titleField]) : `Experiment ${index + 1}`}</h4>
+                {fields && fields.Question != null && (
+                  <div className="saved-idea-question"><JsonText value={fields.Question} /></div>
+                )}
+                <JsonText value={fields ? Object.fromEntries(Object.entries(fields).filter(([field]) =>
+                  field !== titleField && (field !== "Question" || fields.Question == null)
+                )) : experiment} />
+              </article>
+            );
+          })}
+        </div>
+      </section>
+      {(idea.Status != null || idea["Open Decisions"] != null) && (
+        <section className="notice" aria-labelledby="saved-status-heading">
+          <h3 id="saved-status-heading">Proposal status and open decisions</h3>
+          <CompleteIdea idea={Object.fromEntries(
+            ["Status", "Open Decisions"].filter((field) => idea[field] != null).map((field) => [field, idea[field]])
+          )} />
+        </section>
+      )}
+      {details.length > 0 && (
+        <section className="stack" aria-labelledby="saved-details-heading">
+          <div>
+            <h3 id="saved-details-heading">Study requirements and details</h3>
+            <p className="metadata">These come from the saved design, not a check of installed resources or completed results. Researcher role assignments are configured separately in experiment setup.</p>
+          </div>
+          {details.map(([field, value]) => (
+            <details className="setup-details" key={field}>
+              <summary>{field}</summary>
+              <JsonText value={value} />
+            </details>
+          ))}
+        </section>
+      )}
       {Object.keys(record.errors).length > 0 && (
         <div className="notice">
           <p>This saved idea does not yet contain a complete experiment plan.</p>
@@ -75,6 +133,9 @@ function SavedIdeaSummary({ record }: { record: IdeaRecord }) {
             Prepare experiment <ArrowRight size={16} aria-hidden="true" />
           </Link>
         )}
+        <a className="button secondary" href="#conversation-heading">
+          <MessageSquare size={16} aria-hidden="true" /> Discuss or refine
+        </a>
         {!record.errors.Name && (
           <a className="button secondary" href={`/api/ideas/${encodeURIComponent(record.id)}/export`} download>
             <Download size={16} aria-hidden="true" /> Export saved idea
@@ -367,12 +428,16 @@ export default function Ideas() {
   };
   return (
     <div className="stack">
-      <PageHeading eyebrow="Ideas" title="Develop an idea together">
-        <p>From a question to an approved research design, in one conversation.</p>
+      <PageHeading eyebrow="Ideas" title={record || ideaId ? "Review your saved research idea" : "Develop an idea together"}>
+        <p>{record || ideaId ? "Read the hypothesis, comparisons, requirements, and open decisions before preparing an experiment." : "From a question to an approved research design, in one conversation."}</p>
       </PageHeading>
       <div className="actions">
         <Link className="button secondary" to="/ideas"><Plus size={16} aria-hidden="true" /> New conversation</Link>
       </div>
+      <ErrorNotice error={approved.error} />
+      {Boolean(approved.error) && <button className="button secondary" type="button" onClick={approved.refresh}>Reload saved idea</button>}
+      {savedId && approved.loading && !record && <p role="status">Loading saved idea…</p>}
+      {record && <SavedIdeaSummary record={record} />}
       <div className="ideas-workspace">
         <nav className="card stack conversation-navigation" aria-labelledby="conversations-heading">
           <h2 id="conversations-heading">Conversations</h2>
@@ -380,7 +445,7 @@ export default function Ideas() {
           <ErrorNotice error={conversations.error} />
           {Boolean(conversations.error) && <button className="button secondary" type="button" onClick={conversations.refresh}>Reload conversations</button>}
           {conversations.loading && !conversations.data && <p role="status">Loading conversations…</p>}
-          {discussions?.length === 0 && <p className="muted">No new idea discussions. Use Refine idea below to reopen a saved discussion.</p>}
+          {discussions?.length === 0 && <p className="muted">No new idea discussions. Open a saved idea below to resume its discussion.</p>}
           <ul className="conversation-list">
             {discussions?.map((conversation) => (
               <li key={conversation.id}>
@@ -421,7 +486,7 @@ export default function Ideas() {
                     Prepare experiment <ArrowRight size={16} aria-hidden="true" />
                   </Link>
                 )}
-                <Link className="button secondary" to={`/ideas/${encodeURIComponent(item.id)}`}>Refine idea <ArrowRight size={16} aria-hidden="true" /></Link>
+                <Link className="button secondary" to={`/ideas/${encodeURIComponent(item.id)}`}>View idea <ArrowRight size={16} aria-hidden="true" /></Link>
               </div>
             </article>
           ))}

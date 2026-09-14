@@ -93,8 +93,13 @@ and presents the complete candidate for review. Approve it in the conversation;
 the agent saves exactly that candidate to the ideas backlog. There is no separate
 Save or Approve button, and a refinement request does not approve the previous
 candidate. Approved discussions leave the **Conversations** list but remain saved.
-Use **Refine idea** on a saved idea to reopen its existing discussion; further
-changes require another approval before replacing the saved artifact.
+Use **View idea** to read a saved revision's hypothesis, overview, comparisons,
+procedures, proposal status, and open decisions before the discussion controls.
+Expandable study details preserve the remaining fields, including nested runtime,
+benchmark, evaluation, and source requirements. They describe the saved design,
+not verified resources or completed results. **Discuss or refine** jumps to the
+idea's discussion; further changes require another approval before replacing the
+saved artifact.
 
 **New conversation** starts a separate discussion and keeps the old one.
 **Delete conversation** removes the current discussion, retrieved sources, pending

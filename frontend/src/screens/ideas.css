@@ -182,8 +182,31 @@
 .conversation-column h2 {
   overflow-wrap: anywhere;
 }
+.saved-idea-overview,
+.saved-idea-overview > section {
+  min-width: 0;
+}
+.saved-idea-overview h2 {
+  overflow-wrap: anywhere;
+}
+.saved-idea-comparisons {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+}
+.saved-idea-comparisons h4 {
+  margin: 0 0 12px;
+  font-size: 17px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.saved-idea-question {
+  margin-bottom: 16px;
+  font-weight: 600;
+}
 @media (max-width: 800px) {
-  .ideas-workspace {
+  .ideas-workspace,
+  .saved-idea-comparisons {
     grid-template-columns: minmax(0, 1fr);
   }
   .conversation-navigation {
@@ -221,7 +244,8 @@
 .setup-page strong {
   overflow-wrap: anywhere;
 }
-.setup-page .setup-study {
+.setup-page .setup-study,
+.saved-idea-overview {
   border-top: 4px solid var(--teal);
 }
 .setup-study h2 {
