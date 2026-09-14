@@ -552,6 +552,65 @@ def checked_command(control, argv, deadline, **kwargs):
     return out
 
 
+def _export_source_tree(source, image_path, commit, base, directory, control, deadline, env, exports):
+    """Verify each original Git tree before flattening its pinned submodules."""
+    number = len(exports)
+    record = {"path": str(PurePosixPath(image_path).relative_to("/testbed")), "commit": commit}
+    exports.append(record)
+    code, root, _, cut = docker_command(control, source, ["git", "-C", image_path, "rev-parse", "--show-toplevel"], deadline)
+    require(code == 0 and not cut and root.decode().strip() == image_path, "Pinned source repository is not initialized")
+    code, tree, _, cut = docker_command(control, source, ["git", "-C", image_path, "rev-parse", commit + "^{tree}"], deadline)
+    require(code == 0 and not cut and re.fullmatch(rb"[0-9a-f]{40}\n", tree), "Image does not contain exact source commit")
+    code, listing, _, cut = docker_command(control, source, ["git", "-C", image_path, "ls-tree", "-r", "-z", commit], deadline)
+    require(code == 0 and not cut, "Cannot enumerate pinned source tree")
+    links = []
+    for entry in listing.split(b"\0"):
+        if entry.startswith(b"160000 "):
+            metadata, name = entry.split(b"\t", 1)
+            fields = metadata.split()
+            path = PurePosixPath(name.decode("utf-8"))
+            require(len(fields) == 3 and fields[1] == b"commit" and re.fullmatch(rb"[0-9a-f]{40}", fields[2]), "Invalid Gitlink identity")
+            require(path.parts and not path.is_absolute() and ".." not in path.parts and ".git" not in path.parts, "Unsafe Gitlink path")
+            links.append((str(path), fields[2].decode()))
+    # Submodule .git entries are files; resolve their actual attributes path.
+    # This trusted disposable layer never becomes a model workspace.
+    attributes = 'cd "$1" && printf \'* -export-ignore -export-subst -filter -working-tree-encoding -text -eol -ident\\n\' > "$(git rev-parse --git-path info/attributes)"'
+    code, _, _, cut = docker_command(control, source, ["/bin/bash", "-c", attributes, "source-export", image_path], deadline)
+    require(code == 0 and not cut, "Cannot neutralize source export attributes")
+    archive = directory / ("base-source.tar" if number == 0 else f"submodule-source-{number:03d}.tar")
+    code, _, _, cut = docker_command(control, source, ["git", "-C", image_path, "archive", "--format=tar", commit], deadline, output_path=archive, limit=MAX_ARCHIVE)
+    require(code == 0 and not cut, "Exact-source archive failed")
+    extract_archive(archive, base)
+    require(not (base / ".git").exists() and not (base / ".git").is_symlink(), "Unexpected git metadata in source archive")
+    checked_command(control, ["git", "-C", str(base), "init", "--initial-branch=baseline"], deadline, env=env)
+    atomic(base / ".git/info/attributes", b"* -filter -working-tree-encoding -text -eol -ident\n")
+    # Detached maintenance must not mutate objects during archive or patch capture.
+    for args in (["config", "core.autocrlf", "false"], ["config", "gc.auto", "0"],
+                 ["config", "maintenance.auto", "false"], ["add", "--force", "--all"]):
+        checked_command(control, ["git", "-C", str(base), *args], deadline, env=env)
+    for path, child_commit in links:
+        checked_command(control, ["git", "-C", str(base), "update-index", "--add", "--cacheinfo", "160000", child_commit, path], deadline, env=env)
+    checked_command(control, ["git", "-C", str(base), "commit", "--allow-empty", "--no-gpg-sign", "-m", "Pristine source baseline"], deadline, env=env)
+    regenerated = checked_command(control, ["git", "-C", str(base), "rev-parse", "HEAD^{tree}"], deadline, env=env)
+    require(regenerated == tree, "Exported source tree does not exactly match pinned commit")
+    for path, child_commit in links:
+        child = base / path
+        if child.exists():
+            require(child.is_dir() and not child.is_symlink(), "Gitlink export is not an empty directory")
+            child.rmdir()
+        _export_source_tree(source, image_path + "/" + path, child_commit, child, directory, control, deadline, env, exports)
+        shutil.rmtree(child / ".git")
+        checked_command(control, ["git", "-C", str(base), "update-index", "--force-remove", "--", path], deadline, env=env)
+        checked_command(control, ["git", "-C", str(base), "add", "--force", "--all", "--", path], deadline, env=env)
+    if links:
+        checked_command(control, ["git", "-C", str(base), "commit", "--amend", "--allow-empty", "--no-edit", "--no-gpg-sign"], deadline, env=env)
+        regenerated = checked_command(control, ["git", "-C", str(base), "rev-parse", "HEAD^{tree}"], deadline, env=env)
+    record.update(tree=tree.decode().strip(), materialized_tree=regenerated.decode().strip(),
+                  baseline_commit=checked_command(control, ["git", "-C", str(base), "rev-parse", "HEAD"], deadline, env=env).decode().strip(),
+                  archive_sha256=file_digest(archive))
+    return record
+
+
 def snapshot(protocol, row, directory, control):
     image_check(control.client, row)
     source = control.client.containers.create(row["image_id"], read_only=False, **container_options(protocol, control.execution_id))
@@ -559,29 +618,14 @@ def snapshot(protocol, row, directory, control):
     source.start()
     deadline = time.monotonic() + 180
     try:
-        code, tree, err, cut = docker_command(control, source, ["git", "-C", "/testbed", "rev-parse", row["base_commit"] + "^{tree}"], deadline)
-        require(code == 0 and not cut and re.fullmatch(rb"[0-9a-f]{40}\n", tree), "Image does not contain exact base commit")
-        code, listing, _, cut = docker_command(control, source, ["git", "-C", "/testbed", "ls-tree", "-r", row["base_commit"]], deadline)
-        require(code == 0 and not cut and not re.search(rb"(?m)^160000 ", listing), "Submodules require an explicitly pinned source export")
-        # Highest-precedence attributes disable archive substitution/omission.
-        # This trusted disposable layer never becomes a model workspace.
-        code, _, err, _ = docker_command(control, source, ["/bin/bash", "-c", "printf '* -export-ignore -export-subst\\n' > /testbed/.git/info/attributes"], deadline)
-        require(code == 0, "Cannot neutralize source export attributes")
-        archive = directory / "base-source.tar"
-        code, _, err, _ = docker_command(control, source, ["git", "-C", "/testbed", "archive", "--format=tar", row["base_commit"]], deadline, output_path=archive, limit=MAX_ARCHIVE)
-        require(code == 0, "Exact-base archive failed")
         base = directory / "base"
-        extract_archive(archive, base)
-        require(not (base / ".git").exists(), "Unexpected git metadata in source archive")
         env = dict(os.environ, GIT_CONFIG_NOSYSTEM="1", GIT_CONFIG_GLOBAL="/dev/null", GIT_AUTHOR_NAME="Frozen baseline", GIT_AUTHOR_EMAIL="baseline@invalid", GIT_COMMITTER_NAME="Frozen baseline", GIT_COMMITTER_EMAIL="baseline@invalid", GIT_AUTHOR_DATE="2000-01-01T00:00:00Z", GIT_COMMITTER_DATE="2000-01-01T00:00:00Z")
-        checked_command(control, ["git", "-C", str(base), "init", "--initial-branch=baseline"], deadline, env=env)
-        atomic(base / ".git/info/attributes", b"* -filter -working-tree-encoding -text -eol -ident\n")
-        for args in (["config", "core.autocrlf", "false"], ["add", "--force", "--all"], ["commit", "--no-gpg-sign", "-m", "Pristine source baseline"]):
-            checked_command(control, ["git", "-C", str(base), *args], deadline, env=env)
-        regenerated = checked_command(control, ["git", "-C", str(base), "rev-parse", "HEAD^{tree}"], deadline, env=env)
-        require(regenerated == tree, "Exported source tree does not exactly match base commit")
-        baseline_commit = checked_command(control, ["git", "-C", str(base), "rev-parse", "HEAD"], deadline, env=env).decode().strip()
-        save(directory / "source-identity.json", {"instance_id": row["instance_id"], "base_commit": row["base_commit"], "tree": tree.decode().strip(), "baseline_commit": baseline_commit, "image_id": row["image_id"], "archive_sha256": file_digest(archive)})
+        exports = []
+        root = _export_source_tree(source, "/testbed", row["base_commit"], base, directory, control, deadline, env, exports)
+        save(directory / "source-identity.json", {"instance_id": row["instance_id"], "base_commit": row["base_commit"],
+             "tree": root["tree"], "materialized_tree": root["materialized_tree"],
+             "baseline_commit": root["baseline_commit"], "image_id": row["image_id"],
+             "archive_sha256": root["archive_sha256"], "submodules": exports[1:]})
         upload = directory / "pristine.tar"
         with tarfile.open(upload, "w|", dereference=False) as tar:
             def ownership(info):
