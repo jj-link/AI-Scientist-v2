@@ -163,6 +163,14 @@ def _messages(messages):
             items.append({"type": "function_call_output", "call_id": _text(message.get("tool_call_id")), "output": output})
         else:
             raise _bad("Unsupported Codex message role.")
+    if not items:
+        if not any(text.strip() for text in instructions):
+            raise _bad("Codex requires message content.")
+        # Responses requires input even for an instruction-only Chat request.
+        # Keep the task at instruction priority instead of moving it to user text.
+        items.append({"role": "user", "content": [
+            {"type": "input_text", "text": "Respond according to the instructions."}
+        ]})
     return "\n\n".join(instructions) or "You are a helpful assistant.", items
 
 

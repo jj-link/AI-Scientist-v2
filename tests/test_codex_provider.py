@@ -49,6 +49,30 @@ class CodexProviderTests(unittest.TestCase):
         self.addCleanup(client.close)
         return client
 
+    def test_instruction_only_history_satisfies_responses_input_requirement(self):
+        def respond(request):
+            body = json.loads(request.content)
+            if not body.get("input"):
+                return httpx.Response(400, json={"error": {
+                    "message": "One of input or previous_response_id must be provided."
+                }})
+            self.assertEqual(body["instructions"], "Use supplied measurements.\n\nReport limitations.")
+            return sse(event("response.completed", terminal("Recorded analysis")))
+
+        client = self.client(respond)
+        completion = client.chat.completions.create(**request_options(messages=[
+            {"role": "system", "content": "Use supplied measurements."},
+            {"role": "developer", "content": "Report limitations."},
+        ]))
+        self.assertEqual(completion.choices[0].message.content, "Recorded analysis")
+
+    def test_empty_instruction_history_does_not_invent_a_request(self):
+        client = self.client(lambda _: sse(event("response.completed", terminal("Invented request"))))
+        with self.assertRaises(openai.BadRequestError):
+            client.chat.completions.create(**request_options(messages=[
+                {"role": "system", "content": "  "},
+            ]))
+
     def test_text_and_reasoning_separation_with_usage(self):
         result = terminal(output=[
             {"type": "reasoning", "summary": [{"text": "private thought"}]},
