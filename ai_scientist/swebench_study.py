@@ -1279,7 +1279,9 @@ def evaluate_child(protocol_path, trial_path):
     report = result[1]
     save(Path(trial_path) / "official-report.json", report)
     observation = report[trial["instance_id"]]
-    require(not observation.get("infra_failure"), "Official evaluator reports infrastructure failure")
+    # SWE-bench's infra flags are advisory, not a change to its denominator.
+    # Keep the official verdict and unmodified report; controller exceptions
+    # still abort above instead of being converted into negative model results.
     require(isinstance(observation.get("resolved"), bool), "Official resolved result missing")
     save(Path(trial_path) / "evaluation-result.json", {"status": "resolved" if observation["resolved"] else "unresolved", "resolved": observation["resolved"]})
 
