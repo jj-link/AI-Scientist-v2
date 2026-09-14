@@ -223,14 +223,51 @@ class CodexProviderTests(unittest.TestCase):
             self.assertEqual(request.headers["chatgpt-account-id"], "fixture-account")
             self.assertEqual(request.headers["originator"], "ai-scientist")
             return httpx.Response(200, json={"models": [
-                {"slug": "account-only-model", "supported_in_api": False, "visibility": "list"},
+                {"slug": "account-only-model", "supported_in_api": False, "visibility": "list",
+                 "default_reasoning_level": "low", "supported_reasoning_levels": [
+                     {"effort": "low", "description": "Fast responses"},
+                     {"effort": "ultra", "description": "Automatic task delegation"},
+                     {"effort": "ultra", "description": "Duplicate is ignored"},
+                     {"effort": "future-level", "description": "Unknown effort"},
+                     {"effort": "max", "description": None}, None]},
                 {"slug": "other", "supported_in_api": True, "visibility": "hide"},
+                {"slug": "account-only-model", "supported_reasoning_levels": []},
+                {"slug": "no-overrides", "supported_reasoning_levels": [], "default_reasoning_level": "unknown"},
+                {"slug": "malformed-metadata", "supported_reasoning_levels": "high"},
             ]})
-        self.assertEqual(list_models(auth=Auth(), transport=httpx.MockTransport(respond)), ["account-only-model", "other"])
+        self.assertEqual(list_models(auth=Auth(), transport=httpx.MockTransport(respond)), [
+            {"id": "account-only-model", "reasoning": {"levels": [
+                {"effort": "low", "description": "Fast responses"},
+                {"effort": "ultra", "description": "Automatic task delegation"}], "default": "low"}},
+            {"id": "other", "reasoning": None},
+            {"id": "no-overrides", "reasoning": {"levels": [], "default": None}},
+            {"id": "malformed-metadata", "reasoning": None},
+        ])
         self.assertEqual(list_models(auth=Auth(), transport=httpx.MockTransport(
             lambda _: httpx.Response(200, json={"models": []}))), [])
-        with self.assertRaises(openai.APIError):
-            list_models(auth=Auth(), transport=httpx.MockTransport(lambda _: httpx.Response(200, json={"data": []})))
+        with self.assertRaises(openai.APIError) as caught:
+            list_models(auth=Auth(), transport=httpx.MockTransport(
+                lambda _: httpx.Response(200, json={"models": [{"slug": "valid"}, {"slug": None}],
+                                                  "private": "fixture-bearer-secret"})))
+        self.assertNotIn("fixture-bearer-secret", str(caught.exception))
+        self.assertNotIn("authorization", caught.exception.request.headers)
+        self.assertIsNone(caught.exception.body)
+
+    def test_reasoning_override_and_provider_default_remain_distinct(self):
+        requests = []
+        def respond(request):
+            requests.append(json.loads(request.content))
+            return sse(event("response.completed", terminal()))
+        client = self.client(respond)
+        client.chat.completions.create(**request_options(reasoning_effort="ultra"))
+        client.chat.completions.create(**request_options(reasoning_effort="max"))
+        client.chat.completions.create(**request_options(reasoning_effort=None))
+        self.assertEqual(requests[0]["reasoning"], {"effort": "ultra"})
+        self.assertEqual(requests[1]["reasoning"], {"effort": "max"})
+        self.assertNotIn("reasoning", requests[2])
+        with self.assertRaises(openai.BadRequestError):
+            client.chat.completions.create(**request_options(reasoning_effort="disabled"))
+        self.assertEqual(len(requests), 3)
 
 
 class BlockingStream(httpx.AsyncByteStream):

@@ -165,12 +165,15 @@ retries the listing. These are explicit, bounded requests against the selected
 server, not generation requests. A failed or empty listing preserves the current
 assignment. **Advanced** accepts a custom model ID and token, temperature,
 reasoning-effort, timeout, and credential-environment overrides. **Reasoning effort**
-offers **Provider default**, **Disabled**, **Low**, **Medium**, and **High**.
+offers **Provider default**, **Disabled**, **Low**, **Medium**, and **High** for
+OpenAI-compatible endpoints. For Codex, discovery supplies the selected model's
+advertised levels, default, and descriptions instead of a fixed list.
 Provider default omits the per-role setting; Disabled sends `reasoning_effort: "none"`.
 Use only values supported by the selected provider and model. Other blank overrides
 inherit the endpoint or the calling task's settings.
-Changing a role's endpoint clears its model selection. Choose a model for the new
-endpoint before saving; discovery does not automatically assign one.
+Changing a role's endpoint clears its model selection and resets reasoning to
+Provider default; changing its model also resets reasoning. Choose a model for the
+new endpoint before saving; discovery does not automatically assign one.
 Role cards identify each task with plain-language titles and its exact
 `role/<name>` key. Unassigned tasks remain visible so they can be configured. The
 role chooses a model and settings, not a separate agent or a
@@ -227,10 +230,15 @@ The supplied `ais_roles.yaml` preset includes an unassigned `codex` endpoint wit
 your account's actual catalog. Choose a model and **Save configuration** to
 change routing; signing in alone changes no role assignments. Codex uses the
 fixed `https://chatgpt.com/backend-api/codex` service, not an editable base URL
-or API key. Token caps, sampling, and reasoning are provider-managed: selecting
-Codex clears token, temperature, reasoning-effort, and credential overrides in the
-draft and disables those fields. Explicit YAML overrides are rejected; ordinary
-caller token/sampling defaults are not forwarded. Request timeouts remain configurable.
+or API key. Token caps and sampling are provider-managed: selecting Codex clears
+token, temperature, and credential overrides in the draft and disables those fields.
+Explicit YAML overrides for those settings are rejected; ordinary caller
+token/sampling defaults are not forwarded. Request timeouts remain configurable.
+Reasoning effort is configurable per role in **Advanced** after model discovery.
+Only that model's advertised levels are offered, alongside **Provider default**;
+the advertised default and selected level's description are displayed. Missing
+metadata does not invent choices or silently replace a saved setting. Profiles and
+frozen experiment assignments retain explicit reasoning choices.
 
 Tool availability is checked in the server's inherited environment, not across
 the whole PC. On Windows, an already-open terminal, IDE, or service manager can

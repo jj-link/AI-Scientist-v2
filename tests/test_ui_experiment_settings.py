@@ -291,12 +291,16 @@ class ExperimentSettingsTests(unittest.TestCase):
         selected_url = self.enterContext(endpoint("selected-model"))
         model_settings.save_settings_atomic(self.root, {
             "selected": {"api_format": "openai", "address": selected_url,
-                         "capabilities": ["text", "vision"], "timeout": 88.25}}, {})
+                         "capabilities": ["text", "vision"], "timeout": 88.25},
+            "codex": {"api_format": "openai-codex", "capabilities": ["text", "vision"]}}, {})
         self.body["model_settings_revision"] = self.client.get("/api/models/editor").json()["revision"]
         for role in self.body["role_assignments"].values():
             role.update(endpoint="selected", model="selected-model", temperature=0.375,
                         timeout=19.25, max_tokens=512)
-        self.body["role_assignments"]["experiment_code"]["reasoning_effort"] = "none"
+        self.body["role_assignments"]["experiment_code"].update(
+            endpoint="codex", model="account-model", max_tokens=None, temperature=None, reasoning_effort="ultra")
+        self.enterContext(patch("ai_scientist.codex_provider.list_models", return_value=[
+            {"id": "account-model", "reasoning": None}]))
         defaults = self.app.state.store.current_settings()
 
         def change_defaults_during_readiness():
@@ -312,14 +316,19 @@ class ExperimentSettingsTests(unittest.TestCase):
         snapshot = json.loads(original)
         self.assertEqual(snapshot["endpoints"]["selected"]["base_url"], selected_url)
         for name, role in snapshot["roles"].items():
-            self.assertEqual(role["model"], "selected-model")
             self.assertEqual(role["timeout"], 19.25)
-            self.assertEqual(role["temperature"], 0.375)
-            self.assertEqual(role["max_tokens"], 512)
+            if name == "experiment_code":
+                self.assertEqual(role["model"], "account-model")
+                self.assertNotIn("temperature", role)
+                self.assertNotIn("max_tokens", role)
+            else:
+                self.assertEqual(role["model"], "selected-model")
+                self.assertEqual(role["temperature"], 0.375)
+                self.assertEqual(role["max_tokens"], 512)
             self.assertNotIn("api_key_env", role)
             self.assertEqual(role["requires"], defaults["roles"][name]["requires"])
             if name == "experiment_code":
-                self.assertEqual(role["reasoning_effort"], "none")
+                self.assertEqual(role["reasoning_effort"], "ultra")
             else:
                 self.assertNotIn("reasoning_effort", role)
         self.assertEqual(self.app.state.store.current_settings()["roles"], defaults["roles"])

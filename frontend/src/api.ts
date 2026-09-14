@@ -222,9 +222,14 @@ export interface EndpointModels {
   checked_at: string;
   ok: boolean;
   models: string[];
+  reasoning: Record<string, ModelReasoning>;
   error: string | null;
 }
-export type ReasoningEffort = "none" | "low" | "medium" | "high";
+export type ReasoningEffort = "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+export interface ModelReasoning {
+  levels: { effort: ReasoningEffort; description: string }[];
+  default: ReasoningEffort | null;
+}
 export interface ModelConfigEditorRole {
   endpoint: string | null;
   model: string | null;

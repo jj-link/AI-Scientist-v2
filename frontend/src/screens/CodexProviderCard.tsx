@@ -76,9 +76,11 @@ export default function CodexProviderCard({ onAuthChange }: { onAuthChange: () =
         vault, outside YAML and browser storage.
       </p>
       <p className="muted">
-        Sign in, choose the Codex endpoint for a role, then detect models and save
-        the assignment. Codex manages output-token limits, sampling, and reasoning effort; selecting
-        it clears unsupported token, temperature, reasoning-effort, and API-key overrides in your draft.
+        Sign in, choose the Codex endpoint for a role, then detect models to choose
+        a model and its reasoning effort in Advanced before saving the assignment.
+        Codex manages output-token limits, sampling, and ChatGPT credentials; selecting
+        it clears unsupported token, temperature, and API-key overrides in your draft.
+        Changing the endpoint or model resets reasoning to Provider default.
       </p>
       </details>
       <ErrorNotice error={error || status.error} />

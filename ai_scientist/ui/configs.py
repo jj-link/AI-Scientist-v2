@@ -327,9 +327,9 @@ class Configs:
                 errors.append({"field": f"roles.{name}.model", "message": "Select a model for this server.", "code": "required"})
             server = servers[endpoint]
             if server.get("provider", "openai") == model_routing.CODEX_PROVIDER:
-                for field in ("max_tokens", "temperature", "reasoning_effort", "api_key_env"):
+                for field in ("max_tokens", "temperature", "api_key_env"):
                     if task.get(field) is not None:
-                        errors.append({"field": f"roles.{name}.{field}", "message": "Codex manages token limits, sampling, reasoning, and ChatGPT credentials. Clear this override.", "code": "managed_by_provider"})
+                        errors.append({"field": f"roles.{name}.{field}", "message": "Codex manages token limits, sampling, and ChatGPT credentials. Clear this override.", "code": "managed_by_provider"})
             if set(_strings(task.get("requires"))) - set(_strings(server.get("provides"))):
                 errors.append({"field": f"roles.{name}", "message": "The selected server does not declare a required capability.", "code": "capability_mismatch"})
         return final
@@ -492,7 +492,7 @@ class Configs:
                 errors.append({"field": field, "message": "Model identifier is required.", "code": "required"})
         elif kind == "reasoning_effort":
             if value not in model_routing.REASONING_EFFORTS:
-                errors.append({"field": field, "message": "Reasoning effort must be none, low, medium, or high.", "code": "invalid_reasoning_effort"})
+                errors.append({"field": field, "message": "Unsupported reasoning effort.", "code": "invalid_reasoning_effort"})
         elif kind == "tokens":
             if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
                 errors.append({"field": field, "message": "Output token limit must be a positive whole number.", "code": "invalid_number"})
@@ -511,17 +511,29 @@ class Configs:
         endpoints, _ = self._settings_dicts()
         if endpoint not in endpoints:
             raise KeyError("Unknown server.")
-        row = next(row for row in self.models()["endpoints"] if row["id"] == endpoint)
+        view = self.models()
+        row = next(row for row in view["endpoints"] if row["id"] == endpoint)
+        credential_rows = view["endpoints"] + view["roles"]
         result = {"endpoint": endpoint, "checked_at": _now(),
-                  "ok": False, "models": [], "error": None}
+                  "ok": False, "models": [], "reasoning": {}, "error": None}
         try:
-            available = model_routing.list_endpoint_models(endpoint, {"endpoints": endpoints}, timeout=_PROBE_TIMEOUT)
-            names = _strings(available)
-            secrets = {os.environ.get(row["credential"]["env"], "") for row in self.models()["endpoints"] + self.models()["roles"]
+            catalog = []
+            if model_routing.endpoint_provider(endpoints[endpoint]) == model_routing.CODEX_PROVIDER:
+                from ai_scientist.codex_provider import list_models
+                catalog = list_models(timeout=_PROBE_TIMEOUT)
+                names = [entry["id"] for entry in catalog]
+            else:
+                names = _strings(model_routing.list_endpoint_models(
+                    endpoint, {"endpoints": endpoints}, timeout=_PROBE_TIMEOUT))
+            secrets = {os.environ.get(row["credential"]["env"], "") for row in credential_rows
                        if row["credential"]["env"]}
             result["models"] = list(dict.fromkeys(
                 name for name in names if name.strip() and not any(secret and secret in name for secret in secrets)
             ))
+            result["reasoning"] = {
+                entry["id"]: _scrub_credentials(entry["reasoning"], credential_rows) for entry in catalog
+                if entry["id"] in result["models"] and entry["reasoning"] is not None
+            }
             result["ok"] = True
         except Exception:
             # SDK exception strings may contain authorization headers or raw URLs.

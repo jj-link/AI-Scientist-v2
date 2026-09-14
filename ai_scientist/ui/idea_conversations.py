@@ -350,7 +350,8 @@ class IdeaConversations:
                                  api_key=os.environ.get(assignment["api_key_env"] or "") or "unused",
                                  timeout=assignment["timeout"], max_retries=0)
         options = {key: assignment[key] for key in ("max_tokens", "temperature", "reasoning_effort")
-                   if assignment.get(key) is not None and assignment["provider"] != "openai-codex"}
+                   if assignment.get(key) is not None
+                   and (key == "reasoning_effort" or assignment["provider"] != "openai-codex")}
         try:
             async with asyncio.timeout(assignment["timeout"]):
                 response_format = {"type": "json_object"}

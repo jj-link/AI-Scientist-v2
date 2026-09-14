@@ -34,8 +34,10 @@ class RoleProfileTests(EditorBase):
     def test_roundtrip_and_overwrite_are_persistent_without_default_mutation_or_probes(self):
         self.roles["ideation"].update(model="draft-model", temperature=0.375, timeout=12.5,
                                        max_tokens=513, api_key_env="DRAFT_MODEL_KEY")
+        self.roles["custom_task"].update(endpoint="codex", model="account-model", reasoning_effort="ultra")
         defaults = model_settings.current_settings(self.root)
         with patch.object(model_routing, "list_endpoint_models", side_effect=AssertionError("must not probe")), \
+                patch("ai_scientist.codex_provider.list_models", side_effect=AssertionError("must not probe")), \
                 patch.object(model_routing, "create_selfhosted_client", side_effect=AssertionError("must not infer")):
             response = self.create(name="  Research draft  ")
             self.assertEqual(response.status_code, 201, response.text)
@@ -103,8 +105,7 @@ class RoleProfileTests(EditorBase):
         incomplete = deepcopy(self.roles)
         del incomplete["ideation"]["timeout"]
         self.assertEqual(self.create(roles=incomplete).status_code, 422)
-        for key, value in (("max_tokens", 100), ("temperature", 0.5),
-                           ("reasoning_effort", "none"), ("api_key_env", "CODEX_KEY")):
+        for key, value in (("max_tokens", 100), ("temperature", 0.5), ("api_key_env", "CODEX_KEY")):
             assignments = deepcopy(self.roles)
             assignments["ideation"].update(endpoint="codex", **{key: value})
             self.assertEqual(self.create(roles=assignments).status_code, 422)

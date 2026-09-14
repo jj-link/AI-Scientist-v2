@@ -295,14 +295,14 @@ def test_endpoint_settings_rejects_legacy_strings(role_cfg):
         model_routing.endpoint_settings("gpt-4o-2024-11-20")
 
 
-@pytest.mark.parametrize("provider,effort", [("openai", "disabled"), ("openai-codex", "none")])
-def test_invalid_reasoning_override_fails_before_client_creation(role_cfg, monkeypatch, provider, effort):
+@pytest.mark.parametrize("provider", ["openai", "openai-codex"])
+def test_invalid_reasoning_override_fails_before_client_creation(role_cfg, monkeypatch, provider):
     import openai
 
     cfg = json.loads(role_cfg.read_text(encoding="utf-8"))
     cfg["endpoints"]["local"] = {"provider": provider, "provides": ["text"]}
     cfg["roles"]["citation"] = {"endpoint": "local", "model": "small-model",
-                                "reasoning_effort": effort}
+                                "reasoning_effort": "disabled"}
     role_cfg.write_text(json.dumps(cfg), encoding="utf-8")
 
     def unexpected_client(*args, **kwargs):

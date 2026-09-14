@@ -421,6 +421,7 @@ class EditorApiTests(EditorBase):
                 self.assertEqual(result["endpoint"], "alpha")
                 self.assertTrue(result["ok"], result["error"])
                 self.assertEqual(result["models"], ["alpha-model"])
+                self.assertEqual(result["reasoning"], {})
                 configs = Configs(self.root)
                 direct = configs.endpoint_models("beta")
                 self.assertTrue(direct["ok"], direct["error"])
@@ -428,8 +429,8 @@ class EditorApiTests(EditorBase):
                 failed = configs.endpoint_models("broken")
                 self.assertFalse(failed["ok"])
                 self.assertEqual(failed["models"], [])
-                self.assertEqual(failed["error"],
-                                 "Model listing failed. Check the server, credentials, and availability.")
+                self.assertEqual(failed["reasoning"], {})
+                self.assertTrue(failed["error"])
                 with self.assertRaises(KeyError):
                     configs.endpoint_models("ghost")
                 with self.make_client() as client:

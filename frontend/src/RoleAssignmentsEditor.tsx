@@ -3,11 +3,13 @@ import { ChevronDown, RefreshCw } from "lucide-react";
 import {
   discoverEndpointModels,
   type Credential,
+  type EndpointModels,
   type ModelConfigEditor,
   type ModelConfigEditorEndpoint,
   type ModelConfigEditorRole,
   type ModelEndpointPatch,
   type ModelsView,
+  type ReasoningEffort,
 } from "./api";
 import { ROLE_HELP, CUSTOM_ROLE_HELP } from "./components";
 import { validReasoningEffort } from "./roleAssignments";
@@ -21,10 +23,22 @@ type FieldErrors = Record<string, { message: string; code?: string }>;
 interface ModelDiscovery {
   status: "idle" | "loading" | "ok" | "error";
   models: string[];
+  reasoning: EndpointModels["reasoning"];
   error: string | null;
 }
 
 const CUSTOM_MODEL_HINT = "Enter the model ID exactly as served by the endpoint.";
+const REASONING_LABELS: Record<ReasoningEffort, string> = {
+  none: "Disabled",
+  minimal: "Minimal",
+  low: "Low",
+  medium: "Medium",
+  high: "High",
+  xhigh: "Extra high",
+  max: "Max",
+  ultra: "Ultra",
+};
+const COMMON_REASONING_EFFORTS: ReasoningEffort[] = ["none", "low", "medium", "high"];
 
 function fieldValue(value: number | string | null): string {
   return value === null ? "" : String(value);
@@ -85,9 +99,6 @@ export default function RoleAssignmentsEditor({
     }
     if (!validReasoningEffort(role.reasoning_effort)) {
       fieldErrors[`roles.${name}.reasoning_effort`] = { message: "Choose a supported reasoning effort or Provider default." };
-    } else if (role.reasoning_effort !== null &&
-      endpointDrafts[role.endpoint ?? ""]?.provider === "openai-codex") {
-      fieldErrors[`roles.${name}.reasoning_effort`] = { message: "Codex manages reasoning effort. Select another endpoint to edit this override, or reselect Codex to clear managed overrides." };
     }
   }
   useEffect(() => {
@@ -116,7 +127,7 @@ export default function RoleAssignmentsEditor({
     discoveryRequests.current.set(endpoint, controller);
     setDiscoveries((current) => ({
       ...current,
-      [endpoint]: { status: "loading", models: [], error: null },
+      [endpoint]: { status: "loading", models: [], reasoning: {}, error: null },
     }));
     try {
       const result = await discoverEndpointModels(endpoint, controller.signal);
@@ -126,6 +137,7 @@ export default function RoleAssignmentsEditor({
         [endpoint]: {
           status: result.ok ? "ok" : "error",
           models: result.ok ? [...new Set(result.models)] : [],
+          reasoning: result.ok ? result.reasoning : {},
           error: result.error,
         },
       }));
@@ -133,7 +145,7 @@ export default function RoleAssignmentsEditor({
       if (controller.signal.aborted) return;
       setDiscoveries((current) => ({
         ...current,
-        [endpoint]: { status: "error", models: [], error: "Model listing failed. Retry or enter a model ID in Advanced." },
+        [endpoint]: { status: "error", models: [], reasoning: {}, error: "Model listing failed. Retry or enter a model ID in Advanced." },
       }));
     } finally {
       if (discoveryRequests.current.get(endpoint) === controller)
@@ -164,6 +176,22 @@ export default function RoleAssignmentsEditor({
                    connection.api_key_env !== originalConnection.api_key_env ||
                    connection.timeout !== originalConnection.timeout));
                 const listedModels = connectionDirty ? [] : discovery?.models ?? [];
+                const reasoning = codex && !connectionDirty && draft.model
+                  ? discovery?.reasoning[draft.model]
+                  : undefined;
+                const reasoningEfforts = codex
+                  ? reasoning?.levels.map((level) => level.effort) ?? []
+                  : COMMON_REASONING_EFFORTS;
+                const unlistedReasoning = draft.reasoning_effort != null &&
+                  !reasoningEfforts.includes(draft.reasoning_effort);
+                const selectedReasoning = reasoning?.levels.find(
+                  (level) => level.effort === (draft.reasoning_effort ?? reasoning.default),
+                );
+                const changeModel = (next: string | null) => {
+                  if ((draft.model ?? null) !== next) {
+                    setRole(name, { model: next, reasoning_effort: null });
+                  }
+                };
                 const describedBy = (field: string) =>
                   [
                     (["max_tokens", "temperature", "reasoning_effort", "timeout", "api_key_env"].includes(field)
@@ -218,8 +246,8 @@ export default function RoleAssignmentsEditor({
                             if ((draft.endpoint ?? null) !== next) {
                               const codex = endpointDrafts[next ?? ""]?.provider === "openai-codex";
                               setRole(name, {
-                                endpoint: next, model: null,
-                                ...(codex ? { max_tokens: null, temperature: null, reasoning_effort: null, api_key_env: null } : {}),
+                                endpoint: next, model: null, reasoning_effort: null,
+                                ...(codex ? { max_tokens: null, temperature: null, api_key_env: null } : {}),
                               });
                             }
                           }}
@@ -258,7 +286,7 @@ export default function RoleAssignmentsEditor({
                         <select
                           id={roleId("model")}
                           value={draft.model ?? ""}
-                          onChange={(event) => setRole(name, { model: event.target.value || null })}
+                          onChange={(event) => changeModel(event.target.value || null)}
                           aria-invalid={!!fieldErrors[`roles.${name}.model`]}
                           aria-describedby={describedBy("model")}
                         >
@@ -349,13 +377,13 @@ export default function RoleAssignmentsEditor({
                         <input
                           id={roleId("custom-model")}
                           value={draft.model ?? ""}
-                          onChange={(event) => setRole(name, { model: event.target.value || null })}
+                          onChange={(event) => changeModel(event.target.value || null)}
                           aria-invalid={!!fieldErrors[`roles.${name}.model`]}
                           aria-describedby={[roleId("custom-model-hint"), describedBy("model")].filter(Boolean).join(" ")}
                         />
                         <small className="muted" id={roleId("custom-model-hint")}>{CUSTOM_MODEL_HINT}</small>
                       </div>
-                      {codex && <p className="notice">Codex manages output-token limits, sampling, reasoning effort, and ChatGPT credentials. These overrides are cleared when selecting Codex; timeout still applies.</p>}
+                      {codex && <p className="notice">Reasoning effort is selectable for Codex. Output-token limits, sampling, and ChatGPT credentials remain managed; selecting Codex clears those unsupported overrides. Changing the endpoint or model resets reasoning to Provider default; timeout still applies.</p>}
                       <div className="field-row">
                         <div
                           className="field"
@@ -454,7 +482,6 @@ export default function RoleAssignmentsEditor({
                           <label htmlFor={roleId("reasoning_effort")}>Reasoning effort</label>
                           <select
                             id={roleId("reasoning_effort")}
-                            disabled={codex}
                             value={draft.reasoning_effort ?? ""}
                             onChange={(event) => {
                               const value = event.target.value || null;
@@ -463,14 +490,43 @@ export default function RoleAssignmentsEditor({
                             aria-invalid={!!fieldErrors[`roles.${name}.reasoning_effort`]}
                             aria-describedby={describedBy("reasoning_effort")}
                           >
-                            <option value="">Provider default</option>
-                            <option value="none">Disabled</option>
-                            <option value="low">Low</option>
-                            <option value="medium">Medium</option>
-                            <option value="high">High</option>
+                            <option value="">
+                              Provider default{reasoning?.default ? ` (${REASONING_LABELS[reasoning.default]})` : ""}
+                            </option>
+                            {unlistedReasoning && draft.reasoning_effort != null && (
+                              <option value={draft.reasoning_effort}>
+                                {REASONING_LABELS[draft.reasoning_effort] ?? draft.reasoning_effort}
+                                {codex
+                                  ? reasoning ? " (current, not advertised)" : " (current, unverified)"
+                                  : " (current)"}
+                              </option>
+                            )}
+                            {reasoningEfforts.map((effort) => (
+                              <option key={effort} value={effort}>{REASONING_LABELS[effort]}</option>
+                            ))}
                           </select>
                           <small className="muted" id={roleId("reasoning_effort-hint")}>
-                            {codex ? "Managed by Codex." : "Requires provider/model support. Disabled requests no reasoning; Provider default sends no override."}
+                            {codex ? (
+                              <>
+                                {!reasoning
+                                  ? connectionDirty
+                                    ? "Save endpoint changes, then use Detect models to discover reasoning levels."
+                                    : discovery?.status === "ok"
+                                      ? "No reasoning metadata was advertised for this model. Use Refresh models to check again."
+                                      : "Use Detect models (or Refresh models) to discover this model's reasoning levels."
+                                  : reasoning.levels.length === 0
+                                    ? "This model explicitly advertises no selectable reasoning levels."
+                                    : "Choose a reasoning level advertised by this model."}
+                                {" "}Provider default sends no override.
+                                {reasoning && (reasoning.default
+                                  ? ` The advertised default is ${REASONING_LABELS[reasoning.default]}.`
+                                  : " No default reasoning level was advertised.")}
+                                {unlistedReasoning && (reasoning
+                                  ? " Your current choice is not advertised and has been preserved. Choose an advertised level or Provider default to replace it."
+                                  : " Your current choice is preserved but cannot be verified until reasoning metadata is available.")}
+                                {selectedReasoning?.description && <>{" "}{selectedReasoning.description}</>}
+                              </>
+                            ) : "Requires provider/model support. Disabled requests no reasoning; Provider default sends no override."}
                           </small>
                           {fieldErrors[`roles.${name}.reasoning_effort`] && (
                             <p className="field-error" role="alert" id={errorId("reasoning_effort")}>

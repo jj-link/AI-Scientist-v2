@@ -26,6 +26,7 @@ import openai
 from openai.types.chat import ChatCompletion
 
 from ai_scientist.codex_auth import CodexAuthError, get_auth
+from ai_scientist.model_routing import REASONING_EFFORTS
 
 CODEX_BASE_URL = "https://chatgpt.com/backend-api/codex"
 # Codex gates catalog entries by this negotiated client version.
@@ -217,7 +218,7 @@ def _body(kwargs):
         body["parallel_tool_calls"] = parallel
     effort = options.pop("reasoning_effort", None)
     if effort is not None:
-        if effort not in ("none", "minimal", "low", "medium", "high", "xhigh"):
+        if effort not in REASONING_EFFORTS:
             raise _bad("Unsupported Codex reasoning effort.")
         body["reasoning"] = {"effort": effort}
     response_format = options.pop("response_format", None)
@@ -455,7 +456,25 @@ class CodexAsyncClient:
         await self._http.aclose()
 
 
-def list_models(timeout=5, auth=None, *, transport=None) -> list[str]:
+def _model_reasoning(model: dict) -> dict | None:
+    advertised = model.get("supported_reasoning_levels")
+    if not isinstance(advertised, list):
+        return None
+    levels = []
+    seen = set()
+    for level in advertised:
+        if not isinstance(level, dict):
+            continue
+        effort, description = level.get("effort"), level.get("description")
+        if effort not in REASONING_EFFORTS or not isinstance(description, str) or effort in seen:
+            continue
+        seen.add(effort)
+        levels.append({"effort": effort, "description": description})
+    default = model.get("default_reasoning_level")
+    return {"levels": levels, "default": default if default in REASONING_EFFORTS else None}
+
+
+def list_models(timeout=5, auth=None, *, transport=None) -> list[dict]:
     """Fetch this account's real model catalog; never substitute a static list."""
     timeout = _seconds(timeout)
     headers = _headers(auth if auth is not None else get_auth(), stream=False)
@@ -471,7 +490,11 @@ def list_models(timeout=5, auth=None, *, transport=None) -> list[str]:
                     for item in models
                 ):
                     raise ValueError
-                return list(dict.fromkeys(item["slug"] for item in models))
+                catalog = {}
+                for item in models:
+                    if item["slug"] not in catalog:
+                        catalog[item["slug"]] = {"id": item["slug"], "reasoning": _model_reasoning(item)}
+                return list(catalog.values())
             except (ValueError, KeyError, TypeError):
                 raise _error("Codex returned an invalid model catalog.") from None
     except httpx.TimeoutException:

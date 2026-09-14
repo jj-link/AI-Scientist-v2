@@ -26,7 +26,7 @@ import os
 import threading
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal, get_args
 
 import sqlite3
 
@@ -40,7 +40,8 @@ CBORG_PROVIDER = "cborg"
 CBORG_BASE_URL = "https://api.cborg.lbl.gov/v1"
 CBORG_API_KEY_ENV = "CBORG_API_KEY"
 ENDPOINT_PROVIDERS = ("openai", CODEX_PROVIDER, CBORG_PROVIDER)
-REASONING_EFFORTS = ("none", "low", "medium", "high")
+ReasoningEffort = Literal["none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"]
+REASONING_EFFORTS = get_args(ReasoningEffort)
 
 
 def endpoint_provider(endpoint: dict) -> str:
@@ -72,11 +73,11 @@ def endpoint_api_key_env(endpoint: dict) -> str | None:
 def validate_provider_settings(endpoint: dict, settings: dict) -> None:
     effort = settings.get("reasoning_effort")
     if effort is not None and effort not in REASONING_EFFORTS:
-        raise RoleConfigError("Reasoning effort must be none, low, medium, or high.")
+        raise RoleConfigError("Unsupported reasoning effort.")
     if endpoint_provider(endpoint) == CODEX_PROVIDER and any(
-        settings.get(key) is not None for key in ("max_tokens", "temperature", "reasoning_effort", "api_key_env")
+        settings.get(key) is not None for key in ("max_tokens", "temperature", "api_key_env")
     ):
-        raise RoleConfigError("Codex roles use managed token limits, sampling, reasoning, and ChatGPT credentials; remove those overrides.")
+        raise RoleConfigError("Codex roles use managed token limits, sampling, and ChatGPT credentials; remove those overrides.")
 
 REQUEST_LOG_ENV = "AI_SCIENTIST_REQUEST_LOG"
 DEFAULT_REQUEST_LOG = os.path.join("logs", "model_requests.jsonl")
@@ -384,7 +385,8 @@ def list_endpoint_models(
     endpoint = endpoints[endpoint_name] or {}
     if endpoint_provider(endpoint) == CODEX_PROVIDER:
         from .codex_provider import list_models
-        return list_models(timeout=timeout if timeout is not None else DEFAULT_ENDPOINT_TIMEOUT)
+        return [entry["id"] for entry in list_models(
+            timeout=timeout if timeout is not None else DEFAULT_ENDPOINT_TIMEOUT)]
     base_url = endpoint_base_url(endpoint)
     if not base_url:
         raise RoleConfigError(f"Endpoint {endpoint_name!r} has no 'base_url'.")

@@ -11,8 +11,9 @@ const emptyAssignment: RoleAssignment = {
 };
 
 export function validReasoningEffort(value: unknown): value is ReasoningEffort | null {
-  return value === null || value === "none" || value === "low" ||
-    value === "medium" || value === "high";
+  return value === null || value === "none" || value === "minimal" ||
+    value === "low" || value === "medium" || value === "high" ||
+    value === "xhigh" || value === "max" || value === "ultra";
 }
 
 export function serializeRoleAssignments(
@@ -46,7 +47,7 @@ export function validRoleAssignments(
     if (role.api_key_env !== null && !/^[A-Za-z_][A-Za-z0-9_]*$/.test(role.api_key_env)) return false;
     return endpoints[role.endpoint].provider !== "openai-codex" ||
       (role.max_tokens === null && role.temperature === null &&
-        role.reasoning_effort === null && role.api_key_env === null);
+        role.api_key_env === null);
   });
 }
 

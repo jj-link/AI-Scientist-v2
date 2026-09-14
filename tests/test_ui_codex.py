@@ -45,23 +45,82 @@ class CodexStudioTests(EditorBase):
             self.assertIn("managed_by_provider",
                           {error["code"] for error in rejected.json()["detail"]["errors"]})
             self.assertEqual(client.get("/api/models/editor").json(), before)
-            body["roles"]["ideation"].update(max_tokens=None, temperature=None, api_key_env=None)
+            body["roles"]["ideation"].update(max_tokens=None, temperature=None, api_key_env=None,
+                                             reasoning_effort="ultra")
             accepted = client.patch("/api/models/editor", json=body, headers=headers)
             self.assertEqual(accepted.status_code, 200, accepted.text)
             snapshot = app.state.configs.diagnostic_assignment("ideation")
             self.assertEqual(snapshot["provider"], "openai-codex")
             self.assertIsNone(snapshot["max_tokens"])
             self.assertIsNone(snapshot["temperature"])
+            self.assertEqual(snapshot["reasoning_effort"], "ultra")
             after = accepted.json()
             back = client.patch("/api/models/editor", headers=headers, json={
                 "expected_revision": after["revision"],
-                "roles": {"ideation": {"endpoint": "alpha", "model": "m1"}}})
+                "roles": {"ideation": {"endpoint": "alpha", "model": "m1", "reasoning_effort": None}}})
             self.assertEqual(back.status_code, 200, back.text)
             self.assertEqual(snapshot["provider"], "openai-codex")
             self.assertEqual(snapshot["model"], "account-model")
+            self.assertEqual(snapshot["reasoning_effort"], "ultra")
         saved = model_settings.current_settings(self.root)
         self.assertIsNone(saved["endpoints"]["codex"]["base_url"])
         self.assertNotIn("max_tokens", saved["roles"]["ideation"])
+
+    def test_codex_discovery_is_account_scoped_and_scrubs_reasoning_metadata(self):
+        self.seed({"alpha": alpha_server(), "codex": {
+            "api_format": "openai-codex", "capabilities": ["text"]}},
+            {"ideation": {"server": "codex", "model": "account-model"}})
+        auth = self.connected_auth()
+        requests = []
+        fail = False
+
+        def upstream(request):
+            requests.append(request)
+            self.assertEqual(request.method, "GET")
+            self.assertEqual(str(request.url).split("?")[0], codex_provider.CODEX_BASE_URL + "/models")
+            self.assertEqual(request.headers["authorization"], "Bearer " + access_token())
+            if fail:
+                return httpx.Response(503, text="configured-private-value")
+            return httpx.Response(200, json={"models": [
+                {"slug": "account-model", "default_reasoning_level": "low",
+                 "supported_reasoning_levels": [
+                     {"effort": "low", "description": "Fast responses"},
+                     {"effort": "ultra", "description": "Delegation configured-private-value"}]},
+                {"slug": "unknown-metadata"},
+                {"slug": "no-overrides", "supported_reasoning_levels": []},
+                {"slug": "configured-private-value", "supported_reasoning_levels": []},
+            ]})
+
+        sync_type = httpx.Client
+        with self.make_client() as client:
+            headers = self.editor_headers(client)
+            before = client.get("/api/models/editor").json()
+            with patch.dict(os.environ, {"ALPHA_KEY": "configured-private-value"}), \
+                    patch.object(codex_provider, "get_auth", return_value=auth), \
+                    patch("httpx.Client", side_effect=lambda **kwargs: sync_type(
+                        **{**kwargs, "transport": httpx.MockTransport(upstream)})):
+                response = client.post("/api/models/endpoint-models", headers=headers, json={"endpoint": "codex"})
+                self.assertEqual(response.status_code, 200, response.text)
+                result = response.json()
+                self.assertTrue(result["ok"], result["error"])
+                self.assertEqual(len(requests), 1)
+                self.assertEqual(result["models"], ["account-model", "unknown-metadata", "no-overrides"])
+                self.assertEqual(result["reasoning"], {
+                    "account-model": {"levels": [
+                        {"effort": "low", "description": "Fast responses"},
+                        {"effort": "ultra", "description": "Delegation [redacted]"}], "default": "low"},
+                    "no-overrides": {"levels": [], "default": None},
+                })
+                self.assertNotIn("configured-private-value", response.text)
+                self.assertEqual(model_routing.list_endpoint_models("codex"), [
+                    "account-model", "unknown-metadata", "no-overrides", "configured-private-value"])
+                fail = True
+                failed = client.post("/api/models/endpoint-models", headers=headers, json={"endpoint": "codex"})
+                self.assertFalse(failed.json()["ok"])
+                self.assertEqual(failed.json()["models"], [])
+                self.assertEqual(failed.json()["reasoning"], {})
+                self.assertNotIn("configured-private-value", failed.text)
+            self.assertEqual(client.get("/api/models/editor").json(), before)
 
     def test_codex_cannot_redirect_oauth_credentials_through_endpoint_edits(self):
         self.seed({"alpha": alpha_server(), "codex": {
