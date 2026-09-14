@@ -7,6 +7,7 @@ from ai_scientist.vlm import (
     get_response_from_vlm,
     get_batch_responses_from_vlm,
     extract_json_between_markers,
+    make_vlm_call,
 )
 
 from ai_scientist.perform_llm_review import load_paper
@@ -430,10 +431,12 @@ def detect_duplicate_figures(client, client_model, pdf_path):
         )
 
     try:
-        response = client.chat.completions.create(
-            model=client_model,
-            messages=messages,
-            max_tokens=1000,
+        response = make_vlm_call(
+            client,
+            client_model,
+            0.7,
+            system_message=messages[0]["content"],
+            prompt=messages[1:],
         )
 
         analysis = response.choices[0].message.content

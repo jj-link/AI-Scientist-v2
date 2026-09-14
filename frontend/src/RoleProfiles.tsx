@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { RefreshCw, Save } from "lucide-react";
 import { ApiError, mutate, useApi, type ModelConfigEditorRole, type RoleAssignments, type RoleProfile } from "./api";
 import { ErrorNotice } from "./components";
-import { serializeRoleAssignments } from "./roleAssignments";
+import { serializeRoleAssignments, validReasoningEffort } from "./roleAssignments";
 
 export default function RoleProfiles({ roles, onLoad, showSave, disabled = false, saveDisabled = false }: {
   roles: Record<string, ModelConfigEditorRole>;
@@ -35,6 +35,7 @@ export default function RoleProfiles({ roles, onLoad, showSave, disabled = false
     !positive(role.timeout) ||
     (role.temperature !== null && (typeof role.temperature !== "number" ||
       !Number.isFinite(role.temperature) || role.temperature < 0 || role.temperature > 2)) ||
+    !validReasoningEffort(role.reasoning_effort) ||
     (role.api_key_env !== null && !/^[A-Za-z_][A-Za-z0-9_]*$/.test(role.api_key_env)));
   const issues = error instanceof ApiError && Array.isArray(error.detail.errors)
     ? error.detail.errors.filter((issue): issue is { field: string; message: string } =>

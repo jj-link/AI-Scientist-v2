@@ -10,6 +10,7 @@ import {
   type ModelsView,
 } from "./api";
 import { ROLE_HELP, CUSTOM_ROLE_HELP } from "./components";
+import { validReasoningEffort } from "./roleAssignments";
 
 type EndpointDraft = ModelEndpointPatch & {
   provider: ModelConfigEditorEndpoint["provider"];
@@ -81,6 +82,12 @@ export default function RoleAssignmentsEditor({
     }
     if (role.endpoint && !Object.hasOwn(endpointDrafts, role.endpoint)) {
       fieldErrors[`roles.${name}.endpoint`] = { message: `Endpoint "${role.endpoint}" is unavailable. Select a configured endpoint.` };
+    }
+    if (!validReasoningEffort(role.reasoning_effort)) {
+      fieldErrors[`roles.${name}.reasoning_effort`] = { message: "Choose a supported reasoning effort or Provider default." };
+    } else if (role.reasoning_effort !== null &&
+      endpointDrafts[role.endpoint ?? ""]?.provider === "openai-codex") {
+      fieldErrors[`roles.${name}.reasoning_effort`] = { message: "Codex manages reasoning effort. Select another endpoint to edit this override, or reselect Codex to clear managed overrides." };
     }
   }
   useEffect(() => {
@@ -159,14 +166,14 @@ export default function RoleAssignmentsEditor({
                 const listedModels = connectionDirty ? [] : discovery?.models ?? [];
                 const describedBy = (field: string) =>
                   [
-                    (["max_tokens", "temperature", "timeout", "api_key_env"].includes(field)
+                    (["max_tokens", "temperature", "reasoning_effort", "timeout", "api_key_env"].includes(field)
                       ? roleId(`${field}-hint`)
                       : null),
                     fieldErrors[`roles.${name}.${field}`] ? errorId(field) : null,
                   ]
                     .filter(Boolean)
                     .join(" ") || undefined;
-                const advancedOpen = expandedRoles.includes(name);
+                const advancedOpen = expandedRoles.includes(name) || !!fieldErrors[`roles.${name}.reasoning_effort`];
                 return (
                   <fieldset
                     key={name}
@@ -212,7 +219,7 @@ export default function RoleAssignmentsEditor({
                               const codex = endpointDrafts[next ?? ""]?.provider === "openai-codex";
                               setRole(name, {
                                 endpoint: next, model: null,
-                                ...(codex ? { max_tokens: null, temperature: null, api_key_env: null } : {}),
+                                ...(codex ? { max_tokens: null, temperature: null, reasoning_effort: null, api_key_env: null } : {}),
                               });
                             }
                           }}
@@ -348,7 +355,7 @@ export default function RoleAssignmentsEditor({
                         />
                         <small className="muted" id={roleId("custom-model-hint")}>{CUSTOM_MODEL_HINT}</small>
                       </div>
-                      {codex && <p className="notice">Codex manages output-token limits, sampling, and ChatGPT credentials. These overrides are cleared when selecting Codex; timeout still applies.</p>}
+                      {codex && <p className="notice">Codex manages output-token limits, sampling, reasoning effort, and ChatGPT credentials. These overrides are cleared when selecting Codex; timeout still applies.</p>}
                       <div className="field-row">
                         <div
                           className="field"
@@ -437,6 +444,37 @@ export default function RoleAssignmentsEditor({
                                 fieldErrors[`roles.${name}.temperature`]
                                   .message
                               }
+                            </p>
+                          )}
+                        </div>
+                        <div
+                          className="field"
+                          data-changed={draft.reasoning_effort !== original.reasoning_effort}
+                        >
+                          <label htmlFor={roleId("reasoning_effort")}>Reasoning effort</label>
+                          <select
+                            id={roleId("reasoning_effort")}
+                            disabled={codex}
+                            value={draft.reasoning_effort ?? ""}
+                            onChange={(event) => {
+                              const value = event.target.value || null;
+                              if (validReasoningEffort(value)) setRole(name, { reasoning_effort: value });
+                            }}
+                            aria-invalid={!!fieldErrors[`roles.${name}.reasoning_effort`]}
+                            aria-describedby={describedBy("reasoning_effort")}
+                          >
+                            <option value="">Provider default</option>
+                            <option value="none">Disabled</option>
+                            <option value="low">Low</option>
+                            <option value="medium">Medium</option>
+                            <option value="high">High</option>
+                          </select>
+                          <small className="muted" id={roleId("reasoning_effort-hint")}>
+                            {codex ? "Managed by Codex." : "Requires provider/model support. Disabled requests no reasoning; Provider default sends no override."}
+                          </small>
+                          {fieldErrors[`roles.${name}.reasoning_effort`] && (
+                            <p className="field-error" role="alert" id={errorId("reasoning_effort")}>
+                              {fieldErrors[`roles.${name}.reasoning_effort`].message}
                             </p>
                           )}
                         </div>

@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import {
   artifactUrl,
+  isActive,
   useApi,
   type Artifact,
   type Json,
@@ -162,10 +163,11 @@ function PaperPanel({ run }: { run: RunDetail }) {
   if (!run.papers.length)
     return (
       <div className="card empty-state">
-        <h2>Paper not available</h2>
+        <h2>{isActive(run.state) ? "Paper not saved yet" : "No final paper available"}</h2>
         <p>
-          No saved PDF was found in this run. Other available outputs can still
-          be viewed.
+          {isActive(run.state)
+            ? "A paper has not been saved yet. Working images and other outputs can appear while the run continues."
+            : "No saved PDF was found. Any partial outputs remain available here; they do not establish a completed paper."}
         </p>
       </div>
     );
@@ -235,18 +237,71 @@ function PaperPanel({ run }: { run: RunDetail }) {
   );
 }
 
+function SavedImage({
+  runId,
+  artifact,
+  enlarged = false,
+}: {
+  runId: string;
+  artifact: Artifact;
+  enlarged?: boolean;
+}) {
+  const [attempt, setAttempt] = useState(0);
+  const [loaded, setLoaded] = useState("");
+  const [failed, setFailed] = useState("");
+  const src = `${artifactUrl(runId, artifact.id)}?version=${encodeURIComponent(`${artifact.updated_at}:${artifact.size}`)}&attempt=${attempt}`;
+  const unavailable = failed === src;
+  return (
+    <span className={`results-image-preview${enlarged ? " results-image-preview-large" : ""}`}>
+      {!unavailable && (
+        <img
+          className={enlarged ? "results-enlarged" : undefined}
+          src={src}
+          alt={artifact.name}
+          loading={enlarged ? "eager" : "lazy"}
+          onLoad={() => setLoaded(src)}
+          onError={() => setFailed(src)}
+        />
+      )}
+      {(unavailable || loaded !== src) && (
+        <span className="results-image-state">
+          {unavailable
+            ? "Preview unavailable. The saved file may still be changing."
+            : "Loading saved image…"}
+          {unavailable && enlarged && (
+            <button className="button secondary" onClick={() => setAttempt((value) => value + 1)}>
+              Retry preview
+            </button>
+          )}
+        </span>
+      )}
+    </span>
+  );
+}
+
+function ImageProvenance({ artifact }: { artifact: Artifact }) {
+  return (
+    <div className="metadata results-image-provenance">
+      <span className="results-path">Source: {artifact.relative_path}</span>
+      <span>File updated: {savedTime(artifact.updated_at)}</span>
+    </div>
+  );
+}
+
 function FigureDialog({
   runId,
   figures,
   selectedId,
   onSelect,
   onClose,
+  working = false,
 }: {
   runId: string;
   figures: Artifact[];
   selectedId: string;
   onSelect: (id: string) => void;
   onClose: () => void;
+  working?: boolean;
 }) {
   const dialog = useRef<HTMLDivElement>(null);
   const closeButton = useRef<HTMLButtonElement>(null);
@@ -335,7 +390,7 @@ function FigureDialog({
       >
         <div className="card-header">
           <h2 id="figure-dialog-title">
-            {figure?.name || "Figure no longer available"}
+            {figure?.name || "Image no longer available"}
           </h2>
           <button
             ref={closeButton}
@@ -347,16 +402,16 @@ function FigureDialog({
           </button>
         </div>
         <p id="figure-dialog-help" className="metadata">
+          {working ? "Working image · Intermediate output, not a final figure or verified finding. " : ""}
           Use Left and Right arrows to browse. Escape closes the enlarged view.
         </p>
         {figure ? (
-          <img
-            className="results-enlarged"
-            src={artifactUrl(runId, figure.id)}
-            alt={figure.name}
-          />
+          <>
+            <SavedImage runId={runId} artifact={figure} enlarged />
+            <ImageProvenance artifact={figure} />
+          </>
         ) : (
-          <p>The saved figure is no longer in the current manifest.</p>
+          <p>The saved image is no longer in the current manifest.</p>
         )}
         <div className="results-lightbox-actions">
           <button
@@ -370,7 +425,7 @@ function FigureDialog({
           <span role="status">
             {index >= 0
               ? `${index + 1} of ${figures.length}`
-              : `${figures.length} figures`}
+              : `${figures.length} images`}
           </span>
           <button
             className="button secondary"
@@ -384,13 +439,93 @@ function FigureDialog({
             <DownloadLink
               runId={runId}
               artifact={figure}
-              label="Download figure"
+              label={working ? "Download working image" : "Download figure"}
             />
           )}
         </div>
       </div>
     </div>,
     document.body,
+  );
+}
+
+function WorkingImagesPanel({ run }: { run: RunDetail }) {
+  const finalIds = new Set(run.figures.map((figure) => figure.id));
+  const images = run.artifacts.filter(
+    (artifact) => artifact.kind === "image" && !finalIds.has(artifact.id),
+  );
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const close = useCallback(() => setSelectedId(null), []);
+  const latest = images.reduce<Artifact | undefined>(
+    (newest, image) => !newest || image.updated_at > newest.updated_at ? image : newest,
+    undefined,
+  );
+  return (
+    <section className="card results-working-images" aria-labelledby="working-images-heading">
+      <div className="results-working-copy">
+        <h2 id="working-images-heading">
+          Working images <span className="badge">{images.length}</span>
+        </h2>
+        <p className="muted">
+          Intermediate files saved during the run, separate from final figures.
+          They may be incomplete and are not verified findings.
+        </p>
+        {latest ? (
+          <>
+            <p className="metadata">Most recently updated: {latest.name}</p>
+            <ImageProvenance artifact={latest} />
+            <div className="actions">
+              <button className="button secondary" onClick={() => setSelectedId(latest.id)}>
+                <Images size={16} aria-hidden="true" />
+                Inspect working images ({images.length})
+              </button>
+              <DownloadLink runId={run.id} artifact={latest} label="Download this image" />
+            </div>
+          </>
+        ) : (
+          <p className="metadata">
+            {isActive(run.state)
+              ? "No working images saved yet. This view updates as files become available."
+              : "No working images were saved in this run."}
+          </p>
+        )}
+      </div>
+      {latest && (
+        <button
+          className="results-figure-open results-working-preview"
+          onClick={() => setSelectedId(latest.id)}
+          aria-label={`Inspect working image: ${latest.name}`}
+        >
+          <SavedImage runId={run.id} artifact={latest} />
+        </button>
+      )}
+      {images.length > 0 && (
+        <details className="advanced results-working-sources">
+          <summary>Browse saved image files ({images.length})</summary>
+          <ul className="results-sources">
+            {images.map((image) => (
+              <li key={image.id}>
+                <button className="button secondary" onClick={() => setSelectedId(image.id)}>
+                  Inspect {image.name}
+                </button>
+                <ImageProvenance artifact={image} />
+                <DownloadLink runId={run.id} artifact={image} label="Download image" />
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+      {selectedId && (
+        <FigureDialog
+          runId={run.id}
+          figures={images}
+          selectedId={selectedId}
+          onSelect={setSelectedId}
+          onClose={close}
+          working
+        />
+      )}
+    </section>
   );
 }
 
@@ -401,17 +536,17 @@ function FiguresPanel({ run }: { run: RunDetail }) {
     <section className="stack" aria-labelledby="figures-heading">
       <div>
         <h2 id="figures-heading">
-          Figures <span className="badge">{run.figures.length}</span>
+          Final figures <span className="badge">{run.figures.length}</span>
         </h2>
         <p className="muted">
-          All saved figures in the artifact directory. They do not necessarily
-          all appear in the paper.
+          Saved figure artifacts, separate from working images. They do not
+          necessarily all appear in the paper or establish verified findings.
         </p>
       </div>
       {!run.figures.length && (
         <div className="card empty-state">
-          <h3>Figures not available</h3>
-          <p>No saved PNG or JPEG figures were found.</p>
+          <h3>{isActive(run.state) ? "Final figures not saved yet" : "No final figures available"}</h3>
+          <p>Intermediate files, when saved, appear in Working images.</p>
         </div>
       )}
       <div className="figure-grid">
@@ -422,14 +557,11 @@ function FiguresPanel({ run }: { run: RunDetail }) {
               onClick={() => setSelectedId(figure.id)}
               aria-label={`Enlarge ${figure.name}`}
             >
-              <img
-                src={artifactUrl(run.id, figure.id)}
-                alt={figure.name}
-                loading="lazy"
-              />
+              <SavedImage runId={run.id} artifact={figure} />
             </button>
             <figcaption>
               <span>{figure.name}</span>
+              <ImageProvenance artifact={figure} />
               <DownloadLink
                 runId={run.id}
                 artifact={figure}
@@ -509,8 +641,8 @@ function ReviewsPanel({ run }: { run: RunDetail }) {
         ))
       ) : (
         <div className="card empty-state">
-          <h3>Reviews not available</h3>
-          <p>No saved paper or figure review was found.</p>
+          <h3>{isActive(run.state) ? "Reviews not saved yet" : "Reviews not available"}</h3>
+          <p>No saved paper or figure review {isActive(run.state) ? "is available yet" : "was found"}.</p>
         </div>
       )}
     </section>
@@ -791,6 +923,12 @@ function ResultDetail({ runId }: { runId: string }) {
               Refresh outputs
             </button>
           </div>
+          {!run.historical && ["failed", "stopped", "interrupted"].includes(run.state) && (
+            <p className="notice">
+              {run.state === "failed" ? "This run failed." : run.state === "stopped" ? "This run was stopped." : "This run was interrupted."}
+              {" "}Saved partial outputs are retained for inspection, not evidence of a completed experiment.
+            </p>
+          )}
           {run.historical && (
             <p className="notice">
               Historical run · Read-only. Saved artifacts do not establish
@@ -799,7 +937,7 @@ function ResultDetail({ runId }: { runId: string }) {
           )}
           {run.missing_outputs.length > 0 && (
             <p className="muted">
-              Not available: {run.missing_outputs.join(", ")}.
+              {isActive(run.state) ? "Not saved yet" : "Not available"}: {run.missing_outputs.join(", ")}.
             </p>
           )}
           <nav
@@ -822,6 +960,7 @@ function ResultDetail({ runId }: { runId: string }) {
               </button>
             ))}
           </nav>
+          <WorkingImagesPanel run={run} />
           <div className="results-panel">
             {panel === "paper" && <PaperPanel run={run} />}
             {panel === "figures" && <FiguresPanel run={run} />}

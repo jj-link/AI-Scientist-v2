@@ -96,6 +96,7 @@ class RoleAssignment(Request):
     model: str | None
     max_tokens: int | None = Field(strict=True, gt=0)
     temperature: float | None = Field(strict=True, ge=0, le=2, allow_inf_nan=False)
+    reasoning_effort: Literal["none", "low", "medium", "high"] | None
     timeout: float | None = Field(strict=True, gt=0, allow_inf_nan=False)
     api_key_env: str | None
 
@@ -236,6 +237,7 @@ class ModelRolePatch(Request):
     model: str | None = None
     max_tokens: int | None = Field(default=None, strict=True)
     temperature: float | None = Field(default=None, strict=True, allow_inf_nan=False)
+    reasoning_effort: Literal["none", "low", "medium", "high"] | None = None
     timeout: float | None = Field(default=None, strict=True, allow_inf_nan=False)
     api_key_env: str | None = None
 

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import CrashAssistant from "./CrashAssistant";
 import FailedRunActions from "./FailedRunActions";
@@ -8,7 +8,6 @@ import {
   Clock3,
   Download,
   ExternalLink,
-  LoaderCircle,
   Square,
 } from "lucide-react";
 import {
@@ -17,7 +16,6 @@ import {
   isActive,
   mutate,
   request,
-  useApi,
   type Job,
   type JobEvent,
   type RunDetail,
@@ -62,6 +60,30 @@ const eventLabels: Record<string, string> = {
   partial: "Usable proposals saved; some attempts failed",
 };
 
+function ElapsedTime({ job }: { job: Job }) {
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    if (!isActive(job.state)) return;
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [job.id, job.state]);
+  const seconds = Math.max(
+    0,
+    Math.floor(
+      ((job.finished_at ? Date.parse(job.finished_at) : isActive(job.state) ? now : Date.parse(job.updated_at)) -
+        Date.parse(job.started_at || job.created_at)) / 1000,
+    ),
+  );
+  return (
+    <span>
+      <Clock3 size={15} aria-hidden="true" />{" "}
+      {seconds >= 3600
+        ? `${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}m`
+        : `${Math.floor(seconds / 60)}m ${seconds % 60}s`} elapsed
+    </span>
+  );
+}
+
 export default function JobMonitor({
   jobId,
   compact = false,
@@ -80,7 +102,9 @@ export default function JobMonitor({
   const [logOpen, setLogOpen] = useState(false);
   const [log, setLog] = useState<string>();
   const [logError, setLogError] = useState<unknown>(null);
-  const [outputsOpen, setOutputsOpen] = useState(false);
+  const [outputs, setOutputs] = useState<RunDetail>();
+  const [outputsError, setOutputsError] = useState<unknown>(null);
+  const [outputsChecking, setOutputsChecking] = useState(false);
   const callback = useRef(onUpdate);
   callback.current = onUpdate;
   useEffect(() => {
@@ -94,6 +118,12 @@ export default function JobMonitor({
     setConnectionError(null);
     setLogOpen(false);
     setLog(undefined);
+    setOutputs(undefined);
+    setOutputsError(null);
+    setOutputsChecking(false);
+    setActionError(null);
+    setLogError(null);
+    setStopping(false);
     const poll = async () => {
       if (document.hidden || pending || finished) return;
       pending = true;
@@ -113,7 +143,25 @@ export default function JobMonitor({
           setEvents((current) => [...current, ...page.events]);
           sequence = page.last_sequence;
         }
-        finished = !isActive(next.state) && page.events.length < 500;
+        let outputsFailed = false;
+        if (next.run_id) {
+          setOutputsChecking(true);
+          try {
+            const detail = await request<RunDetail>(`/api/runs/${next.run_id}`, {
+              signal: controller.signal,
+            });
+            if (controller.signal.aborted) return;
+            setOutputs(detail);
+            setOutputsError(null);
+          } catch (error) {
+            if (controller.signal.aborted) return;
+            outputsFailed = true;
+            setOutputsError(error);
+          } finally {
+            if (!controller.signal.aborted) setOutputsChecking(false);
+          }
+        }
+        finished = !isActive(next.state) && page.events.length < 500 && !outputsFailed;
       } catch (error) {
         if (!controller.signal.aborted) setConnectionError(error);
       } finally {
@@ -152,9 +200,9 @@ export default function JobMonitor({
       });
     return () => controller.abort();
   }, [logOpen, jobId]);
-  const outputs = useApi<RunDetail>(
-    outputsOpen && job?.run_id ? `/api/runs/${job.run_id}` : null,
-    job && isActive(job.state) ? 2000 : 0,
+  const workingImages = useMemo(
+    () => outputs?.artifacts.filter((artifact) => artifact.kind === "image") ?? [],
+    [outputs],
   );
   const stop = async () => {
     if (
@@ -186,34 +234,24 @@ export default function JobMonitor({
       </section>
     );
   const latest = events.at(-1);
-  const saved = [...events]
-    .reverse()
-    .find((event) => event.type === "step_saved");
-  const stage = [...events]
-    .reverse()
-    .find((event) => typeof event.data.stage === "number");
-  const call = [...events]
-    .reverse()
-    .find((event) =>
-      ["round_started", "search_started", "call_finished"].includes(event.type),
-    );
-  const calling =
-    isActive(job.state) &&
-    job.state !== "stopping" &&
-    call &&
-    call.type !== "call_finished";
-  const seconds = Math.max(
-    0,
-    Math.floor(
-      ((job.finished_at ? Date.parse(job.finished_at) : Date.now()) -
-        Date.parse(job.started_at || job.created_at)) /
-        1000,
-    ),
-  );
-  const elapsed =
-    seconds >= 3600
-      ? `${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}m`
-      : `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+  let saved: JobEvent | undefined;
+  let stage: JobEvent | undefined;
+  let milestone: JobEvent | undefined;
+  for (let index = events.length - 1; index >= 0; index--) {
+    const event = events[index];
+    if (!saved && event.type === "step_saved") saved = event;
+    if (!stage && typeof event.data.stage === "number") stage = event;
+    if (!milestone && ["step_saved", "proposal_finalized", "phase_finished", "stage_finished"].includes(event.type))
+      milestone = event;
+    if (saved && stage && milestone) break;
+  }
+  const active = isActive(job.state);
+  const phaseLabel = phases.find(([key]) => key === job.phase)?.[1] ||
+    job.phase?.replaceAll("_", " ") || "Awaiting a recorded phase";
+  const quietSince = latest?.timestamp || job.started_at || job.created_at;
+  const quietMinutes = Math.max(0, Math.floor((Date.now() - Date.parse(quietSince)) / 60000));
+  const missingLabel = outputsError || connectionError ? "Availability unknown" :
+    outputsChecking ? "Checking availability…" : active ? "Not saved yet" : "Not saved";
   return (
     <section
       className={`card job-monitor ${compact ? "compact" : ""}`}
@@ -231,9 +269,7 @@ export default function JobMonitor({
           <h2>{job.title || "Research experiment"}</h2>
           <div className="metadata">
             <Status state={job.state} />
-            <span>
-              <Clock3 size={15} aria-hidden="true" /> {elapsed} elapsed
-            </span>
+            <ElapsedTime job={job} />
           </div>
         </div>
         {isActive(job.state) && (
@@ -276,6 +312,94 @@ export default function JobMonitor({
         </div>
       )}
       <CrashAssistant job={job} onOpenLog={() => setLogOpen(true)} />
+      <div className="monitor-focus">
+        {job.state === "running" && !connectionError && (
+          <div className="monitor-ambient" aria-hidden="true">
+            <span /><span /><span />
+          </div>
+        )}
+        <div className="monitor-phase">
+          <p className="eyebrow">Last recorded phase</p>
+          <h3>{phaseLabel}</h3>
+          {stage && job.phase === "experiments" && (
+            <p className="muted">
+              Stage {String(stage.data.stage)} ·{" "}
+              {stages[Number(stage.data.stage) - 1] ||
+                String(stage.data.stage_name || "Experiment stage")}
+              {stage.data.substage ? ` · ${String(stage.data.substage)}` : ""}
+            </p>
+          )}
+          <p className="monitor-milestone">
+            <strong>Last saved milestone</strong>{" "}
+            {milestone ? (
+              <>
+                {eventLabels[milestone.type] || milestone.type.replaceAll("_", " ")}
+                {milestone.phase ? ` · ${phases.find(([key]) => key === milestone.phase)?.[1] || milestone.phase}` : ""}
+                {" · "}<time dateTime={milestone.timestamp}>{new Date(milestone.timestamp).toLocaleString()}</time>
+              </>
+            ) : active ? "None recorded yet" : "None recorded"}
+          </p>
+          {active && quietMinutes >= 2 && (
+            <p className="metadata">
+              No newer recorded milestone for {quietMinutes} minutes.
+              {" "}This feed does not report in-flight model calls or compute activity.
+            </p>
+          )}
+        </div>
+      </div>
+      {job.kind === "experiment" && (
+        <section className="monitor-evidence" aria-label="Saved so far">
+          <div className="row">
+            <h3>Saved so far</h3>
+            {job.run_id && <Link to={`/results/${job.run_id}`}>View in Results <ExternalLink size={14} aria-hidden="true" /></Link>}
+          </div>
+          {!job.run_id ? (
+            <p className="muted">{active ? "Waiting for a saved run to inspect." : "No saved run is linked to this job."}</p>
+          ) : !outputs ? (
+            <p className="muted" role="status">
+              {outputsError || connectionError ? "Saved outputs could not be loaded. Retrying; availability is unknown." : "Checking saved outputs…"}
+            </p>
+          ) : (
+            <>
+              {outputsError || connectionError ? <p className="notice" role="status">Could not refresh saved outputs. Showing the last available snapshot; availability may have changed.</p> : null}
+              <dl className="monitor-output-counts">
+                <div><dt>Paper PDFs</dt><dd>{outputs.papers.length ? `${outputs.papers.length} saved` : missingLabel}</dd></div>
+                <div><dt>Final figures</dt><dd>{outputs.figures.length ? `${outputs.figures.length} saved` : missingLabel}</dd></div>
+                <div><dt>Working images</dt><dd>{workingImages.length ? `${workingImages.length} saved` : missingLabel}</dd></div>
+              </dl>
+              {outputs.papers.length > 0 && (
+                <div className="monitor-paper-links">
+                  {outputs.papers.map((paper) => (
+                    <a key={paper.id} href={artifactUrl(job.run_id!, paper.id)} target="_blank" rel="noopener noreferrer" title={`${paper.relative_path} · ${new Date(paper.updated_at).toLocaleString()}`}>
+                      {paper.name}
+                    </a>
+                  ))}
+                </div>
+              )}
+              {workingImages.length > 0 && (
+                <div className="monitor-image-strip">
+                  {workingImages.slice(0, compact ? 2 : 3).map((image) => (
+                    <figure key={image.id}>
+                      <a href={artifactUrl(job.run_id!, image.id)} target="_blank" rel="noopener noreferrer" aria-label={`Open working image: ${image.name}`}>
+                        <img key={image.updated_at} src={artifactUrl(job.run_id!, image.id)} alt={`Working image: ${image.name}`} loading="lazy" />
+                      </a>
+                      <figcaption>
+                        <strong>{image.name}</strong>
+                        <span>{image.relative_path}</span>
+                        <time dateTime={image.updated_at}>{new Date(image.updated_at).toLocaleString()}</time>
+                      </figcaption>
+                    </figure>
+                  ))}
+                </div>
+              )}
+              <p className="metadata">
+                Working images are intermediate outputs, not final figures. Saved files do not establish a successful result.
+                {workingImages.length > (compact ? 2 : 3) ? " See all working images in Results." : ""}
+              </p>
+            </>
+          )}
+        </section>
+      )}
       {job.kind === "experiment" && (
         <ol className="timeline" aria-label="Pipeline phases">
           {phases.map(([key, label]) => {
@@ -286,13 +410,13 @@ export default function JobMonitor({
             const Icon = done ? CheckCircle2 : Circle;
             return (
               <li key={key} className={done ? "done" : active ? "current" : ""}>
-                <Icon size={20} aria-hidden="true" />
+                <Icon size={14} aria-hidden="true" />
                 <span>{label}</span>
                 <small>
                   {done
                     ? "Finished"
                     : active
-                      ? "In progress"
+                      ? "Last recorded"
                       : job.phase === key && !isActive(job.state)
                         ? job.state
                         : "Not recorded"}
@@ -302,63 +426,20 @@ export default function JobMonitor({
           })}
         </ol>
       )}
-      {stage && (
-        <div className="stage-progress">
-          <p className="eyebrow">
-            Experiments · Stage {String(stage.data.stage)}
-          </p>
-          <h3>
-            {stages[Number(stage.data.stage) - 1] ||
-              String(stage.data.stage_name || "Experiment stage")}
-          </h3>
-          <p className="muted">
-            Substage: {String(stage.data.substage || "Not reported")}
-          </p>
-        </div>
-      )}
-      {saved && (
-        <>
-          <dl className="counts">
-            <div>
-              <dt>Saved nodes</dt>
-              <dd>{String(saved.data.total_nodes ?? "Not reported")}</dd>
-            </div>
-            <div>
-              <dt>Working nodes</dt>
-              <dd>{String(saved.data.good_nodes ?? "Not reported")}</dd>
-            </div>
-            <div>
-              <dt>Error nodes</dt>
-              <dd>{String(saved.data.buggy_nodes ?? "Not reported")}</dd>
-            </div>
-          </dl>
-          <p>
-            <strong>Reported metric: </strong>
-            {String(saved.data.best_metric ?? "Not reported")}
-          </p>
-          <p className="metadata">
-            Node counts include inherited and multi-seed work; they are not a
-            completion percentage.
-          </p>
-        </>
-      )}
-      <div className="latest-event" role="status">
-        {calling ? (
-          <LoaderCircle className="call-spinner" size={18} aria-hidden="true" />
-        ) : (
-          <Circle size={14} aria-hidden="true" />
-        )}
+      <div className="monitor-latest">
+        <strong>Latest recorded event</strong>
         <span>
           {latest
             ? latest.type === "round_started" && Number(latest.data.round) > 1
               ? "Refining proposal"
               : eventLabels[latest.type] || latest.type.replaceAll("_", " ")
-            : "Waiting for the first event"}
+            : active ? "Waiting for the first event" : "No events recorded"}
           {latest?.data.attempt !== undefined &&
             ` · Attempt ${latest.data.attempt}`}
           {latest?.data.round !== undefined && ` · Round ${latest.data.round}`}
           {latest?.data.code === "rounds_exhausted" &&
             " · No proposal finalized within the configured rounds"}
+          {latest && <> · <time dateTime={latest.timestamp}>{new Date(latest.timestamp).toLocaleString()}</time></>}
         </span>
       </div>
       {job.kind === "idea" && job.result && (
@@ -393,46 +474,30 @@ export default function JobMonitor({
           </Link>
         )}
       </div>
-      {job.run_id && (
-        <details
-          className="advanced"
-          open={outputsOpen}
-          onToggle={(event) => setOutputsOpen(event.currentTarget.open)}
-        >
-          <summary>Available outputs</summary>
-          <ErrorNotice error={outputs.error} />
-          {outputs.data ? (
-            <>
-              <div className="output-strip">
-                {outputs.data.papers.map((paper) => (
-                  <a
-                    key={paper.id}
-                    href={artifactUrl(job.run_id!, paper.id)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    {paper.name}
-                  </a>
-                ))}
-              </div>
-              <p>{outputs.data.figures.length} saved figures</p>
-              {outputs.data.missing_outputs.length > 0 && (
-                <p className="muted">
-                  Not available: {outputs.data.missing_outputs.join(", ")}
-                </p>
-              )}
-            </>
-          ) : (
-            <p>Loading saved outputs…</p>
-          )}
-        </details>
-      )}
       <details
         className="advanced"
         open={logOpen}
         onToggle={(event) => setLogOpen(event.currentTarget.open)}
       >
         <summary>Technical details</summary>
+        {stage && (
+          <p className="muted">
+            Last recorded experiment stage: {String(stage.data.stage)} ·{" "}
+            {stages[Number(stage.data.stage) - 1] || String(stage.data.stage_name || "Experiment stage")}
+            {stage.data.substage ? ` · ${String(stage.data.substage)}` : ""}
+          </p>
+        )}
+        {saved && (
+          <>
+            <dl className="counts">
+              <div><dt>Saved nodes</dt><dd>{String(saved.data.total_nodes ?? "Not reported")}</dd></div>
+              <div><dt>Working nodes</dt><dd>{String(saved.data.good_nodes ?? "Not reported")}</dd></div>
+              <div><dt>Error nodes</dt><dd>{String(saved.data.buggy_nodes ?? "Not reported")}</dd></div>
+            </dl>
+            <p><strong>Reported metric: </strong>{String(saved.data.best_metric ?? "Not reported")}</p>
+            <p className="metadata">Node counts include inherited and multi-seed work; they are not a completion percentage.</p>
+          </>
+        )}
         <p className="muted">
           Recent log preview. May include generated research content; configured
           credentials are redacted.

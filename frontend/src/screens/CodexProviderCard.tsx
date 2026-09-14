@@ -77,8 +77,8 @@ export default function CodexProviderCard({ onAuthChange }: { onAuthChange: () =
       </p>
       <p className="muted">
         Sign in, choose the Codex endpoint for a role, then detect models and save
-        the assignment. Codex manages output-token limits and sampling; selecting
-        it clears unsupported token, temperature, and API-key overrides in your draft.
+        the assignment. Codex manages output-token limits, sampling, and reasoning effort; selecting
+        it clears unsupported token, temperature, reasoning-effort, and API-key overrides in your draft.
       </p>
       </details>
       <ErrorNotice error={error || status.error} />

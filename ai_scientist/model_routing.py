@@ -40,6 +40,7 @@ CBORG_PROVIDER = "cborg"
 CBORG_BASE_URL = "https://api.cborg.lbl.gov/v1"
 CBORG_API_KEY_ENV = "CBORG_API_KEY"
 ENDPOINT_PROVIDERS = ("openai", CODEX_PROVIDER, CBORG_PROVIDER)
+REASONING_EFFORTS = ("none", "low", "medium", "high")
 
 
 def endpoint_provider(endpoint: dict) -> str:
@@ -69,10 +70,13 @@ def endpoint_api_key_env(endpoint: dict) -> str | None:
 
 
 def validate_provider_settings(endpoint: dict, settings: dict) -> None:
+    effort = settings.get("reasoning_effort")
+    if effort is not None and effort not in REASONING_EFFORTS:
+        raise RoleConfigError("Reasoning effort must be none, low, medium, or high.")
     if endpoint_provider(endpoint) == CODEX_PROVIDER and any(
-        settings.get(key) is not None for key in ("max_tokens", "temperature", "api_key_env")
+        settings.get(key) is not None for key in ("max_tokens", "temperature", "reasoning_effort", "api_key_env")
     ):
-        raise RoleConfigError("Codex roles use managed token limits, sampling, and ChatGPT credentials; remove those overrides.")
+        raise RoleConfigError("Codex roles use managed token limits, sampling, reasoning, and ChatGPT credentials; remove those overrides.")
 
 REQUEST_LOG_ENV = "AI_SCIENTIST_REQUEST_LOG"
 DEFAULT_REQUEST_LOG = os.path.join("logs", "model_requests.jsonl")
@@ -216,6 +220,7 @@ def parse_model(model: str) -> dict | None:
                 f"Configured endpoints: {sorted(cfg['endpoints'])}."
             )
         settings = {k: v for k, v in entry.items() if k not in ("endpoint", "model")}
+        validate_provider_settings(cfg["endpoints"][endpoint] or {}, settings)
         return {
             "role": role,
             "endpoint": endpoint,

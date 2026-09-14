@@ -141,6 +141,8 @@ def get_batch_responses_from_llm(
                 max_tokens=role_max_tokens,
                 n=n_responses,
                 stop=None,
+                **({"reasoning_effort": settings["reasoning_effort"]}
+                   if settings.get("reasoning_effort") is not None else {}),
             )
         except Exception as e:
             model_routing.log_request(model, ok=False, error=e)
@@ -363,6 +365,8 @@ def get_response_from_llm(
                 max_tokens=role_max_tokens,
                 n=1,
                 stop=None,
+                **({"reasoning_effort": settings["reasoning_effort"]}
+                   if settings.get("reasoning_effort") is not None else {}),
             )
         except Exception as e:
             model_routing.log_request(model, ok=False, error=e)

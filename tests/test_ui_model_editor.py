@@ -117,7 +117,8 @@ class EditorApiTests(EditorBase):
                           "api_key_env": "ALPHA_KEY", "timeout": 600, "provides": ["text"]})
         self.assertEqual(view["roles"]["ideation"],
                          {"endpoint": "alpha", "model": "m1", "max_tokens": None,
-                          "temperature": None, "timeout": None, "api_key_env": None, "requires": ["text"]})
+                          "temperature": None, "reasoning_effort": None, "timeout": None,
+                          "api_key_env": None, "requires": ["text"]})
         # Required research tasks are listed even when unassigned.
         self.assertIn("review", view["roles"])
         self.assertIsNone(view["roles"]["review"]["endpoint"])
@@ -518,7 +519,8 @@ class EditorApiTests(EditorBase):
                     task TEXT PRIMARY KEY, server_id TEXT NOT NULL REFERENCES model_servers(id),
                     model TEXT NOT NULL, max_tokens INTEGER, temperature REAL, timeout REAL,
                     credential_env TEXT, requires TEXT NOT NULL DEFAULT '[]', updated_at TEXT NOT NULL);
-                INSERT INTO task_models SELECT * FROM copied_tasks;
+                INSERT INTO task_models SELECT task,server_id,model,max_tokens,temperature,
+                    timeout,credential_env,requires,updated_at FROM copied_tasks;
                 DROP TABLE copied_tasks;
             """)
         model_settings.ensure_schema(self.root)

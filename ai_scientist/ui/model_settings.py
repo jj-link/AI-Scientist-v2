@@ -48,6 +48,7 @@ CREATE TABLE IF NOT EXISTS task_models (
     model TEXT,
     max_tokens INTEGER,
     temperature REAL,
+    reasoning_effort TEXT,
     timeout REAL,
     credential_env TEXT,
     requires TEXT NOT NULL DEFAULT '[]',
@@ -89,8 +90,8 @@ def _connect(path: Path, *, read_only: bool = False):
 _ENV = "AI_SCIENTIST_ROOT"
 _SERVER_FIELDS = ("name", "api_format", "address", "credential_env", "timeout",
                   "capabilities", "requires_user_message")
-_TASK_FIELDS = ("server_id", "model", "max_tokens", "temperature", "timeout",
-                "credential_env", "requires")
+_TASK_FIELDS = ("server_id", "model", "max_tokens", "temperature", "reasoning_effort",
+                "timeout", "credential_env", "requires")
 _stamp_lock = threading.Lock()
 
 
@@ -104,13 +105,16 @@ def ensure_schema(root: str | os.PathLike) -> None:
     with _connect(settings_db_path(root)) as db:
         db.execute("BEGIN IMMEDIATE")
         columns = db.execute("PRAGMA table_info(task_models)").fetchall()
+        if not any(row["name"] == "reasoning_effort" for row in columns):
+            db.execute("ALTER TABLE task_models ADD COLUMN reasoning_effort TEXT")
         if any(row["name"] in ("server_id", "model") and row["notnull"] for row in columns):
             db.execute("ALTER TABLE task_models RENAME TO task_models_assigned")
             db.execute("""CREATE TABLE task_models (
                 task TEXT PRIMARY KEY, server_id TEXT REFERENCES model_servers(id), model TEXT,
-                max_tokens INTEGER, temperature REAL, timeout REAL, credential_env TEXT,
+                max_tokens INTEGER, temperature REAL, reasoning_effort TEXT, timeout REAL, credential_env TEXT,
                 requires TEXT NOT NULL DEFAULT '[]', updated_at TEXT NOT NULL)""")
-            db.execute("INSERT INTO task_models SELECT * FROM task_models_assigned")
+            fields = "task,server_id,model,max_tokens,temperature,reasoning_effort,timeout,credential_env,requires,updated_at"
+            db.execute(f"INSERT INTO task_models ({fields}) SELECT {fields} FROM task_models_assigned")
             db.execute("DROP TABLE task_models_assigned")
 
 
@@ -121,7 +125,7 @@ def save_settings_atomic(root: str | os.PathLike, servers: dict[str, dict],
 
     ``servers`` maps name -> {api_format, address, credential_env, timeout,
     capabilities, requires_user_message}; ``tasks`` maps task ->
-    {server, model, max_tokens, temperature, timeout, credential_env, requires}.
+    {server, model, max_tokens, temperature, reasoning_effort, timeout, credential_env, requires}.
     """
     stamp = _now()
     with _connect(settings_db_path(root)) as db:
@@ -151,14 +155,15 @@ def save_settings_atomic(root: str | os.PathLike, servers: dict[str, dict],
             if entry.get("server") is not None and server_row is None:
                 raise KeyError(f"Unknown server {entry['server']!r}.")
             db.execute(
-                "INSERT INTO task_models(task,server_id,model,max_tokens,temperature,timeout,"
-                "credential_env,requires,updated_at) VALUES(?,?,?,?,?,?,?,?,?) "
+                "INSERT INTO task_models(task,server_id,model,max_tokens,temperature,reasoning_effort,timeout,"
+                "credential_env,requires,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?) "
                 "ON CONFLICT(task) DO UPDATE SET server_id=excluded.server_id,model=excluded.model,"
                 "max_tokens=excluded.max_tokens,temperature=excluded.temperature,"
+                "reasoning_effort=excluded.reasoning_effort,"
                 "timeout=excluded.timeout,credential_env=excluded.credential_env,"
                 "requires=excluded.requires,updated_at=excluded.updated_at",
                 (task, server_row["id"] if server_row else None, entry.get("model"), entry.get("max_tokens"),
-                 entry.get("temperature"), entry.get("timeout"), entry.get("credential_env"),
+                 entry.get("temperature"), entry.get("reasoning_effort"), entry.get("timeout"), entry.get("credential_env"),
                  json.dumps(entry.get("requires") or [], separators=(",", ":")), stamp))
         for name in delete_servers:
             used = db.execute(
@@ -261,7 +266,7 @@ def read_snapshot(root: str | os.PathLike | None = None, *, db=None) -> tuple[st
         roles = {}
         for task in tasks:
             entry = {"endpoint": task["server"], "model": task["model"]}
-            for field in ("max_tokens", "temperature", "timeout", "credential_env"):
+            for field in ("max_tokens", "temperature", "reasoning_effort", "timeout", "credential_env"):
                 if task[field] is not None:
                     entry[{"credential_env": "api_key_env"}.get(field, field)] = task[field]
             if task["requires"]:
@@ -279,8 +284,11 @@ def current_settings(root: str | os.PathLike | None = None) -> dict:
 
 
 def _profile(row: sqlite3.Row) -> dict:
+    roles = json.loads(row["roles"])
+    for role in roles.values():
+        role.setdefault("reasoning_effort", None)
     return {key: row[key] for key in ("id", "name", "revision", "created_at", "updated_at")} | {
-        "roles": json.loads(row["roles"])}
+        "roles": roles}
 
 
 def list_profiles(root: str | os.PathLike) -> list[dict]:
@@ -351,14 +359,15 @@ def upsert_task(settings: dict, *, task: str) -> None:
         if server is None:
             raise KeyError(f"Unknown server {settings['server']!r}.")
         db.execute(
-            "INSERT INTO task_models(task,server_id,model,max_tokens,temperature,timeout,"
-            "credential_env,requires,updated_at) VALUES(?,?,?,?,?,?,?,?,?) "
+            "INSERT INTO task_models(task,server_id,model,max_tokens,temperature,reasoning_effort,timeout,"
+            "credential_env,requires,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?) "
             "ON CONFLICT(task) DO UPDATE SET server_id=excluded.server_id,model=excluded.model,"
             "max_tokens=excluded.max_tokens,temperature=excluded.temperature,"
+            "reasoning_effort=excluded.reasoning_effort,"
             "timeout=excluded.timeout,credential_env=excluded.credential_env,"
             "requires=excluded.requires,updated_at=excluded.updated_at",
             (task, server["id"], settings["model"], settings.get("max_tokens"),
-             settings.get("temperature"), settings.get("timeout"),
+             settings.get("temperature"), settings.get("reasoning_effort"), settings.get("timeout"),
              settings.get("credential_env"),
              json.dumps(settings.get("requires") or [], separators=(",", ":")), stamp))
 
@@ -441,6 +450,7 @@ def import_legacy_role_config(path: str | os.PathLike, root: str | os.PathLike) 
             "model": entry.get("model"),
             "max_tokens": entry.get("max_tokens"),
             "temperature": entry.get("temperature"),
+            "reasoning_effort": entry.get("reasoning_effort"),
             "timeout": entry.get("timeout"),
             "credential_env": entry.get("api_key_env"),
             "requires": [item for item in requires if isinstance(item, str)] if isinstance(requires, list) else [],

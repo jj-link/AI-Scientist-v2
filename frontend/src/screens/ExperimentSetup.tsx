@@ -10,7 +10,7 @@ import {
 import { useStudio } from "../studio";
 import RoleAssignmentsEditor from "../RoleAssignmentsEditor";
 import RoleProfiles from "../RoleProfiles";
-import { applyRoleAssignments, serializeRoleAssignments, validRoleAssignments } from "../roleAssignments";
+import { applyRoleAssignments, serializeRoleAssignments, validReasoningEffort, validRoleAssignments } from "../roleAssignments";
 import "./ideas.css";
 
 type LaunchRequest = {
@@ -28,8 +28,11 @@ function savedRequest(ideaId: string): LaunchRequest | null {
     const value = JSON.parse(
       sessionStorage.getItem(`scientist-studio-launch-${ideaId}`) || "null",
     ) as LaunchRequest | null;
+    const assignments = savedAssignments(value?.role_assignments);
     if (value?.idea_id === ideaId && validRunSettings(value.run_settings) &&
-      typeof value.model_settings_revision === "string" && savedAssignments(value.role_assignments)) return value;
+      typeof value.model_settings_revision === "string" && assignments) {
+      return { ...value, role_assignments: assignments };
+    }
     sessionStorage.removeItem(`scientist-studio-launch-${ideaId}`);
     return null;
   } catch {
@@ -108,21 +111,24 @@ function runDraft(settings: Workload | RunSettings | null | undefined): RunDraft
   };
 }
 
-function savedAssignments(value: unknown): value is RoleAssignments {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+function savedAssignments(value: unknown): RoleAssignments | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const assignments = Object.values(value);
-  return assignments.length > 0 && assignments.every((role) =>
+  const valid = assignments.length > 0 && assignments.every((role) =>
     role && typeof role === "object" && !Array.isArray(role) &&
     ["endpoint", "model", "api_key_env"].every((field) => role[field] === null || typeof role[field] === "string") &&
+    (role.reasoning_effort === undefined || validReasoningEffort(role.reasoning_effort)) &&
     ["max_tokens", "temperature", "timeout"].every((field) => role[field] === null ||
       (typeof role[field] === "number" && Number.isFinite(role[field]))));
+  return valid ? serializeRoleAssignments(value as RoleAssignments) : null;
 }
 
 function savedDraft(ideaId: string): { configId: string; values: RunDraft; modelRevision?: string; roles?: RoleAssignments } | null {
   try {
     const draft = JSON.parse(sessionStorage.getItem(`scientist-studio-run-settings-${ideaId}`) || "null");
     return draft && typeof draft.configId === "string" && draft.values &&
-      runFields.every((field) => typeof draft.values[field] === "string") ? draft : null;
+      runFields.every((field) => typeof draft.values[field] === "string")
+      ? { ...draft, roles: savedAssignments(draft.roles) ?? undefined } : null;
   } catch {
     return null;
   }
@@ -162,7 +168,7 @@ function Setup({
     const refreshing = refreshModelsRequested.current;
     refreshModelsRequested.current = false;
     const assignments = roleDrafts ? serializeRoleAssignments(roleDrafts) :
-      restored?.role_assignments || (savedAssignments(storedDraft?.roles) ? storedDraft.roles : null);
+      restored?.role_assignments || storedDraft?.roles || null;
     setModelBase(loaded);
     try {
       setRoleDrafts(assignments ? applyRoleAssignments(loaded.roles, assignments) : { ...loaded.roles });

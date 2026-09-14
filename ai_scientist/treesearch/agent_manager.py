@@ -15,7 +15,6 @@ from .utils.serialize import parse_markdown_to_dict
 from .utils.metric import WorstMetricValue
 from ai_scientist.progress import PipelineFailure, check_stop, emit
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -149,23 +148,23 @@ class AgentManager:
         }
         self.main_stage_goals: Dict[int, str] = {
             1: """
-                - Focus on getting basic working implementation
-                - Use a simple dataset
-                - Aim for basic functional correctness
-                - If you are given \"Code To Use\", you can directly use it as a starting point.""",
+                - Build a working implementation of the saved research design.
+                - Use its specified data, model, evaluation protocol, and execution requirements.
+                - If "Code" is supplied, use it as a starting point without discarding the design constraints.""",
             2: """
-                - Change hyperparameters such as learning rate, number of epochs, batch size, etc. to improve the performance
-                - DO NOT change the model architecture from the previous stage
-                - Introduce TWO more new datasets from HuggingFace test the model. Try very hard to think what Huggingface datasets can be used here for testing.""",
+                - Tune the baseline only within the saved design's permitted hyperparameters and budget.
+                - Keep the specified model architecture and datasets.
+                - Use validation results, never held-out test results, to select settings.""",
             3: """
-                - Explore novel improvements
-                - Come up with experiments to reveal new insights
-                - Be creative and think outside the box
-                - MAKE SURE you use THREE HuggingFace dataset in total to test your models""",
+                - Conduct the comparisons specified in the saved research design.
+                - Preserve its data, model, evaluation, and resource constraints.
+                - Report positive, negative, and inconclusive results honestly; do not expand scope to manufacture an improvement.""",
             4: """
-                - Conduct systematic component analysis that reveals the contribution of each part
-                - Use the same datasets you used from the previous stage""",
+                - Run the ablations permitted by the saved research design.
+                - Reuse its data and evaluation protocol; do not invent extra datasets or conditions.
+                - If no additional ablation is permitted, analyze the existing comparisons without expanding the study.""",
         }
+
         # Create initial stage
         self._create_initial_stage()
 
@@ -177,26 +176,19 @@ class AgentManager:
             self.cfg.agent.steps,
         )
 
-    def _get_task_desc_str(self):
-        task_desc = """You are an ambitious AI researcher who is looking to publish a paper that will contribute significantly to the field.
-You have an idea and you want to conduct creative experiments to gain scientific insights.
-Your aim is to run experiments to gather sufficient results for a top conference paper.
-Your research idea:\n\n
-"""
-        task_desc += (
-            "Title:\n"
-            + self.task_desc["Title"]
-            + "\n"
-            + "Abstract:\n"
-            + self.task_desc["Abstract"]
-            + "\n"
-            + "Short Hypothesis:\n"
-            + self.task_desc["Short Hypothesis"]
+    def _get_task_desc_str(self) -> str:
+        return (
+            "You are an AI researcher executing the saved research design.\n"
+            "Follow its complete methods, comparisons, limitations, and execution requirements. "
+            "These constraints apply at every stage, including implementation and baseline tuning. "
+            "Stage goals organize the work; they do not authorize additional datasets, models, "
+            "training, downloads, or installations beyond the design. "
+            "Finishing below a time limit is not a reason to enlarge an experiment. "
+            "Report measured outcomes honestly without requiring novelty or a positive result.\n\n"
+            "Complete saved research design (JSON):\n"
+            + json.dumps(self.task_desc, indent=2, ensure_ascii=False)
             + "\n"
         )
-        if "Code" in self.task_desc:
-            task_desc += "Code To Use:\n" + self.task_desc["Code"] + "\n"
-        return task_desc
 
     def _create_initial_stage(self):
         """Create the initial stage configuration"""
@@ -213,39 +205,6 @@ Your research idea:\n\n
         self.stages.append(initial_stage)
         self.current_stage = initial_stage
         self.journals[initial_stage.name] = Journal()
-
-    def _curate_task_desc(self, stage: Stage) -> str:
-        task_desc = self._get_task_desc_str()
-
-        if stage.name.startswith("3_"):
-            if isinstance(self.task_desc["Experiments"], list):
-                if isinstance(self.task_desc["Experiments"][0], str):
-                    experiment_str = "\n".join(self.task_desc["Experiments"])
-                elif isinstance(self.task_desc["Experiments"][0], dict):
-                    experiment_str = "\n".join(
-                        [
-                            f"{k}: {v}"
-                            for d in self.task_desc["Experiments"]
-                            for k, v in d.items()
-                        ]
-                    )
-            elif isinstance(self.task_desc["Experiments"], str):
-                experiment_str = self.task_desc["Experiments"]
-            else:
-                raise ValueError(
-                    f"Experiments is not a list or string: {self.task_desc['Experiments']}"
-                )
-            task_desc += "Experiment Plan: " + experiment_str + "\n"
-        elif stage.name.startswith("4_"):
-            if isinstance(self.task_desc["Risk Factors and Limitations"], list):
-                risk_factors_str = "\n".join(
-                    self.task_desc["Risk Factors and Limitations"]
-                )
-            else:
-                risk_factors_str = self.task_desc["Risk Factors and Limitations"]
-            task_desc += "Risk Factors and Limitations: " + risk_factors_str + "\n"
-
-        return task_desc
 
     def _save_checkpoint(self):
         """Save the current state of the experiment"""
@@ -276,7 +235,7 @@ Your research idea:\n\n
         """Create a ParallelAgent configured for the given stage"""
         stage_cfg = self.cfg.copy()
         stage_cfg.agent.search.num_drafts = stage.num_drafts
-        task_desc = self._curate_task_desc(stage)
+        task_desc = self._get_task_desc_str()
 
         (
             main_stage,
@@ -354,6 +313,9 @@ Your research idea:\n\n
         Evaluate if the current sub-stage is complete based on the following evidence:
         1. Figure Analysis:
         {vlm_feedback}
+
+        Saved research design and scope:
+        {self._get_task_desc_str()}
 
         Requirements for completion:
         - {current_substage.goals}
@@ -463,9 +425,12 @@ Your research idea:\n\n
 
             2. Datasets Tested: {best_node.datasets_successfully_tested}
 
+            Saved research design and scope:
+            {self._get_task_desc_str()}
+
             Requirements for completion:
             1. Training curves should show stable convergence
-            2. Results should be tested on at least two datasets
+            2. The baseline evaluations required by the saved design are complete; do not impose an extra dataset count.
             3. No major instabilities or issues in the plots
 
             Provide a detailed evaluation of completion status.
@@ -508,28 +473,6 @@ Your research idea:\n\n
                     False,
                     "No improvement found from the base node (which is the best node from the previous stage)",
                 )
-            # Check if there are enough research results
-            # Or, we could just let the agent run until max iterations is reached
-            # Check if the experiment execution time is too short
-            exec_time_minutes = best_node.exec_time / 60
-            print(f"[cyan]exec_time_minutes: {exec_time_minutes}[/cyan]")
-            if len(self.journals[stage.name].nodes) > (
-                self.cfg.agent.stages.stage3_max_iters / 2
-            ):
-                if exec_time_minutes < self.cfg.exec.timeout / 60 / 2:
-                    exec_time_feedback = (
-                        f"Implementation works but runs too quickly ({exec_time_minutes:.2f} minutes)."
-                        "We have up to 60 minutes available for each experiment."
-                        "Make sure to scale up the experiment "
-                        "by increasing the number of epochs, using a larger model, or working with bigger datasets."
-                        "Given that the current execution time is {exec_time_minutes:.2f} minutes, think about how changing the number of epochs to run, or using a larger model, or working with bigger datasets to run"
-                        "will affect the execution time, and make sure to scale up the experiment accordingly."
-                    )
-                    print(f"[cyan]exec_time_feedback: {exec_time_feedback}[/cyan]")
-                    self.journals[stage.name].nodes[
-                        -1
-                    ].exec_time_feedback = exec_time_feedback
-                    return False, exec_time_feedback
         if stage.stage_number == 4:
             # Just let the agent run until max iterations is reached
             pass
@@ -573,6 +516,9 @@ Your research idea:\n\n
         Main Stage Goals:
         {main_stage_goal}
 
+        Saved research design and scope:
+        {self._get_task_desc_str()}
+
         Current Progress:
         - Total attempts: {metrics['total_nodes']}
         - Successful implementations: {metrics['good_nodes']}
@@ -590,6 +536,7 @@ Your research idea:\n\n
         2. Build on recent progress
         3. Move towards main stage goals
         4. Are concrete and measurable
+        5. Preserve the saved design's scope; do not invent extra experiments to seek positive results.
         """
 
         # Define the function specification for the LLM
@@ -695,6 +642,7 @@ Your research idea:\n\n
         self, exec_callback, step_callback=None, *, on_event=None, should_stop=None
     ):
         """Run the experiment through generated stages with optional progress hooks."""
+
         def stage_event(event_type, stage):
             number, name, substage_number, substage_name = self.parse_stage_names(
                 stage.name
@@ -877,7 +825,7 @@ Your research idea:\n\n
     ) -> str:
         """Create detailed prompt to determine next stage configuration"""
         prompt_parts = [
-            f"Task Description: {self._curate_task_desc(previous_stages[-1])}",
+            f"Task Description: {self._get_task_desc_str()}",
             f"Current Stage Number: {previous_stages[-1].stage_number}",
         ]
 

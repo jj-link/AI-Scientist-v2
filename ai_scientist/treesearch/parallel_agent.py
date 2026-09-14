@@ -272,37 +272,22 @@ class MinimalAgent:
 
     @property
     def _prompt_environment(self):
-        pkgs = [
-            "numpy",
-            "pandas",
-            "scikit-learn",
-            "statsmodels",
-            "xgboost",
-            "lightGBM",
-            "torch",
-            "torchvision",
-            "torch-geometric",
-            "bayesian-optimization",
-            "timm",
-            "albumentations",
-        ]
-        random.shuffle(pkgs)
-        pkg_str = ", ".join([f"`{p}`" for p in pkgs])
-
-        env_prompt = {
-            "Installed Packages": f"Your solution can use any relevant machine learning packages such as: {pkg_str}. Feel free to use any other packages too (all packages are already installed!). For neural networks we suggest using PyTorch rather than TensorFlow."
+        return {
+            "Dependencies": (
+                "Use only dependencies permitted by the saved research design and available "
+                "in the execution environment. Do not assume arbitrary packages are installed. "
+                "If a required dependency is missing, report the failure clearly; do not install "
+                "packages or download data unless the design explicitly permits it."
+            )
         }
-        return env_prompt
 
     @property
     def _prompt_impl_guideline(self):
         impl_guideline = [
-            "CRITICAL GPU REQUIREMENTS - Your code MUST include ALL of these:",
-            "  - At the start of your code, add these lines to handle GPU/CPU:",
-            "    ```python",
-            "    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')",
-            "    print(f'Using device: {device}')",
-            "    ```",
+            "COMPUTE REQUIREMENTS - Follow the saved research design's device requirements:",
+            "  - If CUDA is required, check torch.cuda.is_available() and raise a clear error if it is false. Never fall back to CPU in that case.",
+            "  - CPU execution or fallback is allowed only when compatible with the saved design.",
+            "  - Print the selected device and verify the model and training tensors are on that device.",
             "  - ALWAYS move models to device using the `.to(device)` method",
             "  - ALWAYS move input tensors to device using the `.to(device)` method",
             "  - ALWAYS move model related tensors to device using the `.to(device)` method",
@@ -317,9 +302,8 @@ class MinimalAgent:
             if num_syn_datasets > 1:
                 impl_guideline.extend(
                     [
-                        f"You MUST evaluate your solution on at least {num_syn_datasets} different synthetic datasets to ensure robustness:",
-                        "  - Use standard benchmark datasets when available",
-                        f"  - If using synthetic data, generate at least {num_syn_datasets} variants with different characteristics",
+                        f"If the saved design does not specify dataset scope, use {num_syn_datasets} synthetic datasets with different characteristics.",
+                        "  - Otherwise preserve the saved design's datasets and condition count exactly.",
                         "  - Report metrics separately for each dataset",
                         "  - Compute and report the average metric across all datasets",
                     ]
@@ -565,6 +549,8 @@ class MinimalAgent:
                 + ". "
                 + hyperparam_idea.description
             ),
+            "Research idea": self.task_desc,
+            "Environment": self._prompt_environment,
             "Base code you are working on": wrap_code(parent_node.code),
             "Instructions": {},
         }
@@ -611,6 +597,8 @@ class MinimalAgent:
                 + ". "
                 + ablation_idea.description
             ),
+            "Research idea": self.task_desc,
+            "Environment": self._prompt_environment,
             "Base code you are working on": wrap_code(parent_node.code),
             "Instructions": {},
         }
@@ -892,9 +880,14 @@ class MinimalAgent:
         return [""]
 
     def _analyze_plots_with_vlm(self, node: Node) -> None:
-        """Analyze experimental plots using VLM"""
+        """Review each selected plot independently, then combine its evidence."""
         if not node.plot_paths:
             return
+
+        node.is_buggy_plots = True
+        node.plot_analyses = []
+        node.vlm_feedback_summary = ""
+        node.datasets_successfully_tested = []
 
         # for debugging
         print(f"[cyan]Plot paths:[/cyan] {node.plot_paths}")
@@ -979,58 +972,60 @@ class MinimalAgent:
                 # Fallback to using first 10 plots
                 selected_plots = node.plot_paths[:10]
 
-        print("[cyan]Before encoding images[/cyan]")
-        user_message = [
-            {
-                "type": "text",
-                "text": (
-                    "You are an experienced AI researcher analyzing experimental results. "
-                    "You have been provided with plots from a machine learning experiment. "
-                    f"This experiment is based on the following research idea: {self.task_desc}"
-                    "Please analyze these plots and provide detailed insights about the results. "
-                    "If you don't receive any plots, say 'No plots received'. "
-                    "Never make up plot analysis. "
-                    "Please return the analyzes with strict order of uploaded images, but DO NOT include any word "
-                    "like 'the first plot'."
-                ),
-            }
-        ] + [
-            {
-                "type": "image_url",
-                "image_url": {
-                    "url": f"data:image/jpeg;base64,{encode_image_to_base64(plot_path)}"
+        analyses = []
+        summaries = []
+        all_valid = bool(selected_plots)
+        # Per-figure requests preserve selected evidence without assuming that
+        # every vision endpoint accepts an unbounded number of images.
+        for plot_path in selected_plots:
+            user_message = [
+                {
+                    "type": "text",
+                    "text": (
+                        "You are an experienced AI researcher analyzing experimental results. "
+                        f"This experiment is based on the following research idea: {self.task_desc}\n"
+                        f"Analyze the attached plot, {Path(plot_path).name}, and provide detailed "
+                        "insights about its results. This is one selected plot from the experiment. "
+                        "Analyze only the attached image; do not invent details about other plots. "
+                        "If no plot is visible, report that no valid plot was received."
+                    ),
                 },
-            }
-            for plot_path in selected_plots
-        ]
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:image/jpeg;base64,{encode_image_to_base64(plot_path)}"
+                    },
+                },
+            ]
+            response = cast(
+                dict,
+                query(
+                    system_message=None,
+                    user_message=user_message,
+                    func_spec=vlm_feedback_spec,
+                    model=self.cfg.agent.vlm_feedback.model,
+                    temperature=self.cfg.agent.vlm_feedback.temp,
+                ),
+            )
+            print(
+                f"[cyan]VLM response for {Path(plot_path).name}:[/cyan] {response}"
+            )
+            plot_analyses = response["plot_analyses"]
+            all_valid = all_valid and response["valid_plots_received"] and bool(plot_analyses)
+            for analysis in plot_analyses:
+                analysis["plot_path"] = plot_path
+                analyses.append(analysis)
+            summaries.append(
+                f"{Path(plot_path).name}: {response['vlm_feedback_summary']}"
+            )
 
-        response = cast(
-            dict,
-            query(
-                system_message=None,
-                user_message=user_message,
-                func_spec=vlm_feedback_spec,
-                model=self.cfg.agent.vlm_feedback.model,
-                temperature=self.cfg.agent.vlm_feedback.temp,
-            ),
-        )
-        print(
-            f"[cyan]VLM response from {self.cfg.agent.vlm_feedback.model}:[/cyan] {response}"
-        )
-        if response["valid_plots_received"]:
-            node.is_buggy_plots = False
-        else:
-            node.is_buggy_plots = True
-
-        for index, analysis in enumerate(response["plot_analyses"]):
-            analysis["plot_path"] = node.plot_paths[index]
-
-        node.plot_analyses = response["plot_analyses"]
-        node.vlm_feedback_summary = response["vlm_feedback_summary"]
-
-        node.datasets_successfully_tested = (
-            self._determine_datasets_successfully_tested(node)
-        )
+        node.plot_analyses = analyses
+        node.vlm_feedback_summary = "\n\n".join(summaries)
+        node.is_buggy_plots = not all_valid
+        if analyses:
+            node.datasets_successfully_tested = (
+                self._determine_datasets_successfully_tested(node)
+            )
 
     def _generate_node_summary(self, node: Node) -> dict:
         """Generate a summary of the node's experimental findings"""
@@ -1180,10 +1175,8 @@ class ParallelAgent:
             self.num_workers = min(self.num_workers, self.num_gpus)
             logger.info(f"Limiting workers to {self.num_workers} to match GPU count")
 
-        # The interpreter kills a run at cfg.exec.timeout; give the parent
-        # future a grace margin so the worker's timeout result is delivered
-        # instead of racing it and losing the node without feedback.
-        self.timeout = self.cfg.exec.timeout + 300
+        # A node includes model calls and multiple code executions. Interpreter
+        # enforces the per-code deadline; it is not a whole-node time budget.
         self.executor = ProcessPoolExecutor(max_workers=self.num_workers)
         self._is_shutdown = False
         # Define the metric once at initialization
@@ -1320,7 +1313,7 @@ class ParallelAgent:
 
         for future in futures:
             try:
-                result_data = future.result(timeout=self.timeout)
+                result_data = future.result()
                 result_node = Node.from_dict(result_data, self.journal)
                 print(f"Parent node id: {result_node.parent.id}")
                 print(f"Sanity check: actual parent node id: {node.id}")
@@ -1821,21 +1814,21 @@ class ParallelAgent:
 
         hyperparam_tuning_prompt = {
             "Introduction": (
-                "You are an AI researcher conducting hyperparameter tuning for baseline experiments. "
-                "Based on the current implementation and previous hyperparameter tuning attempts (if any), "
-                "propose ONE new hyperparameter tuning idea to see if it improves the performance."
-                "You should first check if simply training longer (more epochs) improves the performance."
-                "Then try tuning common hyperparameters such as learning rate, batch size, etc."
-                "Only propose algorithm-specific and/or model-specific hyperparameters after you have tried the above."
+                "You are an AI researcher conducting baseline hyperparameter tuning. "
+                "Propose ONE comparison permitted by the saved research design, preserving "
+                "its data, architecture, evaluation protocol, and execution budget. "
+                "Do not extend training or add parameter values beyond that design."
             ),
+            "Research idea": self.task_desc,
             "Base code you are working on": wrap_code(self.best_stage1_node.code),
             "Previous Hyperparam Tuning Attempts": {
                 "Has been tried": tried if tried else "Nothing has been tried yet.",
             },
             "Instructions": {
                 "Requirements": [
-                    "1. Identify ONE specific hyperparameter to tune",
-                    "2. Ensure the hyperparameter is different from previous attempts",
+                    "1. Choose an untried hyperparameter option only if the saved design permits it.",
+                    "2. If no further distinct option is permitted, verify an existing permitted configuration without changing its parameters.",
+                    "3. Follow the design's selection protocol; do not use held-out test results to choose hyperparameters.",
                 ]
             },
             "Response format": (
@@ -1868,11 +1861,8 @@ class ParallelAgent:
                 f"Failed to parse hyperparam tuning response (attempt {retry_count}/{retry_limit})"
             )
 
-        logger.error(
-            f"Failed to parse hyperparam tuning response after {retry_limit} retries. Falling back to default idea of increasing learning rate."
-        )
-        return HyperparamTuningIdea(
-            name="increase learning rate", description="increase learning rate"
+        raise RuntimeError(
+            f"Failed to parse hyperparameter tuning plan after {retry_limit} attempts."
         )
 
     def _generate_ablation_idea(self) -> Optional[AblationIdea]:
@@ -1884,9 +1874,10 @@ class ParallelAgent:
         ablation_prompt = {
             "Introduction": (
                 "You are an AI researcher conducting ablation studies. "
-                "Based on the current implementation and previous ablations (if any), "
-                "propose ONE new ablation study that tests a different aspect of the model."
+                "Propose ONE ablation permitted by the saved research design. "
+                "Preserve its data, architecture, evaluation protocol, and execution budget."
             ),
+            "Research idea": self.task_desc,
             "Base code you are working on": wrap_code(self.best_stage3_node.code),
             "Previous Ablations": {
                 "Has been tried": (
@@ -1895,10 +1886,9 @@ class ParallelAgent:
             },
             "Instructions": {
                 "Requirements": [
-                    "1. Identify ONE specific component/feature to ablate",
-                    "2. Ensure the ablation is different from previous completed or running attempts",
-                    "3. The ablation should be a new idea, not a variation of previous ideas",
-                    "4. If you have only used a single synthetic dataset throughout the experiment, one of your ablations should be to use multiple synthetic datasets (at least 3 different datasets)",
+                    "1. Choose an untried ablation only if the saved design permits it.",
+                    "2. If no further distinct ablation is permitted, verify an existing permitted condition without expanding the study.",
+                    "3. Do not add datasets, model components, training, or other conditions beyond the saved design.",
                 ]
             },
             "Response format": (
@@ -1931,10 +1921,9 @@ class ParallelAgent:
                 f"Failed to parse ablation response (attempt {retry_count}/{retry_limit})"
             )
 
-        logger.error(
-            f"Failed to parse ablation response after {retry_limit} retries. Falling back to default idea of removing dropout."
+        raise RuntimeError(
+            f"Failed to parse ablation plan after {retry_limit} attempts."
         )
-        return AblationIdea(name="add one more layer", description="add one more layer")
 
     def _get_leaves(self, node: Node) -> List[Node]:
         """Get all leaf nodes in the subtree rooted at node."""
@@ -2089,11 +2078,11 @@ class ParallelAgent:
 
         if self.cfg.agent.get("summary", None) is not None:
             memory_summary = self.journal.generate_summary(
-                include_code=False, 
+                include_code=False,
                 **{
-                    "model": self.cfg.agent.summary.model, 
-                    "temp": self.cfg.agent.summary.temp
-                }
+                    "model": self.cfg.agent.summary.model,
+                    "temp": self.cfg.agent.summary.temp,
+                },
             )
         else:
             memory_summary = self.journal.generate_summary(include_code=False)
@@ -2167,7 +2156,7 @@ class ParallelAgent:
         for i, future in enumerate(futures):
             try:
                 print("About to get result from future")
-                result_data = future.result(timeout=self.timeout)
+                result_data = future.result()
                 if "metric" in result_data:
                     print(f"metric type: {type(result_data['metric'])}")
                     print(f"metric contents: {result_data['metric']}")
@@ -2187,9 +2176,6 @@ class ParallelAgent:
                 self.journal.append(result_node)
                 print("Added result node to journal")
 
-            except TimeoutError:
-                print("Worker process timed out, couldn't get the result")
-                logger.error(f"Worker process timed out, couldn't get the result")
             except Exception as e:
                 print(f"Error processing node: {str(e)}")
                 logger.error(f"Error processing node: {str(e)}")

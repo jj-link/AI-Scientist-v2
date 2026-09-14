@@ -138,6 +138,13 @@ not upload source code, install missing tools, start models, download datasets
 implicitly through a UI control, or reroute model assignments automatically. Generated Python
 itself executes with your account's permissions.
 
+The experiment monitor shows recorded phases, stages, milestones, elapsed time,
+and saved outputs—not an estimated completion percentage. Working images are
+available before a final paper and remain separate from final figures in
+**Results**, including after failed runs. If saved outputs cannot be refreshed,
+the monitor identifies unknown availability or a last-known snapshot rather than
+presenting missing data as a confirmed absence.
+
 Model settings and named role profiles are saved in `ui_data/ui.sqlite3`; there is
 one current default configuration, separate from profiles and per-run selections.
 Studio imports the legacy `ais_roles.yaml` on first use and retains an import backup.
@@ -157,8 +164,11 @@ lists that endpoint's advertised IDs in the **Model** dropdown; **Refresh models
 retries the listing. These are explicit, bounded requests against the selected
 server, not generation requests. A failed or empty listing preserves the current
 assignment. **Advanced** accepts a custom model ID and token, temperature,
-timeout, and credential-environment overrides. Blank overrides inherit the
-endpoint or the calling task's settings.
+reasoning-effort, timeout, and credential-environment overrides. **Reasoning effort**
+offers **Provider default**, **Disabled**, **Low**, **Medium**, and **High**.
+Provider default omits the per-role setting; Disabled sends `reasoning_effort: "none"`.
+Use only values supported by the selected provider and model. Other blank overrides
+inherit the endpoint or the calling task's settings.
 Changing a role's endpoint clears its model selection. Choose a model for the new
 endpoint before saving; discovery does not automatically assign one.
 Role cards identify each task with plain-language titles and its exact
@@ -217,10 +227,10 @@ The supplied `ais_roles.yaml` preset includes an unassigned `codex` endpoint wit
 your account's actual catalog. Choose a model and **Save configuration** to
 change routing; signing in alone changes no role assignments. Codex uses the
 fixed `https://chatgpt.com/backend-api/codex` service, not an editable base URL
-or API key. Token caps and sampling are provider-managed: selecting Codex clears
-token, temperature, and credential overrides in the draft and disables those
-fields. Explicit YAML overrides are rejected; ordinary caller token/sampling
-defaults are not forwarded. Request timeouts remain configurable.
+or API key. Token caps, sampling, and reasoning are provider-managed: selecting
+Codex clears token, temperature, reasoning-effort, and credential overrides in the
+draft and disables those fields. Explicit YAML overrides are rejected; ordinary
+caller token/sampling defaults are not forwarded. Request timeouts remain configurable.
 
 Tool availability is checked in the server's inherited environment, not across
 the whole PC. On Windows, an already-open terminal, IDE, or service manager can

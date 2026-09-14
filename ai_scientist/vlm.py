@@ -136,6 +136,8 @@ def make_vlm_call(client, model, temperature, system_message, prompt):
                 ],
                 temperature=temperature,
                 max_tokens=settings.get("max_tokens") or MAX_NUM_TOKENS,
+                **({"reasoning_effort": settings["reasoning_effort"]}
+                   if settings.get("reasoning_effort") is not None else {}),
             )
         except Exception as e:
             model_routing.log_request(model, ok=False, error=e)

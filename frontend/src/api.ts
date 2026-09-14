@@ -224,11 +224,13 @@ export interface EndpointModels {
   models: string[];
   error: string | null;
 }
+export type ReasoningEffort = "none" | "low" | "medium" | "high";
 export interface ModelConfigEditorRole {
   endpoint: string | null;
   model: string | null;
   max_tokens: number | null;
   temperature: number | null;
+  reasoning_effort: ReasoningEffort | null;
   timeout: number | null;
   api_key_env: string | null;
   requires: string[];
@@ -260,6 +262,7 @@ export interface ModelRolePatch {
   model?: string | null;
   max_tokens?: number | null;
   temperature?: number | null;
+  reasoning_effort?: ReasoningEffort | null;
   timeout?: number | null;
   api_key_env?: string | null;
 }

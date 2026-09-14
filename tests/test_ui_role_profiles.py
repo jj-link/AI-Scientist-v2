@@ -85,6 +85,7 @@ class RoleProfileTests(EditorBase):
             ("ideation", "max_tokens", 1.5),
             ("ideation", "temperature", 2.01),
             ("ideation", "timeout", 0),
+            ("ideation", "reasoning_effort", "disabled"),
             ("ideation", "api_key_env", "sk-private-credential"),
             ("ideation", "requires", []),
             ("visual_feedback", "endpoint", "alpha"),
@@ -102,7 +103,8 @@ class RoleProfileTests(EditorBase):
         incomplete = deepcopy(self.roles)
         del incomplete["ideation"]["timeout"]
         self.assertEqual(self.create(roles=incomplete).status_code, 422)
-        for key, value in (("max_tokens", 100), ("temperature", 0.5), ("api_key_env", "CODEX_KEY")):
+        for key, value in (("max_tokens", 100), ("temperature", 0.5),
+                           ("reasoning_effort", "none"), ("api_key_env", "CODEX_KEY")):
             assignments = deepcopy(self.roles)
             assignments["ideation"].update(endpoint="codex", **{key: value})
             self.assertEqual(self.create(roles=assignments).status_code, 422)
@@ -134,7 +136,7 @@ class RoleProfileTests(EditorBase):
     def test_shared_editor_validation_rejects_overrides_and_unknown_fields(self):
         configs = Configs(self.root)
         for changes in ({"timeout": -1}, {"temperature": 3}, {"max_tokens": True},
-                        {"api_key_env": "private-key-value"}, {"requires": []}):
+                        {"reasoning_effort": False}, {"api_key_env": "private-key-value"}, {"requires": []}):
             with self.subTest(changes=changes), self.assertRaises(InvalidConfiguration):
                 configs.save_editor(self.before["revision"], {"ideation": changes}, {})
         self.assertEqual(configs.editor(), self.before)
@@ -171,3 +173,27 @@ class RoleProfileTests(EditorBase):
         self.assertEqual(response.status_code, 503, response.text)
         self.assertNotIn("private-database-location", response.text)
         self.assertEqual(self.client.get("/api/models/profiles").json()["profiles"], [created])
+
+    def test_schema_upgrade_preserves_profiles_and_unset_reasoning(self):
+        created = self.create().json()
+        old_roles = deepcopy(created["roles"])
+        for role in old_roles.values():
+            del role["reasoning_effort"]
+        encoded = json.dumps(old_roles)
+        with sqlite3.connect(model_settings.settings_db_path(self.root)) as db:
+            db.execute("ALTER TABLE task_models DROP COLUMN reasoning_effort")
+            db.execute("UPDATE role_profiles SET roles=? WHERE id=?", (encoded, created["id"]))
+        model_settings.ensure_schema(self.root)
+        model_settings.ensure_schema(self.root)
+        self.assertEqual(self.client.get("/api/models/editor").json(), self.before)
+        restored = self.client.get("/api/models/profiles").json()["profiles"][0]
+        self.assertEqual(restored, created)
+        with sqlite3.connect(model_settings.settings_db_path(self.root)) as db:
+            self.assertEqual(db.execute("SELECT roles FROM role_profiles WHERE id=?",
+                                        (created["id"],)).fetchone()[0], encoded)
+        configs = Configs(self.root)
+        saved = configs.save_editor(self.before["revision"],
+                                    {"ideation": {"reasoning_effort": "high"}}, {})
+        snapshot = configs.assignment_snapshot(saved["revision"], restored["roles"])
+        self.assertNotIn("reasoning_effort", snapshot["roles"]["ideation"])
+        self.assertEqual(configs.editor(), saved)

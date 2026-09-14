@@ -88,6 +88,7 @@ function countChangedFields(
       "model",
       "max_tokens",
       "temperature",
+      "reasoning_effort",
       "timeout",
       "api_key_env",
     ] as const) {
@@ -374,7 +375,7 @@ export default function Models() {
     baseRevision.current = stored?.baseRevision ?? loaded.revision;
     setStaleDraft(Boolean(stored && stored.baseRevision !== loaded.revision));
     setSaved(loaded);
-    setRoleDrafts(stored?.roles ?? { ...loaded.roles });
+    setRoleDrafts(stored?.roles ? applyRoleAssignments(stored.roles, stored.roles) : { ...loaded.roles });
     setEndpointDrafts(stored?.endpoints ?? { ...loaded.endpoints });
     setFieldErrors({});
     setApiError(null);
@@ -448,6 +449,7 @@ export default function Models() {
       if (draft.model !== original.model) (patch.model = draft.model);
       if (draft.max_tokens !== original.max_tokens) (patch.max_tokens = draft.max_tokens);
       if (draft.temperature !== original.temperature) (patch.temperature = draft.temperature);
+      if (draft.reasoning_effort !== original.reasoning_effort) (patch.reasoning_effort = draft.reasoning_effort);
       if (draft.timeout !== original.timeout) (patch.timeout = draft.timeout);
       if (draft.api_key_env !== original.api_key_env) (patch.api_key_env = draft.api_key_env);
       if (Object.keys(patch).length) rolePatch[name] = patch;
@@ -630,7 +632,7 @@ export default function Models() {
                 several roles. Tasks can reuse a model with different
                 contexts; a role selects a model and settings, not a separate
                 agent or a shared conversation. Open Advanced for token,
-                temperature, timeout, and credential overrides.
+                temperature, reasoning effort, timeout, and credential overrides.
               </p>
             </div>
             <RoleProfiles

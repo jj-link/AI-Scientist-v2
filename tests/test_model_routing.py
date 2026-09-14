@@ -293,3 +293,21 @@ def test_endpoint_settings_direct_selfhosted(role_cfg):
 def test_endpoint_settings_rejects_legacy_strings(role_cfg):
     with pytest.raises(model_routing.RoleConfigError, match="not a self-hosted"):
         model_routing.endpoint_settings("gpt-4o-2024-11-20")
+
+
+@pytest.mark.parametrize("provider,effort", [("openai", "disabled"), ("openai-codex", "none")])
+def test_invalid_reasoning_override_fails_before_client_creation(role_cfg, monkeypatch, provider, effort):
+    import openai
+
+    cfg = json.loads(role_cfg.read_text(encoding="utf-8"))
+    cfg["endpoints"]["local"] = {"provider": provider, "provides": ["text"]}
+    cfg["roles"]["citation"] = {"endpoint": "local", "model": "small-model",
+                                "reasoning_effort": effort}
+    role_cfg.write_text(json.dumps(cfg), encoding="utf-8")
+
+    def unexpected_client(*args, **kwargs):
+        pytest.fail("Invalid role settings must fail before constructing a client.")
+
+    monkeypatch.setattr(openai, "OpenAI", unexpected_client)
+    with pytest.raises(model_routing.RoleConfigError):
+        model_routing.create_selfhosted_client("role/citation")

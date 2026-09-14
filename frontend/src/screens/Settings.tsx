@@ -354,7 +354,7 @@ export default function Settings() {
                         {cborg
                           ? "CBORG uses the existing OpenAI-compatible API. Selecting it supplies its address and credential environment-variable name; custom overrides remain editable."
                           : codex
-                            ? "Selecting Codex clears the endpoint address and credential name, plus token, temperature, and credential overrides for its roles, in this draft."
+                            ? "Selecting Codex clears the endpoint address and credential name, plus token, temperature, reasoning-effort, and credential overrides for its roles, in this draft."
                             : "Use any compatible HTTP(S) API address. An endpoint URL is required."}
                         {" "}Changes apply only after Save configuration.
                       </small>

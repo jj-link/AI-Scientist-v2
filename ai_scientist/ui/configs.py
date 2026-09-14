@@ -58,7 +58,7 @@ _REQUIRED_ROLES = ("ideation", "experiment_code", "experiment_feedback", "visual
 
 # Editable fields are exactly these; anything else is rejected as unknown.
 _SERVER_FIELDS = ("provider", "base_url", "api_key_env", "timeout")
-_TASK_FIELDS = ("endpoint", "model", "max_tokens", "temperature", "timeout", "api_key_env")
+_TASK_FIELDS = ("endpoint", "model", "max_tokens", "temperature", "reasoning_effort", "timeout", "api_key_env")
 
 
 def _now() -> str:
@@ -213,6 +213,7 @@ class Configs:
             rows.append({"name": name, "endpoint": endpoint_name if isinstance(endpoint_name, str) else None,
                 "model": role.get("model") if isinstance(role.get("model"), str) else None,
                 "max_tokens": _number(role.get("max_tokens")),
+                "reasoning_effort": role.get("reasoning_effort"),
                 "effective_max_tokens": ((_number(role.get("max_tokens")) or 4096) if name == "ideation" else None)
                     if provider != model_routing.CODEX_PROVIDER else None,
                 "timeout": _number(role.get("timeout"), _number(endpoint.get("timeout"),
@@ -244,7 +245,7 @@ class Configs:
         for name in task_names:
             role = roles.get(name) or {}
             role_rows[name] = {field: role.get({"endpoint": "endpoint", "model": "model",
-                "max_tokens": "max_tokens", "temperature": "temperature", "timeout": "timeout",
+                "max_tokens": "max_tokens", "temperature": "temperature", "reasoning_effort": "reasoning_effort", "timeout": "timeout",
                 "api_key_env": "api_key_env"}[field])
                 for field in _TASK_FIELDS}
             role_rows[name]["requires"] = _strings(role.get("requires"))
@@ -311,7 +312,7 @@ class Configs:
                 else:
                     final[name][field] = value
         kinds = {"model": "model", "max_tokens": "tokens", "temperature": "ratio",
-                 "timeout": "duration", "api_key_env": "env"}
+                 "reasoning_effort": "reasoning_effort", "timeout": "duration", "api_key_env": "env"}
         for name, task in final.items():
             for field, kind in kinds.items():
                 if task.get(field) is not None:
@@ -326,9 +327,9 @@ class Configs:
                 errors.append({"field": f"roles.{name}.model", "message": "Select a model for this server.", "code": "required"})
             server = servers[endpoint]
             if server.get("provider", "openai") == model_routing.CODEX_PROVIDER:
-                for field in ("max_tokens", "temperature", "api_key_env"):
+                for field in ("max_tokens", "temperature", "reasoning_effort", "api_key_env"):
                     if task.get(field) is not None:
-                        errors.append({"field": f"roles.{name}.{field}", "message": "Codex manages token limits, sampling, and ChatGPT credentials. Clear this override.", "code": "managed_by_provider"})
+                        errors.append({"field": f"roles.{name}.{field}", "message": "Codex manages token limits, sampling, reasoning, and ChatGPT credentials. Clear this override.", "code": "managed_by_provider"})
             if set(_strings(task.get("requires"))) - set(_strings(server.get("provides"))):
                 errors.append({"field": f"roles.{name}", "message": "The selected server does not declare a required capability.", "code": "capability_mismatch"})
         return final
@@ -448,6 +449,7 @@ class Configs:
                 "model": task.get("model"),
                 "max_tokens": task.get("max_tokens"),
                 "temperature": task.get("temperature"),
+                "reasoning_effort": task.get("reasoning_effort"),
                 "timeout": task.get("timeout"),
                 "credential_env": task.get("api_key_env"),
                 "requires": _strings(task.get("requires")),
@@ -488,6 +490,9 @@ class Configs:
         elif kind == "model":
             if not isinstance(value, str) or not value.strip() or value != value.strip():
                 errors.append({"field": field, "message": "Model identifier is required.", "code": "required"})
+        elif kind == "reasoning_effort":
+            if value not in model_routing.REASONING_EFFORTS:
+                errors.append({"field": field, "message": "Reasoning effort must be none, low, medium, or high.", "code": "invalid_reasoning_effort"})
         elif kind == "tokens":
             if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
                 errors.append({"field": field, "message": "Output token limit must be a positive whole number.", "code": "invalid_number"})
@@ -580,6 +585,7 @@ class Configs:
             "role": task, "endpoint": endpoint_name,
             "base_url": base_url, "provider": provider, "model": model.strip(), "api_key_env": api_key_env,
             "max_tokens": max_tokens, "temperature": float(temperature) if temperature is not None else None, "timeout": timeout,
+            "reasoning_effort": selected.get("reasoning_effort"),
             "credential_envs": tuple(sorted(credential_envs)),
         }
         return MappingProxyType(assignment)

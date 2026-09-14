@@ -319,6 +319,8 @@ class CrashAssistant:
                     max_tokens=assignment["max_tokens"],
                     temperature=assignment["temperature"],
                     n=1,
+                    **({"reasoning_effort": assignment["reasoning_effort"]}
+                       if assignment.get("reasoning_effort") is not None else {}),
                 ),
                 timeout=assignment["timeout"],
             )

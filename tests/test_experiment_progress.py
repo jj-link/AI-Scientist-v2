@@ -1,6 +1,8 @@
 """Failure and cancellation boundaries for experiment stage execution."""
 
 import sys
+from concurrent.futures import Future
+from io import BytesIO
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -11,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from ai_scientist.progress import Cancelled, PipelineFailure
 from ai_scientist.treesearch.agent_manager import AgentManager, Stage, StageTransition
 from ai_scientist.treesearch.journal import Journal, Node
+from ai_scientist.treesearch import parallel_agent
 
 
 class LocalAgent:
@@ -33,8 +36,12 @@ class LocalAgent:
     def step(self, exec_callback):
         self.steps += 1
         self.journal.append(
-            Node(id="implementation", ctime=0, is_buggy=not self.working,
-                 is_buggy_plots=not self.working)
+            Node(
+                id="implementation",
+                ctime=0,
+                is_buggy=not self.working,
+                is_buggy_plots=not self.working,
+            )
         )
 
     def _run_multi_seed_evaluation(self, best_node):
@@ -120,3 +127,129 @@ def test_stop_after_multiseed_preserves_saved_work_and_skips_aggregation():
     assert not agent.aggregated
     assert [event["type"] for event in events] == ["stage_started"]
     assert [node.id for node in agent.journal.nodes] == ["implementation", "seed"]
+
+
+def test_worker_timeout_propagates_and_releases_gpu(monkeypatch):
+    result = Future()
+    result.set_exception(TimeoutError("Worker model request timed out"))
+    executor = SimpleNamespace(submit=lambda *args: result)
+    monkeypatch.setattr(
+        parallel_agent, "ProcessPoolExecutor", lambda **kwargs: executor
+    )
+    monkeypatch.setattr(parallel_agent, "get_gpu_count", lambda: 1)
+    monkeypatch.setattr(
+        parallel_agent.ParallelAgent, "_define_global_metrics", lambda self: []
+    )
+    journal = Journal()
+    monkeypatch.setattr(journal, "generate_summary", lambda **kwargs: "")
+    cfg = SimpleNamespace(
+        agent=SimpleNamespace(num_workers=1, get=lambda *args: None),
+        exec=SimpleNamespace(timeout=300),
+    )
+    agent = parallel_agent.ParallelAgent(
+        "A bounded research study",
+        cfg,
+        journal,
+        stage_name="1_initial_implementation_1_preliminary",
+    )
+    monkeypatch.setattr(agent, "_select_parallel_nodes", lambda: [None])
+
+    with pytest.raises(TimeoutError):
+        agent.step(exec_callback=None)
+
+    assert not journal.nodes
+    assert agent.gpu_manager.acquire_gpu("replacement") == 0
+
+
+@pytest.mark.parametrize(
+    "planner", ["_generate_hyperparam_tuning_idea", "_generate_ablation_idea"]
+)
+def test_unparseable_stage_plan_does_not_invent_an_experiment(monkeypatch, planner):
+    agent = parallel_agent.ParallelAgent.__new__(parallel_agent.ParallelAgent)
+    agent.task_desc = "Only the saved comparison is permitted."
+    agent.cfg = SimpleNamespace(
+        agent=SimpleNamespace(
+            code=SimpleNamespace(model="role/experiment_code", temp=0)
+        )
+    )
+    agent.best_stage1_node = SimpleNamespace(code="recorded_baseline()")
+    agent.best_stage3_node = agent.best_stage1_node
+    agent._hyperparam_tuning_state = {"tried_hyperparams": set()}
+    agent._ablation_state = {"completed_ablations": set()}
+    monkeypatch.setattr(
+        parallel_agent, "query", lambda **kwargs: "Unparseable response"
+    )
+
+    with pytest.raises(RuntimeError):
+        getattr(agent, planner)()
+
+
+def _plot_review_agent(monkeypatch):
+    agent = parallel_agent.MinimalAgent.__new__(parallel_agent.MinimalAgent)
+    agent.task_desc = "Review the recorded paired comparison."
+    agent.cfg = SimpleNamespace(
+        agent=SimpleNamespace(
+            vlm_feedback=SimpleNamespace(model="role/visual_feedback", temp=0)
+        )
+    )
+    monkeypatch.setattr(
+        agent, "_determine_datasets_successfully_tested", lambda node: []
+    )
+    monkeypatch.setattr(
+        parallel_agent, "open", lambda path, mode: BytesIO(path.encode()), raising=False
+    )
+    return agent
+
+
+def test_plot_review_keeps_invalid_evidence_beyond_provider_image_limit(monkeypatch):
+    agent = _plot_review_agent(monkeypatch)
+    node = Node(code="pass", plan="Saved experiment")
+    node.plot_paths = [f"plot-{index}.png" for index in range(7)]
+
+    def review(**kwargs):
+        images = [
+            part["image_url"]["url"]
+            for part in kwargs["user_message"]
+            if part["type"] == "image_url"
+        ]
+        if len(images) > 4:
+            raise ValueError("At most 4 images may be provided in one prompt.")
+        paths = [
+            parallel_agent.base64.b64decode(image.split(",", 1)[1]).decode()
+            for image in images
+        ]
+        valid = "plot-5.png" not in paths
+        return {
+            "valid_plots_received": valid,
+            "plot_analyses": [
+                {"analysis": "Unreadable axes." if path == "plot-5.png" else "Valid axes."}
+                for path in paths
+            ],
+            "vlm_feedback_summary": "Valid plots." if valid else "Repair unreadable axes.",
+        }
+
+    monkeypatch.setattr(parallel_agent, "query", review)
+    agent._analyze_plots_with_vlm(node)
+
+    assert node.is_buggy_plots is True
+    assert "Repair unreadable axes." in node.vlm_feedback_summary
+
+
+def test_interrupted_plot_review_cannot_retain_a_successful_verdict(monkeypatch):
+    agent = _plot_review_agent(monkeypatch)
+    node = Node(code="pass", plan="Saved experiment")
+    node.plot_paths = ["updated-plot.png"]
+    node.is_buggy_plots = False
+    node.plot_analyses = [{"analysis": "Old successful review."}]
+    node.datasets_successfully_tested = ["old-data"]
+
+    def unavailable(**kwargs):
+        raise ConnectionError("Vision endpoint disconnected.")
+
+    monkeypatch.setattr(parallel_agent, "query", unavailable)
+    with pytest.raises(ConnectionError):
+        agent._analyze_plots_with_vlm(node)
+
+    assert node.is_buggy_plots is True
+    assert node.plot_analyses == []
+    assert not node.datasets_successfully_tested

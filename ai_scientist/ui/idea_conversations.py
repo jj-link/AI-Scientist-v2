@@ -335,7 +335,8 @@ class IdeaConversations:
         return {"model": selected["model"].strip(), "provider": model_routing.endpoint_provider(endpoint),
                 "base_url": model_routing.endpoint_base_url(endpoint), "timeout": timeout,
                 "api_key_env": selected.get("api_key_env") or model_routing.endpoint_api_key_env(endpoint),
-                "max_tokens": selected.get("max_tokens"), "temperature": selected.get("temperature")}
+                "max_tokens": selected.get("max_tokens"), "temperature": selected.get("temperature"),
+                "reasoning_effort": selected.get("reasoning_effort")}
 
     async def _complete(self, assignment, messages):
         from openai import AsyncOpenAI, APITimeoutError
@@ -348,8 +349,8 @@ class IdeaConversations:
             client = AsyncOpenAI(base_url=assignment["base_url"],
                                  api_key=os.environ.get(assignment["api_key_env"] or "") or "unused",
                                  timeout=assignment["timeout"], max_retries=0)
-        options = {key: assignment[key] for key in ("max_tokens", "temperature")
-                   if assignment[key] is not None and assignment["provider"] != "openai-codex"}
+        options = {key: assignment[key] for key in ("max_tokens", "temperature", "reasoning_effort")
+                   if assignment.get(key) is not None and assignment["provider"] != "openai-codex"}
         try:
             async with asyncio.timeout(assignment["timeout"]):
                 response_format = {"type": "json_object"}

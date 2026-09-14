@@ -296,6 +296,7 @@ class ExperimentSettingsTests(unittest.TestCase):
         for role in self.body["role_assignments"].values():
             role.update(endpoint="selected", model="selected-model", temperature=0.375,
                         timeout=19.25, max_tokens=512)
+        self.body["role_assignments"]["experiment_code"]["reasoning_effort"] = "none"
         defaults = self.app.state.store.current_settings()
 
         def change_defaults_during_readiness():
@@ -317,6 +318,10 @@ class ExperimentSettingsTests(unittest.TestCase):
             self.assertEqual(role["max_tokens"], 512)
             self.assertNotIn("api_key_env", role)
             self.assertEqual(role["requires"], defaults["roles"][name]["requires"])
+            if name == "experiment_code":
+                self.assertEqual(role["reasoning_effort"], "none")
+            else:
+                self.assertNotIn("reasoning_effort", role)
         self.assertEqual(self.app.state.store.current_settings()["roles"], defaults["roles"])
         self.assertEqual(self.launch(self.body), job_id)
         self.assertEqual(path.read_bytes(), original)
