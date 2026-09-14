@@ -363,7 +363,7 @@ Key tree search configuration parameters in `bfts_config.yaml`:
 
 -   `agent` config:
     -   Set `num_workers` (number of parallel exploration paths) and `steps` (maximum number of nodes to explore). For example, if `num_workers=3` and `steps=21`, the tree search will explore up to 21 nodes, expanding 3 nodes concurrently at each step.
-    -   `num_seeds`: Should generally be the same as `num_workers` if `num_workers` is less than 3. Otherwise, set `num_seeds` to 3.
+    -   `multi_seed_eval.num_seeds`: Number of requested repeat evaluations. Aggregation uses all supplied evaluations rather than assuming three. Keep the count within the saved research design; a single independent seed does not provide replicated evidence or between-seed uncertainty.
     -   Note: Other agent parameters like `k_fold_validation`, `expose_prediction`, and `data_preview` are not used in the current version.
 -   `search` config:
     -   `max_debug_depth`: The maximum number of times the agent will attempt to debug a failing node before abandoning that search path.

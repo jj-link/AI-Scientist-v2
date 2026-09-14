@@ -295,8 +295,8 @@ class MinimalAgent:
             "  - For optimizers, create them AFTER moving model to device",
             "  - When using DataLoader, move batch tensors to device in training loop: `batch = {k: v.to(device) for k, v in batch.items() if isinstance(v, torch.Tensor)}`",
             "CRITICAL MODEL INPUT GUIDELINES:",
-            "  - Always pay extra attention to the input to the model being properly normalized",
-            "  - This is extremely important because the input to the model's forward pass directly affects the output, and the loss function is computed based on the output",
+            "  - Preserve the feature representation and preprocessing specified by the saved research design.",
+            "  - Apply normalization only when the saved design requires or permits it; do not add transformations to otherwise specified inputs.",
         ]
         if hasattr(self.cfg.experiment, "num_syn_datasets"):
             num_syn_datasets = self.cfg.experiment.num_syn_datasets
@@ -326,7 +326,6 @@ class MinimalAgent:
                 "  os.makedirs(working_dir, exist_ok=True)",
                 "The code should be a single-file python program that is self-contained and can be executed as-is.",
                 "No parts of the code should be skipped, don't terminate the code execution before finishing the script.",
-                "Your response should only contain a single code block.",
                 f"Be aware of the running time of the code, it should complete within {humanize.naturaldelta(self.cfg.exec.timeout)}.",
                 'You can also use the "./working" directory to store any temporary files that your code needs to create.',
                 "Data saving requirements:",
@@ -2300,9 +2299,11 @@ class ParallelAgent:
             "Introduction": (
                 "You are an expert in data visualization and plotting. "
                 "You are given a set of evaluation results and the code that was used to plot them. "
-                "Your task is to write a new plotting code that aggregate the results "
-                "e.g. for example, by adding mean values and standard error bars to the plots."
+                "Write plotting code for the supplied recorded evaluations, following the saved research design. "
+                "Do not infer independent replications from the number of files. "
+                "For a single independent seed, show measured values without invented standard errors or confidence intervals."
             ),
+            "Research idea": self.task_desc,
             "Instructions": {},
         }
         plotting_prompt["Instructions"] |= {
@@ -2316,15 +2317,13 @@ class ParallelAgent:
             "Plotting code guideline": prompt_guideline,
         }
         plotting_prompt["Instructions"] |= {
-            "Plotting code reference": (
-                "plotting code 1:\n" + seed_nodes[0].plot_code + "\n\n"
-                "plotting code 2:\n" + seed_nodes[1].plot_code + "\n\n"
-                "plotting code 3:\n" + seed_nodes[2].plot_code + "\n\n"
+            "Plotting code reference": "\n\n".join(
+                f"plotting code {index}:\n{seed_node.plot_code}"
+                for index, seed_node in enumerate(seed_nodes, 1)
             ),
-            "Experiment Data Path": (
-                f"{seed_nodes[0].exp_results_dir}/experiment_data.npy\n"
-                f"{seed_nodes[1].exp_results_dir}/experiment_data.npy\n"
-                f"{seed_nodes[2].exp_results_dir}/experiment_data.npy\n"
+            "Experiment Data Path": "\n".join(
+                f"{seed_node.exp_results_dir}/experiment_data.npy"
+                for seed_node in seed_nodes
             ),
         }
         plan, code = self.plan_and_code_query(plotting_prompt)
