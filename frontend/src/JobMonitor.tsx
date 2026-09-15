@@ -2,12 +2,16 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import CrashAssistant from "./CrashAssistant";
 import ExperimentRunActions from "./ExperimentRunActions";
+import "./monitor.css";
 import {
   CheckCircle2,
   Circle,
   Clock3,
   Download,
   ExternalLink,
+  FileText,
+  Image,
+  Images,
   Square,
 } from "lucide-react";
 import {
@@ -51,6 +55,8 @@ const eventLabels: Record<string, string> = {
   stage_started: "Stage started",
   stage_finished: "Stage finished",
   step_saved: "Experiment step saved",
+  fixed_study_completed: "Native study evidence saved",
+  fixed_study_evidence_reused: "Shared native evidence selected",
   writeup_attempt: "Writing paper",
   stopped: "Job stopped",
   stopping: "Stop requested",
@@ -225,7 +231,7 @@ export default function JobMonitor({
   };
   if (!job)
     return (
-      <section className="card">
+      <section className={`card job-monitor monitor-connecting ${compact ? "compact" : ""}`}>
         <p role="status">
           {connectionError
             ? "Connection lost—reconnecting."
@@ -237,13 +243,16 @@ export default function JobMonitor({
   let saved: JobEvent | undefined;
   let stage: JobEvent | undefined;
   let milestone: JobEvent | undefined;
+  let nativeEvidence: JobEvent | undefined;
   for (let index = events.length - 1; index >= 0; index--) {
     const event = events[index];
     if (!saved && event.type === "step_saved") saved = event;
     if (!stage && typeof event.data.stage === "number") stage = event;
-    if (!milestone && ["step_saved", "proposal_finalized", "phase_finished", "stage_finished"].includes(event.type))
+    if (!nativeEvidence && event.type === "fixed_study_completed")
+      nativeEvidence = event;
+    if (!milestone && ["step_saved", "proposal_finalized", "phase_finished", "stage_finished", "fixed_study_completed", "fixed_study_evidence_reused"].includes(event.type))
       milestone = event;
-    if (saved && stage && milestone) break;
+    if (saved && stage && milestone && nativeEvidence) break;
   }
   const active = isActive(job.state);
   const phaseLabel = phases.find(([key]) => key === job.phase)?.[1] ||
@@ -252,6 +261,7 @@ export default function JobMonitor({
   const quietMinutes = Math.max(0, Math.floor((Date.now() - Date.parse(quietSince)) / 60000));
   const missingLabel = outputsError || connectionError ? "Availability unknown" :
     outputsChecking ? "Checking availability…" : active ? "Not saved yet" : "Not saved";
+  const RunTitle = compact ? "h2" : "h1";
   return (
     <section
       className={`card job-monitor ${compact ? "compact" : ""}`}
@@ -261,13 +271,13 @@ export default function JobMonitor({
           : "Experiment progress"
       }
     >
-      <div className="row job-header">
+      <header className="job-header">
         <div>
           <p className="eyebrow">
-            {job.kind === "idea" ? "Proposal generation" : "Experiment"}
+            {job.kind === "idea" ? "Proposal generation" : "Experiment workspace"}
           </p>
-          <h2>{job.title || "Research experiment"}</h2>
-          <div className="metadata">
+          <RunTitle className="monitor-run-title">{job.title || "Research experiment"}</RunTitle>
+          <div className="metadata monitor-run-status">
             <Status state={job.state} />
             <ElapsedTime job={job} />
           </div>
@@ -286,7 +296,7 @@ export default function JobMonitor({
                 : "Stop experiment"}
           </button>
         )}
-      </div>
+      </header>
       {connectionError ? (
         <p className="notice" role="status">
           Connection lost—reconnecting. The last recorded job state is shown.
@@ -312,94 +322,6 @@ export default function JobMonitor({
         </div>
       )}
       <CrashAssistant job={job} onOpenLog={() => setLogOpen(true)} />
-      <div className="monitor-focus">
-        {job.state === "running" && !connectionError && (
-          <div className="monitor-ambient" aria-hidden="true">
-            <span /><span /><span />
-          </div>
-        )}
-        <div className="monitor-phase">
-          <p className="eyebrow">Last recorded phase</p>
-          <h3>{phaseLabel}</h3>
-          {stage && job.phase === "experiments" && (
-            <p className="muted">
-              Stage {String(stage.data.stage)} ·{" "}
-              {stages[Number(stage.data.stage) - 1] ||
-                String(stage.data.stage_name || "Experiment stage")}
-              {stage.data.substage ? ` · ${String(stage.data.substage)}` : ""}
-            </p>
-          )}
-          <p className="monitor-milestone">
-            <strong>Last saved milestone</strong>{" "}
-            {milestone ? (
-              <>
-                {eventLabels[milestone.type] || milestone.type.replaceAll("_", " ")}
-                {milestone.phase ? ` · ${phases.find(([key]) => key === milestone.phase)?.[1] || milestone.phase}` : ""}
-                {" · "}<time dateTime={milestone.timestamp}>{new Date(milestone.timestamp).toLocaleString()}</time>
-              </>
-            ) : active ? "None recorded yet" : "None recorded"}
-          </p>
-          {active && quietMinutes >= 2 && (
-            <p className="metadata">
-              No newer recorded milestone for {quietMinutes} minutes.
-              {" "}This feed does not report in-flight model calls or compute activity.
-            </p>
-          )}
-        </div>
-      </div>
-      {job.kind === "experiment" && (
-        <section className="monitor-evidence" aria-label="Saved so far">
-          <div className="row">
-            <h3>Saved so far</h3>
-            {job.run_id && <Link to={`/results/${job.run_id}`}>View in Results <ExternalLink size={14} aria-hidden="true" /></Link>}
-          </div>
-          {!job.run_id ? (
-            <p className="muted">{active ? "Waiting for a saved run to inspect." : "No saved run is linked to this job."}</p>
-          ) : !outputs ? (
-            <p className="muted" role="status">
-              {outputsError || connectionError ? "Saved outputs could not be loaded. Retrying; availability is unknown." : "Checking saved outputs…"}
-            </p>
-          ) : (
-            <>
-              {outputsError || connectionError ? <p className="notice" role="status">Could not refresh saved outputs. Showing the last available snapshot; availability may have changed.</p> : null}
-              <dl className="monitor-output-counts">
-                <div><dt>Paper PDFs</dt><dd>{outputs.papers.length ? `${outputs.papers.length} saved` : missingLabel}</dd></div>
-                <div><dt>Final figures</dt><dd>{outputs.figures.length ? `${outputs.figures.length} saved` : missingLabel}</dd></div>
-                <div><dt>Working images</dt><dd>{workingImages.length ? `${workingImages.length} saved` : missingLabel}</dd></div>
-              </dl>
-              {outputs.papers.length > 0 && (
-                <div className="monitor-paper-links">
-                  {outputs.papers.map((paper) => (
-                    <a key={paper.id} href={artifactUrl(job.run_id!, paper.id)} target="_blank" rel="noopener noreferrer" title={`${paper.relative_path} · ${new Date(paper.updated_at).toLocaleString()}`}>
-                      {paper.name}
-                    </a>
-                  ))}
-                </div>
-              )}
-              {workingImages.length > 0 && (
-                <div className="monitor-image-strip">
-                  {workingImages.slice(0, compact ? 2 : 3).map((image) => (
-                    <figure key={image.id}>
-                      <a href={artifactUrl(job.run_id!, image.id)} target="_blank" rel="noopener noreferrer" aria-label={`Open working image: ${image.name}`}>
-                        <img key={image.updated_at} src={artifactUrl(job.run_id!, image.id)} alt={`Working image: ${image.name}`} loading="lazy" />
-                      </a>
-                      <figcaption>
-                        <strong>{image.name}</strong>
-                        <span>{image.relative_path}</span>
-                        <time dateTime={image.updated_at}>{new Date(image.updated_at).toLocaleString()}</time>
-                      </figcaption>
-                    </figure>
-                  ))}
-                </div>
-              )}
-              <p className="metadata">
-                Working images are intermediate outputs, not final figures. Saved files do not establish a successful result.
-                {workingImages.length > (compact ? 2 : 3) ? " See all working images in Results." : ""}
-              </p>
-            </>
-          )}
-        </section>
-      )}
       {job.kind === "experiment" && (
         <ol className="timeline" aria-label="Pipeline phases">
           {phases.map(([key, label]) => {
@@ -409,7 +331,7 @@ export default function JobMonitor({
             const active = job.phase === key && isActive(job.state);
             const Icon = done ? CheckCircle2 : Circle;
             return (
-              <li key={key} className={done ? "done" : active ? "current" : ""}>
+              <li key={key} className={done ? "done" : active ? "current" : ""} aria-current={active && !done ? "step" : undefined}>
                 <Icon size={14} aria-hidden="true" />
                 <span>{label}</span>
                 <small>
@@ -426,6 +348,41 @@ export default function JobMonitor({
           })}
         </ol>
       )}
+      <section className="monitor-activity" aria-label="Recorded activity">
+        <div className="monitor-phase">
+          <p className="eyebrow">{active ? "Current activity · last recorded" : "Last recorded activity"}</p>
+          <h3>{phaseLabel}</h3>
+          {stage && job.phase === "experiments" && (
+            <p className="muted">
+              Stage {String(stage.data.stage)} ·{" "}
+              {stages[Number(stage.data.stage) - 1] ||
+                String(stage.data.stage_name || "Experiment stage")}
+              {stage.data.substage ? ` · ${String(stage.data.substage).replace(/^\d+_/, "").replaceAll("_", " ")}` : ""}
+            </p>
+          )}
+          {job.kind === "experiment" && job.phase === "experiments" && (
+            <p className="monitor-phase-note">
+              This phase includes experiment execution and analysis.
+              {" "}Phase changes reflect recorded events, not a completion estimate.
+            </p>
+          )}
+          {nativeEvidence && (
+            <div className="monitor-native-evidence">
+              <CheckCircle2 size={18} aria-hidden="true" />
+              <div>
+                <strong>{eventLabels[nativeEvidence.type]}</strong>
+                <p>
+                  {typeof nativeEvidence.data.trials === "number"
+                    ? `${nativeEvidence.data.trials} trials recorded. `
+                    : ""}
+                  Recorded native evidence does not mark analysis or later phases complete.
+                </p>
+                <time dateTime={nativeEvidence.timestamp}>{new Date(nativeEvidence.timestamp).toLocaleString()}</time>
+              </div>
+            </div>
+          )}
+        </div>
+        <div className="monitor-event-ledger">
       <div className="monitor-latest">
         <strong>Latest recorded event</strong>
         <span>
@@ -442,8 +399,102 @@ export default function JobMonitor({
           {latest && <> · <time dateTime={latest.timestamp}>{new Date(latest.timestamp).toLocaleString()}</time></>}
         </span>
       </div>
+          <p className="monitor-milestone">
+            <strong>Last saved milestone</strong>
+            <span>
+            {milestone ? (
+              <>
+                {eventLabels[milestone.type] || milestone.type.replaceAll("_", " ")}
+                {milestone.phase ? ` · ${phases.find(([key]) => key === milestone.phase)?.[1] || milestone.phase}` : ""}
+                {" · "}<time dateTime={milestone.timestamp}>{new Date(milestone.timestamp).toLocaleString()}</time>
+              </>
+            ) : active ? "None recorded yet" : "None recorded"}
+            </span>
+          </p>
+          {active && quietMinutes >= 2 && (
+            <p className="monitor-quiet">
+              No newer recorded event for {quietMinutes} minutes.
+              {" "}This feed does not report in-flight model calls or compute activity.
+            </p>
+          )}
+        </div>
+      </section>
+      {job.kind === "experiment" && (
+        <section className="monitor-evidence" aria-label="Saved outputs">
+          <div className="monitor-section-heading">
+            <div>
+              <p className="eyebrow">Output library</p>
+              <h3>Saved outputs</h3>
+            </div>
+            {job.run_id && <Link to={`/results/${job.run_id}`}>View in Results <ExternalLink size={14} aria-hidden="true" /></Link>}
+          </div>
+          {!job.run_id ? (
+            <p className="monitor-empty">{active ? "Waiting for a saved run to inspect." : "No saved run is linked to this job."}</p>
+          ) : !outputs ? (
+            <p className="monitor-empty" role="status">
+              {outputsError || connectionError ? "Saved outputs could not be loaded. Retrying; availability is unknown." : "Checking saved outputs…"}
+            </p>
+          ) : (
+            <>
+              {outputsError || connectionError ? <p className="notice" role="status">Could not refresh saved outputs. Showing the last available snapshot; availability may have changed.</p> : null}
+              <dl className="monitor-output-counts">
+                <div>
+                  <dt><FileText size={18} aria-hidden="true" /> Paper PDFs</dt>
+                  <dd>{outputs.papers.length ? <><strong>{outputs.papers.length}</strong><span>saved</span></> : <span className="monitor-unavailable">{missingLabel}</span>}</dd>
+                </div>
+                <div>
+                  <dt><Image size={18} aria-hidden="true" /> Final figures</dt>
+                  <dd>{outputs.figures.length ? <><strong>{outputs.figures.length}</strong><span>saved</span></> : <span className="monitor-unavailable">{missingLabel}</span>}</dd>
+                </div>
+                <div>
+                  <dt><Images size={18} aria-hidden="true" /> Working images</dt>
+                  <dd>{workingImages.length ? <><strong>{workingImages.length}</strong><span>saved</span></> : <span className="monitor-unavailable">{missingLabel}</span>}</dd>
+                </div>
+              </dl>
+              {outputs.papers.length > 0 && (
+                <div className="monitor-paper-links">
+                  {outputs.papers.map((paper) => (
+                    <a key={paper.id} href={artifactUrl(job.run_id!, paper.id)} target="_blank" rel="noopener noreferrer" title={`${paper.relative_path} · ${new Date(paper.updated_at).toLocaleString()}`}>
+                      <FileText size={17} aria-hidden="true" /><span>{paper.name}</span><ExternalLink size={14} aria-hidden="true" />
+                    </a>
+                  ))}
+                </div>
+              )}
+              {workingImages.length > 0 && (
+                <div className="monitor-preview-gallery">
+                  <div className="monitor-preview-heading">
+                    <h4>Working image previews</h4>
+                    <span>Intermediate artifacts</span>
+                  </div>
+                  <div className="monitor-image-strip">
+                  {workingImages.slice(0, 2).map((image) => (
+                    <figure key={image.id}>
+                      <a href={artifactUrl(job.run_id!, image.id)} target="_blank" rel="noopener noreferrer" aria-label={`Open working image: ${image.name}`}>
+                        <img key={image.updated_at} src={artifactUrl(job.run_id!, image.id)} alt={`Working image: ${image.name}`} loading="lazy" />
+                      </a>
+                      <figcaption>
+                        <strong>{image.name}</strong>
+                        <span>{image.relative_path}</span>
+                        <div className="monitor-artifact-meta">
+                          <time dateTime={image.updated_at}>{new Date(image.updated_at).toLocaleString()}</time>
+                          <span>Working image</span>
+                        </div>
+                      </figcaption>
+                    </figure>
+                  ))}
+                  </div>
+                </div>
+              )}
+              <p className="monitor-evidence-note">
+                Working images are intermediate outputs, not final figures. Saved files do not establish a successful result.
+                {workingImages.length > 2 ? " See all working images in Results." : ""}
+              </p>
+            </>
+          )}
+        </section>
+      )}
       {job.kind === "idea" && job.result && (
-        <p>
+        <p className="monitor-proposal-result">
           {String(job.result.finalized ?? 0)} finalized /{" "}
           {String(job.result.attempted ?? "unknown")} attempted
           {job.result.failed_attempts !== undefined
@@ -451,10 +502,6 @@ export default function JobMonitor({
             : ""}
         </p>
       )}
-      <p className="metadata">
-        Started {new Date(job.started_at || job.created_at).toLocaleString()} ·
-        Last update {new Date(job.updated_at).toLocaleString()}
-      </p>
       {job.state === "completed" && (
         <p className="notice">
           Completed means the selected work finished. It does not establish
@@ -475,11 +522,15 @@ export default function JobMonitor({
         )}
       </div>
       <details
-        className="advanced"
+        className="advanced monitor-technical"
         open={logOpen}
         onToggle={(event) => setLogOpen(event.currentTarget.open)}
       >
         <summary>Technical details</summary>
+        <p className="metadata">
+          Started {new Date(job.started_at || job.created_at).toLocaleString()} ·
+          Last update {new Date(job.updated_at).toLocaleString()}
+        </p>
         {stage && (
           <p className="muted">
             Last recorded experiment stage: {String(stage.data.stage)} ·{" "}

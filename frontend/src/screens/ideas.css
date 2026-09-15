@@ -81,7 +81,7 @@
 .conversation-navigation {
   min-width: 0;
 }
-.conversation-navigation {
+.conversation-navigation.stack {
   gap: 16px;
 }
 .conversation-navigation h2 {
@@ -171,8 +171,11 @@
   cursor: pointer;
   margin-bottom: 12px;
 }
-.conversation-composer {
+.conversation-composer.stack {
   gap: 12px;
+}
+.conversation-workspace.stack {
+  gap: 20px;
 }
 .conversation-progress p {
   margin: 0;

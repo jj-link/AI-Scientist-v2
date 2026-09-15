@@ -86,7 +86,7 @@ function ResultsIndex() {
           remain available when a run fails or stops.
         </p>
       </PageHeading>
-      <div className="toolbar">
+      <div className="toolbar results-archive-toolbar">
         <p className="muted">
           Historical runs have saved outputs, not a verified execution status.
         </p>
@@ -113,9 +113,10 @@ function ResultsIndex() {
           </Link>
         </div>
       )}
-      <div className="card-grid results-index">
+      <div className="results-index">
         {data?.runs.map((run) => (
           <article className="card results-run" key={run.id}>
+            <div className="results-run-heading">
             <Status
               state={run.historical ? "unavailable" : run.state}
               label={
@@ -129,6 +130,7 @@ function ResultsIndex() {
                 {run.title}
               </Link>
             </h2>
+            </div>
             <p className="results-hypothesis">
               {run.hypothesis || "No saved hypothesis is available."}
             </p>
@@ -142,7 +144,7 @@ function ResultsIndex() {
               <p className="muted">No outputs are currently available.</p>
             )}
             <Link
-              className="button secondary"
+              className="button secondary results-run-open"
               to={`/results/${encodeURIComponent(run.id)}`}
             >
               View outputs
@@ -162,7 +164,8 @@ function PaperPanel({ run }: { run: RunDetail }) {
   );
   if (!run.papers.length)
     return (
-      <div className="card empty-state">
+      <div className="card empty-state results-empty">
+        <FileText size={28} aria-hidden="true" />
         <h2>{isActive(run.state) ? "Paper not saved yet" : "No final paper available"}</h2>
         <p>
           {isActive(run.state)
@@ -172,8 +175,8 @@ function PaperPanel({ run }: { run: RunDetail }) {
       </div>
     );
   return (
-    <section className="card stack" aria-labelledby="paper-heading">
-      <div>
+    <section className="card stack results-paper" aria-labelledby="paper-heading">
+      <div className="results-section-heading">
         <h2 id="paper-heading">Paper</h2>
         <p className="muted">
           {run.historical
@@ -181,7 +184,7 @@ function PaperPanel({ run }: { run: RunDetail }) {
             : "The pipeline-recorded PDF is selected when available. Other saved PDFs are listed below."}
         </p>
       </div>
-      <label className="field">
+      <label className="field results-paper-select">
         Saved PDF
         <select
           value={chosen?.id || ""}
@@ -202,7 +205,7 @@ function PaperPanel({ run }: { run: RunDetail }) {
       </label>
       {chosen && (
         <>
-          <div className="actions">
+          <div className="actions results-paper-actions">
             <a
               className="button primary"
               href={artifactUrl(run.id, chosen.id)}
@@ -461,7 +464,16 @@ function WorkingImagesPanel({ run }: { run: RunDetail }) {
     undefined,
   );
   return (
-    <section className="card results-working-images" aria-labelledby="working-images-heading">
+    <section className={`card results-working-images${latest ? "" : " results-working-empty"}`} aria-labelledby="working-images-heading">
+      {latest && (
+        <button
+          className="results-figure-open results-working-preview"
+          onClick={() => setSelectedId(latest.id)}
+          aria-label={`Inspect working image: ${latest.name}`}
+        >
+          <SavedImage runId={run.id} artifact={latest} />
+        </button>
+      )}
       <div className="results-working-copy">
         <h2 id="working-images-heading">
           Working images <span className="badge">{images.length}</span>
@@ -490,15 +502,6 @@ function WorkingImagesPanel({ run }: { run: RunDetail }) {
           </p>
         )}
       </div>
-      {latest && (
-        <button
-          className="results-figure-open results-working-preview"
-          onClick={() => setSelectedId(latest.id)}
-          aria-label={`Inspect working image: ${latest.name}`}
-        >
-          <SavedImage runId={run.id} artifact={latest} />
-        </button>
-      )}
       {images.length > 0 && (
         <details className="advanced results-working-sources">
           <summary>Browse saved image files ({images.length})</summary>
@@ -533,8 +536,8 @@ function FiguresPanel({ run }: { run: RunDetail }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const close = useCallback(() => setSelectedId(null), []);
   return (
-    <section className="stack" aria-labelledby="figures-heading">
-      <div>
+    <section className="stack results-figures" aria-labelledby="figures-heading">
+      <div className="results-section-heading">
         <h2 id="figures-heading">
           Final figures <span className="badge">{run.figures.length}</span>
         </h2>
@@ -544,12 +547,13 @@ function FiguresPanel({ run }: { run: RunDetail }) {
         </p>
       </div>
       {!run.figures.length && (
-        <div className="card empty-state">
+        <div className="card empty-state results-empty">
+          <Images size={28} aria-hidden="true" />
           <h3>{isActive(run.state) ? "Final figures not saved yet" : "No final figures available"}</h3>
           <p>Intermediate files, when saved, appear in Working images.</p>
         </div>
       )}
-      <div className="figure-grid">
+      <div className="figure-grid results-figure-grid">
         {run.figures.map((figure) => (
           <figure className="figure-card results-figure" key={figure.id}>
             <button
@@ -560,7 +564,7 @@ function FiguresPanel({ run }: { run: RunDetail }) {
               <SavedImage runId={run.id} artifact={figure} />
             </button>
             <figcaption>
-              <span>{figure.name}</span>
+              <strong>{figure.name}</strong>
               <ImageProvenance artifact={figure} />
               <DownloadLink
                 runId={run.id}
@@ -627,20 +631,21 @@ function ReviewCard({ runId, review }: { runId: string; review: Review }) {
 
 function ReviewsPanel({ run }: { run: RunDetail }) {
   return (
-    <section className="stack" aria-labelledby="reviews-heading">
-      <div>
+    <section className="stack results-reviews" aria-labelledby="reviews-heading">
+      <div className="results-section-heading">
         <h2 id="reviews-heading">Reviews</h2>
         <p className="muted">
           AI-generated assessments, not peer review or evidence of acceptance.
           Ratings and decisions below are the saved values.
         </p>
       </div>
-      {run.reviews.length ? (
+      {run.reviews.some((review) => review.artifact_id) ? (
         run.reviews.map((review) => (
           <ReviewCard key={review.kind} runId={run.id} review={review} />
         ))
       ) : (
-        <div className="card empty-state">
+        <div className="card empty-state results-empty">
+          <MessageSquare size={28} aria-hidden="true" />
           <h3>{isActive(run.state) ? "Reviews not saved yet" : "Reviews not available"}</h3>
           <p>No saved paper or figure review {isActive(run.state) ? "is available yet" : "was found"}.</p>
         </div>
@@ -741,8 +746,8 @@ function DetailsPanel({ run }: { run: RunDetail }) {
     );
   };
   return (
-    <section className="stack" aria-labelledby="details-heading">
-      <div>
+    <section className="stack results-details" aria-labelledby="details-heading">
+      <div className="results-section-heading">
         <h2 id="details-heading">Experiment details</h2>
         <p className="muted">
           Saved records are grouped by actual log directory and stage/substage.
@@ -810,7 +815,8 @@ function DetailsPanel({ run }: { run: RunDetail }) {
         </section>
       )}
       {!run.log_directories.length && !run.stages.length && (
-        <div className="card empty-state">
+        <div className="card empty-state results-empty">
+          <FolderOpen size={28} aria-hidden="true" />
           <h3>Stage records not available</h3>
           <p>No readable saved stage records or log directories were found.</p>
         </div>
@@ -866,10 +872,10 @@ function DetailsPanel({ run }: { run: RunDetail }) {
 }
 
 const panels = [
-  { id: "paper", label: "Open paper", icon: FileText },
+  { id: "paper", label: "Paper", icon: FileText },
   { id: "figures", label: "Figures", icon: Images },
   { id: "reviews", label: "Reviews", icon: MessageSquare },
-  { id: "details", label: "Experiment details", icon: FolderOpen },
+  { id: "details", label: "Technical records", icon: FolderOpen },
 ];
 function ResultDetail({ runId }: { runId: string }) {
   const [search, setSearch] = useSearchParams();
@@ -904,12 +910,13 @@ function ResultDetail({ runId }: { runId: string }) {
       {loading && !run && <p role="status">Loading saved outputs…</p>}
       {run && (
         <>
+          <header className="results-masthead">
           <PageHeading eyebrow="Saved outputs" title={run.title}>
             <p className="results-hypothesis">
               {run.hypothesis || "No saved hypothesis is available."}
             </p>
           </PageHeading>
-          <div className="toolbar">
+          <div className="toolbar results-masthead-actions">
             <Status
               state={run.historical ? "unavailable" : run.state}
               label={
@@ -923,6 +930,17 @@ function ResultDetail({ runId }: { runId: string }) {
               Refresh outputs
             </button>
           </div>
+          <dl className="results-run-meta">
+            <div>
+              <dt>Saved directory</dt>
+              <dd>{run.directory}</dd>
+            </div>
+            <div>
+              <dt>Last update</dt>
+              <dd>{savedTime(run.updated_at)}</dd>
+            </div>
+          </dl>
+          </header>
           {!run.historical && ["failed", "stopped", "interrupted"].includes(run.state) && (
             <p className="notice">
               {run.state === "failed" ? "This run failed." : run.state === "stopped" ? "This run was stopped." : "This run was interrupted."}
@@ -940,15 +958,22 @@ function ResultDetail({ runId }: { runId: string }) {
               {isActive(run.state) ? "Not saved yet" : "Not available"}: {run.missing_outputs.join(", ")}.
             </p>
           )}
+          <dl className="results-inventory" aria-label="Saved artifact inventory">
+            <div><dt>Saved PDFs</dt><dd>{run.papers.length}</dd></div>
+            <div><dt>Final figures</dt><dd>{run.figures.length}</dd></div>
+            <div><dt>Saved reviews</dt><dd>{run.reviews.reduce((count, review) => count + (review.artifact_id ? 1 : 0), 0)}</dd></div>
+            <div><dt>Total saved files</dt><dd>{run.artifacts.length}</dd></div>
+          </dl>
           <nav
-            className="output-strip results-panels"
+            className="results-panels"
             aria-label="Result outputs"
           >
             {panels.map((item) => (
               <button
                 key={item.id}
-                className={`button ${panel === item.id ? "primary" : "secondary"}`}
+                className={`button results-panel-button${panel === item.id ? " is-selected" : ""}`}
                 aria-pressed={panel === item.id}
+                aria-controls="result-panel"
                 onClick={() => {
                   const next = new URLSearchParams(search);
                   next.set("panel", item.id);
@@ -960,12 +985,16 @@ function ResultDetail({ runId }: { runId: string }) {
               </button>
             ))}
           </nav>
-          <WorkingImagesPanel run={run} />
-          <div className="results-panel">
+          <div className="results-workspace">
+          <div className="results-panel" id="result-panel">
             {panel === "paper" && <PaperPanel run={run} />}
             {panel === "figures" && <FiguresPanel run={run} />}
             {panel === "reviews" && <ReviewsPanel run={run} />}
             {panel === "details" && <DetailsPanel run={run} />}
+          </div>
+          <aside className="results-workspace-aside" aria-label="Intermediate outputs">
+            <WorkingImagesPanel run={run} />
+          </aside>
           </div>
         </>
       )}
@@ -975,5 +1004,5 @@ function ResultDetail({ runId }: { runId: string }) {
 
 export default function Results() {
   const { runId } = useParams<{ runId: string }>();
-  return runId ? <ResultDetail key={runId} runId={runId} /> : <ResultsIndex />;
+  return <div className="results-screen">{runId ? <ResultDetail key={runId} runId={runId} /> : <ResultsIndex />}</div>;
 }

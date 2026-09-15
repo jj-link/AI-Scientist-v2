@@ -16,13 +16,13 @@ export default function Experiments() {
   if (jobId)
     return (
       <div className="stack">
-        <Link className="back-link" to="/experiments">
-          <ArrowLeft size={17} aria-hidden="true" />
-          All experiments
-        </Link>
-        <PageHeading eyebrow="Experiments" title="Follow the recorded work">
-          <p>Live progress and saved outputs from the worker on this PC.</p>
-        </PageHeading>
+        <div className="run-page-toolbar">
+          <Link className="back-link" to="/experiments">
+            <ArrowLeft size={17} aria-hidden="true" />
+            All experiments
+          </Link>
+          <span className="eyebrow">Run workspace</span>
+        </div>
         <JobMonitor key={jobId} jobId={jobId} />
       </div>
     );
@@ -71,7 +71,7 @@ export default function Experiments() {
               ),
             );
             return (
-              <article className="card experiment-card" key={job.id}>
+              <article className="card experiment-card" data-state={job.state} key={job.id}>
                 <div className="row">
                   <Status state={job.state} />
                   <span className="metadata">
@@ -83,18 +83,24 @@ export default function Experiments() {
                     {job.title || "Research experiment"}
                   </Link>
                 </h2>
-                <p>
-                  Current phase:{" "}
-                  <strong>
-                    {job.phase
-                      ? job.phase[0].toUpperCase() + job.phase.slice(1)
-                      : "Not recorded"}
-                  </strong>
-                </p>
-                <p className="metadata">
-                  Started{" "}
-                  {new Date(job.started_at || job.created_at).toLocaleString()}
-                </p>
+                <dl className="experiment-facts">
+                  <div>
+                    <dt>Last recorded phase</dt>
+                    <dd>
+                      {job.phase
+                        ? job.phase[0].toUpperCase() + job.phase.slice(1)
+                        : "Not recorded"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Started</dt>
+                    <dd>
+                      <time dateTime={job.started_at || job.created_at}>
+                        {new Date(job.started_at || job.created_at).toLocaleString()}
+                      </time>
+                    </dd>
+                  </div>
+                </dl>
                 <div className="actions">
                   <Link
                     className="button secondary"

@@ -27,33 +27,41 @@ function Shell() {
           </span>
         </div>
         <nav aria-label="Primary">
-          <NavLink to="/ideas">
-            <Lightbulb size={20} aria-hidden="true" />
-            Ideas
-          </NavLink>
-          <NavLink to="/experiments">
-            <FlaskConical size={20} aria-hidden="true" />
-            Experiments
-          </NavLink>
-          <NavLink to="/results">
-            <Images size={20} aria-hidden="true" />
-            Results
-          </NavLink>
-          <NavLink to="/models">
-            <Server size={20} aria-hidden="true" />
-            Models
-          </NavLink>
-          <NavLink to="/settings">
-            <SettingsIcon size={20} aria-hidden="true" />
-            Settings
-          </NavLink>
+          <div className="nav-group">
+            <p className="nav-caption">Research</p>
+            <NavLink to="/ideas">
+              <Lightbulb size={19} aria-hidden="true" />
+              Ideas
+            </NavLink>
+            <NavLink to="/experiments">
+              <FlaskConical size={19} aria-hidden="true" />
+              Experiments
+            </NavLink>
+            <NavLink to="/results">
+              <Images size={19} aria-hidden="true" />
+              Results
+            </NavLink>
+          </div>
+          <div className="nav-group">
+            <p className="nav-caption">Workspace</p>
+            <NavLink to="/models">
+              <Server size={19} aria-hidden="true" />
+              Models
+            </NavLink>
+            <NavLink to="/settings">
+              <SettingsIcon size={19} aria-hidden="true" />
+              Settings
+            </NavLink>
+          </div>
         </nav>
         <div className="sidebar-footer">
-          <span className="local-dot" /> Local application
-          <p>Research runs on this PC.</p>
-          {bootstrap.active_job && (
-            <Status state={bootstrap.active_job.state} />
-          )}
+          <p className="sidebar-environment"><span className="local-dot" /> Local application</p>
+          {bootstrap.active_job ? (
+            <div className="sidebar-activity">
+              <span>Current job</span>
+              <Status state={bootstrap.active_job.state} />
+            </div>
+          ) : <p className="sidebar-idle">No active job.</p>}
         </div>
       </aside>
       <main id="main-content" className="main-content" tabIndex={-1}>
