@@ -320,9 +320,50 @@ empty symbol for a file or an exact qualified name such as `Class.method`.
 Notes and diagnoses are code-free, including copied source and fenced
 reproductions. These restrictions are stated in the model-visible tool schemas.
 
+Before contacting the model endpoint, the runner qualifies **every cohort
+workspace in both preparation and repair mode**, using the actual networkless,
+nonroot sandbox. Each must exercise a public package operation, pass selected
+public baseline tests, and report a deliberately failing assertion through the
+same test runner. Collection errors, missing dependencies, skipped/zero tests,
+or an unexpectedly passing negative control stop the entire execution before
+model generation. Fresh trial workspaces are checked again before use.
+
+Exact Git exports alone are not installed Python packages. For Matplotlib and
+Astropy, the runner verifies that the pinned image's tracked source and submodules
+match the requested commits, then restores only explicitly declared build/runtime
+outputs from that image. Each output and the prepared archive are SHA-256 pinned.
+Trusted patch capture rejects modified, removed, or symlinked runtime artifacts
+and excludes the unchanged artifacts from the submitted source patch; model edits
+to `.gitignore` cannot bypass this boundary. Qualification scratch files are
+discarded before the model receives the workspace.
+
+Receipts live under each native execution's `workspaces/` directory and their
+digest is required in new published results. A changed runner cannot inherit
+an earlier execution's attempts. Failed qualification is infrastructure failure,
+not evidence that the model failed the benchmark.
+
+The separately pinned Astropy correction in
+`experiments/workspace-environment-repair/astropy-image/image-manifest.json`
+uses NumPy 1.23.5: the original image's NumPy 1.25.2 removed aliases required by
+the pinned Astropy source. The correction is shared by model workspaces and the
+official evaluator, not a workspace-only compatibility shim. Its Dockerfile,
+hash-locked wheel, and model-free `qualification-protocol.json` are retained.
+The image is local to native NVIDIA-Workbench Docker, not published to a registry;
+rebuilds must record their actual digest and repeat qualification.
+
+For future environment changes, run `experiments/qwen27b-feasibility/qualify_source.py`
+with the new protocol and its complete cohort, followed by
+`verify_boundaries.py` and `verify_evaluator.py` in the environment-repair directory.
+Use the pinned native Python and `unix:///run/docker.sock`, never Docker Desktop.
+These drivers make no model requests. Reference patches are used only by the
+trusted evaluator control, never workspace qualification or model inputs.
+Freeze a separate study protocol only after all controls pass; the verification
+protocol is not authorization to start a model study.
+
 Archived Gemma protocols and results retain their original
 `handoff_output_reserve` and execution identities. Do not rewrite them to use the
-new controller semantics. Their evidence-only importer remains unchanged.
+new controller semantics. Their evidence-only importer preserves the historical
+budget field instead of translating it.
 The native runner still validates the pinned Gemma/llama.cpp runtime; selecting
 another Studio model does not make it compatible with SGLang. A different target
 requires live runtime, token-accounting, tool-call, and source-environment

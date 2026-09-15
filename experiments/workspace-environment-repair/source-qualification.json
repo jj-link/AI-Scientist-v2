@@ -1,0 +1,1957 @@
+{
+  "all_passed": true,
+  "checks": [
+    {
+      "checks": [
+        {
+          "command": "python -B -c 'from pathlib import Path\nPath('\"'\"'/workspace/test_workspace_assertion_control.py'\"'\"').write_text(\"def test_workspace_assertion_control():\\n    assert 6 * 7 == 43, '\"'\"'WORKSPACE_ASSERTION_CONTROL'\"'\"'\\n\")\nimport astropy\nfrom astropy.io import ascii\nassert astropy.__file__.startswith('\"'\"'/testbed/'\"'\"')\ntable = ascii.read('\"'\"'value\\n1\\n2\\n'\"'\"', format='\"'\"'basic'\"'\"', guess=False)\nassert list(table['\"'\"'value'\"'\"']) == [1, 2]\nprint('\"'\"'PASS: source Astropy parses an ASCII table'\"'\"')\n'",
+          "exit_code": 0,
+          "name": "api",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "config=; for path in /testbed/setup.cfg; do if test -f \"$path\"; then config=\"$path\"; break; fi; done; test -n \"$config\" || exit 2; PYTHONPATH=/testbed MPLCONFIGDIR=/workspace/matplotlib python -B -m pytest -c \"$config\" --rootdir=/testbed -q -rA -p no:cacheprovider --basetemp=/workspace/public-test-work --junitxml=/workspace/public-tests.xml 'astropy/io/ascii/tests/test_read.py::test_from_string[force]'; status=$?; python -c 'import json, xml.etree.ElementTree as ET\ncases = ET.parse('\"'\"'/workspace/public-tests.xml'\"'\"').getroot().findall('\"'\"'.//testcase'\"'\"')\nprint('\"'\"'WORKSPACE_JUNIT='\"'\"' + json.dumps([\n    {'\"'\"'name'\"'\"': case.get('\"'\"'name'\"'\"'), '\"'\"'skipped'\"'\"': case.find('\"'\"'skipped'\"'\"') is not None,\n     '\"'\"'errors'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'error'\"'\"')],\n     '\"'\"'failures'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'failure'\"'\"')]}\n    for case in cases]))\n'; exit \"$status\"",
+          "exit_code": 0,
+          "name": "public_tests",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "config=; for path in /testbed/setup.cfg; do if test -f \"$path\"; then config=\"$path\"; break; fi; done; test -n \"$config\" || exit 2; PYTHONPATH=/testbed MPLCONFIGDIR=/workspace/matplotlib python -B -m pytest -c \"$config\" --rootdir=/testbed -q -rA -p no:cacheprovider --basetemp=/workspace/public-test-work --junitxml=/workspace/public-tests.xml 'astropy/io/ascii/tests/test_read.py::test_from_string[force]' /workspace/test_workspace_assertion_control.py::test_workspace_assertion_control; status=$?; python -c 'import json, xml.etree.ElementTree as ET\ncases = ET.parse('\"'\"'/workspace/public-tests.xml'\"'\"').getroot().findall('\"'\"'.//testcase'\"'\"')\nprint('\"'\"'WORKSPACE_JUNIT='\"'\"' + json.dumps([\n    {'\"'\"'name'\"'\"': case.get('\"'\"'name'\"'\"'), '\"'\"'skipped'\"'\"': case.find('\"'\"'skipped'\"'\"') is not None,\n     '\"'\"'errors'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'error'\"'\"')],\n     '\"'\"'failures'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'failure'\"'\"')]}\n    for case in cases]))\n'; exit \"$status\"",
+          "exit_code": 1,
+          "name": "assertion_control",
+          "output_truncated": false,
+          "passed": true
+        }
+      ],
+      "image_id": "sha256:0ebf92dd3a0a2e4512bb24bacb3d0910c0aa365dd87c35fda16c7c784b17de28",
+      "instance_id": "astropy__astropy-8707",
+      "mode": "preparation",
+      "passed": true,
+      "pristine_sha256": "9deb1cfe09739c783228442aab667bfdadd3b0f215354f123c3216abf5d56b5d",
+      "repo": "astropy/astropy"
+    },
+    {
+      "checks": [
+        {
+          "command": "python -B -c 'from pathlib import Path\nPath('\"'\"'/workspace/test_workspace_assertion_control.py'\"'\"').write_text(\"def test_workspace_assertion_control():\\n    assert 6 * 7 == 43, '\"'\"'WORKSPACE_ASSERTION_CONTROL'\"'\"'\\n\")\nimport astropy\nfrom astropy.io import ascii\nassert astropy.__file__.startswith('\"'\"'/testbed/'\"'\"')\ntable = ascii.read('\"'\"'value\\n1\\n2\\n'\"'\"', format='\"'\"'basic'\"'\"', guess=False)\nassert list(table['\"'\"'value'\"'\"']) == [1, 2]\nprint('\"'\"'PASS: source Astropy parses an ASCII table'\"'\"')\n'",
+          "exit_code": 0,
+          "name": "api",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "config=; for path in /testbed/setup.cfg; do if test -f \"$path\"; then config=\"$path\"; break; fi; done; test -n \"$config\" || exit 2; PYTHONPATH=/testbed MPLCONFIGDIR=/workspace/matplotlib python -B -m pytest -c \"$config\" --rootdir=/testbed -q -rA -p no:cacheprovider --basetemp=/workspace/public-test-work --junitxml=/workspace/public-tests.xml 'astropy/io/ascii/tests/test_read.py::test_from_string[force]'; status=$?; python -c 'import json, xml.etree.ElementTree as ET\ncases = ET.parse('\"'\"'/workspace/public-tests.xml'\"'\"').getroot().findall('\"'\"'.//testcase'\"'\"')\nprint('\"'\"'WORKSPACE_JUNIT='\"'\"' + json.dumps([\n    {'\"'\"'name'\"'\"': case.get('\"'\"'name'\"'\"'), '\"'\"'skipped'\"'\"': case.find('\"'\"'skipped'\"'\"') is not None,\n     '\"'\"'errors'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'error'\"'\"')],\n     '\"'\"'failures'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'failure'\"'\"')]}\n    for case in cases]))\n'; exit \"$status\"",
+          "exit_code": 0,
+          "name": "public_tests",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "config=; for path in /testbed/setup.cfg; do if test -f \"$path\"; then config=\"$path\"; break; fi; done; test -n \"$config\" || exit 2; PYTHONPATH=/testbed MPLCONFIGDIR=/workspace/matplotlib python -B -m pytest -c \"$config\" --rootdir=/testbed -q -rA -p no:cacheprovider --basetemp=/workspace/public-test-work --junitxml=/workspace/public-tests.xml 'astropy/io/ascii/tests/test_read.py::test_from_string[force]' /workspace/test_workspace_assertion_control.py::test_workspace_assertion_control; status=$?; python -c 'import json, xml.etree.ElementTree as ET\ncases = ET.parse('\"'\"'/workspace/public-tests.xml'\"'\"').getroot().findall('\"'\"'.//testcase'\"'\"')\nprint('\"'\"'WORKSPACE_JUNIT='\"'\"' + json.dumps([\n    {'\"'\"'name'\"'\"': case.get('\"'\"'name'\"'\"'), '\"'\"'skipped'\"'\"': case.find('\"'\"'skipped'\"'\"') is not None,\n     '\"'\"'errors'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'error'\"'\"')],\n     '\"'\"'failures'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'failure'\"'\"')]}\n    for case in cases]))\n'; exit \"$status\"",
+          "exit_code": 1,
+          "name": "assertion_control",
+          "output_truncated": false,
+          "passed": true
+        }
+      ],
+      "image_id": "sha256:0ebf92dd3a0a2e4512bb24bacb3d0910c0aa365dd87c35fda16c7c784b17de28",
+      "instance_id": "astropy__astropy-8707",
+      "mode": "repair",
+      "passed": true,
+      "pristine_sha256": "9deb1cfe09739c783228442aab667bfdadd3b0f215354f123c3216abf5d56b5d",
+      "repo": "astropy/astropy"
+    },
+    {
+      "checks": [
+        {
+          "command": "python -B -c 'from pathlib import Path\nPath('\"'\"'/workspace/test_workspace_assertion_control.py'\"'\"').write_text(\"from django.test import SimpleTestCase\\nclass WorkspaceAssertionControl(SimpleTestCase):\\n    def test_assertion_control(self):\\n        self.assertEqual(6 * 7, 43, '\"'\"'WORKSPACE_ASSERTION_CONTROL'\"'\"')\\n\")\nimport django\nfrom django.conf import settings\nassert django.__file__.startswith('\"'\"'/testbed/'\"'\"')\nsettings.configure(DATABASES={'\"'\"'default'\"'\"': {'\"'\"'ENGINE'\"'\"': '\"'\"'django.db.backends.sqlite3'\"'\"', '\"'\"'NAME'\"'\"': '\"'\"':memory:'\"'\"'}}, INSTALLED_APPS=[])\ndjango.setup()\nfrom django.db import connection\nwith connection.cursor() as cursor:\n    cursor.execute('\"'\"'SELECT 6 * 7'\"'\"')\n    assert cursor.fetchone() == (42,)\nconnection.close()\nprint('\"'\"'PASS: source Django configuration and SQLite execution'\"'\"')\n'",
+          "exit_code": 0,
+          "name": "api",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "PYTHONPATH=/testbed:/workspace python -B tests/runtests.py --settings=test_sqlite --parallel=1 --noinput --verbosity=2 basic.tests.ModelInstanceCreationTests.test_object_is_not_written_to_database_until_save_was_called",
+          "exit_code": 0,
+          "name": "public_tests",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "PYTHONPATH=/testbed:/workspace python -B tests/runtests.py --settings=test_sqlite --parallel=1 --noinput --verbosity=2 basic.tests.ModelInstanceCreationTests.test_object_is_not_written_to_database_until_save_was_called test_workspace_assertion_control.WorkspaceAssertionControl.test_assertion_control",
+          "exit_code": 1,
+          "name": "assertion_control",
+          "output_truncated": false,
+          "passed": true
+        }
+      ],
+      "image_id": "sha256:811f9bf0ca067b334b574cd3589cdc989b350b2a24b68e1ddcd288fbb97d61f4",
+      "instance_id": "django__django-11138",
+      "mode": "preparation",
+      "passed": true,
+      "pristine_sha256": "cfd2a973fea4c6cb0479ed549664684459d048ed8b28e3b42577b9d4179680b9",
+      "repo": "django/django"
+    },
+    {
+      "checks": [
+        {
+          "command": "python -B -c 'from pathlib import Path\nPath('\"'\"'/workspace/test_workspace_assertion_control.py'\"'\"').write_text(\"from django.test import SimpleTestCase\\nclass WorkspaceAssertionControl(SimpleTestCase):\\n    def test_assertion_control(self):\\n        self.assertEqual(6 * 7, 43, '\"'\"'WORKSPACE_ASSERTION_CONTROL'\"'\"')\\n\")\nimport django\nfrom django.conf import settings\nassert django.__file__.startswith('\"'\"'/testbed/'\"'\"')\nsettings.configure(DATABASES={'\"'\"'default'\"'\"': {'\"'\"'ENGINE'\"'\"': '\"'\"'django.db.backends.sqlite3'\"'\"', '\"'\"'NAME'\"'\"': '\"'\"':memory:'\"'\"'}}, INSTALLED_APPS=[])\ndjango.setup()\nfrom django.db import connection\nwith connection.cursor() as cursor:\n    cursor.execute('\"'\"'SELECT 6 * 7'\"'\"')\n    assert cursor.fetchone() == (42,)\nconnection.close()\nprint('\"'\"'PASS: source Django configuration and SQLite execution'\"'\"')\n'",
+          "exit_code": 0,
+          "name": "api",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "PYTHONPATH=/testbed:/workspace python -B tests/runtests.py --settings=test_sqlite --parallel=1 --noinput --verbosity=2 basic.tests.ModelInstanceCreationTests.test_object_is_not_written_to_database_until_save_was_called",
+          "exit_code": 0,
+          "name": "public_tests",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "PYTHONPATH=/testbed:/workspace python -B tests/runtests.py --settings=test_sqlite --parallel=1 --noinput --verbosity=2 basic.tests.ModelInstanceCreationTests.test_object_is_not_written_to_database_until_save_was_called test_workspace_assertion_control.WorkspaceAssertionControl.test_assertion_control",
+          "exit_code": 1,
+          "name": "assertion_control",
+          "output_truncated": false,
+          "passed": true
+        }
+      ],
+      "image_id": "sha256:811f9bf0ca067b334b574cd3589cdc989b350b2a24b68e1ddcd288fbb97d61f4",
+      "instance_id": "django__django-11138",
+      "mode": "repair",
+      "passed": true,
+      "pristine_sha256": "cfd2a973fea4c6cb0479ed549664684459d048ed8b28e3b42577b9d4179680b9",
+      "repo": "django/django"
+    },
+    {
+      "checks": [
+        {
+          "command": "python -B -c 'from pathlib import Path\nPath('\"'\"'/workspace/test_workspace_assertion_control.py'\"'\"').write_text(\"from django.test import SimpleTestCase\\nclass WorkspaceAssertionControl(SimpleTestCase):\\n    def test_assertion_control(self):\\n        self.assertEqual(6 * 7, 43, '\"'\"'WORKSPACE_ASSERTION_CONTROL'\"'\"')\\n\")\nimport django\nfrom django.conf import settings\nassert django.__file__.startswith('\"'\"'/testbed/'\"'\"')\nsettings.configure(DATABASES={'\"'\"'default'\"'\"': {'\"'\"'ENGINE'\"'\"': '\"'\"'django.db.backends.sqlite3'\"'\"', '\"'\"'NAME'\"'\"': '\"'\"':memory:'\"'\"'}}, INSTALLED_APPS=[])\ndjango.setup()\nfrom django.db import connection\nwith connection.cursor() as cursor:\n    cursor.execute('\"'\"'SELECT 6 * 7'\"'\"')\n    assert cursor.fetchone() == (42,)\nconnection.close()\nprint('\"'\"'PASS: source Django configuration and SQLite execution'\"'\"')\n'",
+          "exit_code": 0,
+          "name": "api",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "PYTHONPATH=/testbed:/workspace python -B tests/runtests.py --settings=test_sqlite --parallel=1 --noinput --verbosity=2 basic.tests.ModelInstanceCreationTests.test_object_is_not_written_to_database_until_save_was_called",
+          "exit_code": 0,
+          "name": "public_tests",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "PYTHONPATH=/testbed:/workspace python -B tests/runtests.py --settings=test_sqlite --parallel=1 --noinput --verbosity=2 basic.tests.ModelInstanceCreationTests.test_object_is_not_written_to_database_until_save_was_called test_workspace_assertion_control.WorkspaceAssertionControl.test_assertion_control",
+          "exit_code": 1,
+          "name": "assertion_control",
+          "output_truncated": false,
+          "passed": true
+        }
+      ],
+      "image_id": "sha256:5ddbc111ccc7ed091855034eacff1c58347df158d6acd0c015feab17587d36a2",
+      "instance_id": "django__django-11734",
+      "mode": "preparation",
+      "passed": true,
+      "pristine_sha256": "a59a72d7a190de2934b6df799abe10733a4a5846ec7ced433e2178e9da869116",
+      "repo": "django/django"
+    },
+    {
+      "checks": [
+        {
+          "command": "python -B -c 'from pathlib import Path\nPath('\"'\"'/workspace/test_workspace_assertion_control.py'\"'\"').write_text(\"from django.test import SimpleTestCase\\nclass WorkspaceAssertionControl(SimpleTestCase):\\n    def test_assertion_control(self):\\n        self.assertEqual(6 * 7, 43, '\"'\"'WORKSPACE_ASSERTION_CONTROL'\"'\"')\\n\")\nimport django\nfrom django.conf import settings\nassert django.__file__.startswith('\"'\"'/testbed/'\"'\"')\nsettings.configure(DATABASES={'\"'\"'default'\"'\"': {'\"'\"'ENGINE'\"'\"': '\"'\"'django.db.backends.sqlite3'\"'\"', '\"'\"'NAME'\"'\"': '\"'\"':memory:'\"'\"'}}, INSTALLED_APPS=[])\ndjango.setup()\nfrom django.db import connection\nwith connection.cursor() as cursor:\n    cursor.execute('\"'\"'SELECT 6 * 7'\"'\"')\n    assert cursor.fetchone() == (42,)\nconnection.close()\nprint('\"'\"'PASS: source Django configuration and SQLite execution'\"'\"')\n'",
+          "exit_code": 0,
+          "name": "api",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "PYTHONPATH=/testbed:/workspace python -B tests/runtests.py --settings=test_sqlite --parallel=1 --noinput --verbosity=2 basic.tests.ModelInstanceCreationTests.test_object_is_not_written_to_database_until_save_was_called",
+          "exit_code": 0,
+          "name": "public_tests",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "PYTHONPATH=/testbed:/workspace python -B tests/runtests.py --settings=test_sqlite --parallel=1 --noinput --verbosity=2 basic.tests.ModelInstanceCreationTests.test_object_is_not_written_to_database_until_save_was_called test_workspace_assertion_control.WorkspaceAssertionControl.test_assertion_control",
+          "exit_code": 1,
+          "name": "assertion_control",
+          "output_truncated": false,
+          "passed": true
+        }
+      ],
+      "image_id": "sha256:5ddbc111ccc7ed091855034eacff1c58347df158d6acd0c015feab17587d36a2",
+      "instance_id": "django__django-11734",
+      "mode": "repair",
+      "passed": true,
+      "pristine_sha256": "a59a72d7a190de2934b6df799abe10733a4a5846ec7ced433e2178e9da869116",
+      "repo": "django/django"
+    },
+    {
+      "checks": [
+        {
+          "command": "python -B -c 'from pathlib import Path\nPath('\"'\"'/workspace/test_workspace_assertion_control.py'\"'\"').write_text(\"from django.test import SimpleTestCase\\nclass WorkspaceAssertionControl(SimpleTestCase):\\n    def test_assertion_control(self):\\n        self.assertEqual(6 * 7, 43, '\"'\"'WORKSPACE_ASSERTION_CONTROL'\"'\"')\\n\")\nimport django\nfrom django.conf import settings\nassert django.__file__.startswith('\"'\"'/testbed/'\"'\"')\nsettings.configure(DATABASES={'\"'\"'default'\"'\"': {'\"'\"'ENGINE'\"'\"': '\"'\"'django.db.backends.sqlite3'\"'\"', '\"'\"'NAME'\"'\"': '\"'\"':memory:'\"'\"'}}, INSTALLED_APPS=[])\ndjango.setup()\nfrom django.db import connection\nwith connection.cursor() as cursor:\n    cursor.execute('\"'\"'SELECT 6 * 7'\"'\"')\n    assert cursor.fetchone() == (42,)\nconnection.close()\nprint('\"'\"'PASS: source Django configuration and SQLite execution'\"'\"')\n'",
+          "exit_code": 0,
+          "name": "api",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "PYTHONPATH=/testbed:/workspace python -B tests/runtests.py --settings=test_sqlite --parallel=1 --noinput --verbosity=2 basic.tests.ModelInstanceCreationTests.test_object_is_not_written_to_database_until_save_was_called",
+          "exit_code": 0,
+          "name": "public_tests",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "PYTHONPATH=/testbed:/workspace python -B tests/runtests.py --settings=test_sqlite --parallel=1 --noinput --verbosity=2 basic.tests.ModelInstanceCreationTests.test_object_is_not_written_to_database_until_save_was_called test_workspace_assertion_control.WorkspaceAssertionControl.test_assertion_control",
+          "exit_code": 1,
+          "name": "assertion_control",
+          "output_truncated": false,
+          "passed": true
+        }
+      ],
+      "image_id": "sha256:02ec0a94d6eab4aa692f0a416af266132edd6d5264f184813f95bbb818d81914",
+      "instance_id": "django__django-12406",
+      "mode": "preparation",
+      "passed": true,
+      "pristine_sha256": "59dfae7a492d65cade0bc02b068ab58d7986862b4895bd1bb41db31b29f34a55",
+      "repo": "django/django"
+    },
+    {
+      "checks": [
+        {
+          "command": "python -B -c 'from pathlib import Path\nPath('\"'\"'/workspace/test_workspace_assertion_control.py'\"'\"').write_text(\"from django.test import SimpleTestCase\\nclass WorkspaceAssertionControl(SimpleTestCase):\\n    def test_assertion_control(self):\\n        self.assertEqual(6 * 7, 43, '\"'\"'WORKSPACE_ASSERTION_CONTROL'\"'\"')\\n\")\nimport django\nfrom django.conf import settings\nassert django.__file__.startswith('\"'\"'/testbed/'\"'\"')\nsettings.configure(DATABASES={'\"'\"'default'\"'\"': {'\"'\"'ENGINE'\"'\"': '\"'\"'django.db.backends.sqlite3'\"'\"', '\"'\"'NAME'\"'\"': '\"'\"':memory:'\"'\"'}}, INSTALLED_APPS=[])\ndjango.setup()\nfrom django.db import connection\nwith connection.cursor() as cursor:\n    cursor.execute('\"'\"'SELECT 6 * 7'\"'\"')\n    assert cursor.fetchone() == (42,)\nconnection.close()\nprint('\"'\"'PASS: source Django configuration and SQLite execution'\"'\"')\n'",
+          "exit_code": 0,
+          "name": "api",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "PYTHONPATH=/testbed:/workspace python -B tests/runtests.py --settings=test_sqlite --parallel=1 --noinput --verbosity=2 basic.tests.ModelInstanceCreationTests.test_object_is_not_written_to_database_until_save_was_called",
+          "exit_code": 0,
+          "name": "public_tests",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "PYTHONPATH=/testbed:/workspace python -B tests/runtests.py --settings=test_sqlite --parallel=1 --noinput --verbosity=2 basic.tests.ModelInstanceCreationTests.test_object_is_not_written_to_database_until_save_was_called test_workspace_assertion_control.WorkspaceAssertionControl.test_assertion_control",
+          "exit_code": 1,
+          "name": "assertion_control",
+          "output_truncated": false,
+          "passed": true
+        }
+      ],
+      "image_id": "sha256:02ec0a94d6eab4aa692f0a416af266132edd6d5264f184813f95bbb818d81914",
+      "instance_id": "django__django-12406",
+      "mode": "repair",
+      "passed": true,
+      "pristine_sha256": "59dfae7a492d65cade0bc02b068ab58d7986862b4895bd1bb41db31b29f34a55",
+      "repo": "django/django"
+    },
+    {
+      "checks": [
+        {
+          "command": "python -B -c 'from pathlib import Path\nPath('\"'\"'/workspace/test_workspace_assertion_control.py'\"'\"').write_text(\"from django.test import SimpleTestCase\\nclass WorkspaceAssertionControl(SimpleTestCase):\\n    def test_assertion_control(self):\\n        self.assertEqual(6 * 7, 43, '\"'\"'WORKSPACE_ASSERTION_CONTROL'\"'\"')\\n\")\nimport django\nfrom django.conf import settings\nassert django.__file__.startswith('\"'\"'/testbed/'\"'\"')\nsettings.configure(DATABASES={'\"'\"'default'\"'\"': {'\"'\"'ENGINE'\"'\"': '\"'\"'django.db.backends.sqlite3'\"'\"', '\"'\"'NAME'\"'\"': '\"'\"':memory:'\"'\"'}}, INSTALLED_APPS=[])\ndjango.setup()\nfrom django.db import connection\nwith connection.cursor() as cursor:\n    cursor.execute('\"'\"'SELECT 6 * 7'\"'\"')\n    assert cursor.fetchone() == (42,)\nconnection.close()\nprint('\"'\"'PASS: source Django configuration and SQLite execution'\"'\"')\n'",
+          "exit_code": 0,
+          "name": "api",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "PYTHONPATH=/testbed:/workspace python -B tests/runtests.py --settings=test_sqlite --parallel=1 --noinput --verbosity=2 basic.tests.ModelInstanceCreationTests.test_object_is_not_written_to_database_until_save_was_called",
+          "exit_code": 0,
+          "name": "public_tests",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "PYTHONPATH=/testbed:/workspace python -B tests/runtests.py --settings=test_sqlite --parallel=1 --noinput --verbosity=2 basic.tests.ModelInstanceCreationTests.test_object_is_not_written_to_database_until_save_was_called test_workspace_assertion_control.WorkspaceAssertionControl.test_assertion_control",
+          "exit_code": 1,
+          "name": "assertion_control",
+          "output_truncated": false,
+          "passed": true
+        }
+      ],
+      "image_id": "sha256:18befd1acb588516d019e63b99f00126f44323a4aa23e4a493ef3eebb4610b03",
+      "instance_id": "django__django-13195",
+      "mode": "preparation",
+      "passed": true,
+      "pristine_sha256": "6a3a04ec466914dcf5ce92fbfb691de93ceaba9706740631915cc09e7cb716fc",
+      "repo": "django/django"
+    },
+    {
+      "checks": [
+        {
+          "command": "python -B -c 'from pathlib import Path\nPath('\"'\"'/workspace/test_workspace_assertion_control.py'\"'\"').write_text(\"from django.test import SimpleTestCase\\nclass WorkspaceAssertionControl(SimpleTestCase):\\n    def test_assertion_control(self):\\n        self.assertEqual(6 * 7, 43, '\"'\"'WORKSPACE_ASSERTION_CONTROL'\"'\"')\\n\")\nimport django\nfrom django.conf import settings\nassert django.__file__.startswith('\"'\"'/testbed/'\"'\"')\nsettings.configure(DATABASES={'\"'\"'default'\"'\"': {'\"'\"'ENGINE'\"'\"': '\"'\"'django.db.backends.sqlite3'\"'\"', '\"'\"'NAME'\"'\"': '\"'\"':memory:'\"'\"'}}, INSTALLED_APPS=[])\ndjango.setup()\nfrom django.db import connection\nwith connection.cursor() as cursor:\n    cursor.execute('\"'\"'SELECT 6 * 7'\"'\"')\n    assert cursor.fetchone() == (42,)\nconnection.close()\nprint('\"'\"'PASS: source Django configuration and SQLite execution'\"'\"')\n'",
+          "exit_code": 0,
+          "name": "api",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "PYTHONPATH=/testbed:/workspace python -B tests/runtests.py --settings=test_sqlite --parallel=1 --noinput --verbosity=2 basic.tests.ModelInstanceCreationTests.test_object_is_not_written_to_database_until_save_was_called",
+          "exit_code": 0,
+          "name": "public_tests",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "PYTHONPATH=/testbed:/workspace python -B tests/runtests.py --settings=test_sqlite --parallel=1 --noinput --verbosity=2 basic.tests.ModelInstanceCreationTests.test_object_is_not_written_to_database_until_save_was_called test_workspace_assertion_control.WorkspaceAssertionControl.test_assertion_control",
+          "exit_code": 1,
+          "name": "assertion_control",
+          "output_truncated": false,
+          "passed": true
+        }
+      ],
+      "image_id": "sha256:18befd1acb588516d019e63b99f00126f44323a4aa23e4a493ef3eebb4610b03",
+      "instance_id": "django__django-13195",
+      "mode": "repair",
+      "passed": true,
+      "pristine_sha256": "6a3a04ec466914dcf5ce92fbfb691de93ceaba9706740631915cc09e7cb716fc",
+      "repo": "django/django"
+    },
+    {
+      "checks": [
+        {
+          "command": "python -B -c 'from pathlib import Path\nPath('\"'\"'/workspace/test_workspace_assertion_control.py'\"'\"').write_text(\"from django.test import SimpleTestCase\\nclass WorkspaceAssertionControl(SimpleTestCase):\\n    def test_assertion_control(self):\\n        self.assertEqual(6 * 7, 43, '\"'\"'WORKSPACE_ASSERTION_CONTROL'\"'\"')\\n\")\nimport django\nfrom django.conf import settings\nassert django.__file__.startswith('\"'\"'/testbed/'\"'\"')\nsettings.configure(DATABASES={'\"'\"'default'\"'\"': {'\"'\"'ENGINE'\"'\"': '\"'\"'django.db.backends.sqlite3'\"'\"', '\"'\"'NAME'\"'\"': '\"'\"':memory:'\"'\"'}}, INSTALLED_APPS=[])\ndjango.setup()\nfrom django.db import connection\nwith connection.cursor() as cursor:\n    cursor.execute('\"'\"'SELECT 6 * 7'\"'\"')\n    assert cursor.fetchone() == (42,)\nconnection.close()\nprint('\"'\"'PASS: source Django configuration and SQLite execution'\"'\"')\n'",
+          "exit_code": 0,
+          "name": "api",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "PYTHONPATH=/testbed:/workspace python -B tests/runtests.py --settings=test_sqlite --parallel=1 --noinput --verbosity=2 basic.tests.ModelInstanceCreationTests.test_object_is_not_written_to_database_until_save_was_called",
+          "exit_code": 0,
+          "name": "public_tests",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "PYTHONPATH=/testbed:/workspace python -B tests/runtests.py --settings=test_sqlite --parallel=1 --noinput --verbosity=2 basic.tests.ModelInstanceCreationTests.test_object_is_not_written_to_database_until_save_was_called test_workspace_assertion_control.WorkspaceAssertionControl.test_assertion_control",
+          "exit_code": 1,
+          "name": "assertion_control",
+          "output_truncated": false,
+          "passed": true
+        }
+      ],
+      "image_id": "sha256:d10fbbbb16acdfa184b9e4c8292ca40becd40099afba97a19665384d4ea5d751",
+      "instance_id": "django__django-14170",
+      "mode": "preparation",
+      "passed": true,
+      "pristine_sha256": "671e3f302274222a7b0d1ecc2d3564e83c9fd161becf1f3dd994685f85297073",
+      "repo": "django/django"
+    },
+    {
+      "checks": [
+        {
+          "command": "python -B -c 'from pathlib import Path\nPath('\"'\"'/workspace/test_workspace_assertion_control.py'\"'\"').write_text(\"from django.test import SimpleTestCase\\nclass WorkspaceAssertionControl(SimpleTestCase):\\n    def test_assertion_control(self):\\n        self.assertEqual(6 * 7, 43, '\"'\"'WORKSPACE_ASSERTION_CONTROL'\"'\"')\\n\")\nimport django\nfrom django.conf import settings\nassert django.__file__.startswith('\"'\"'/testbed/'\"'\"')\nsettings.configure(DATABASES={'\"'\"'default'\"'\"': {'\"'\"'ENGINE'\"'\"': '\"'\"'django.db.backends.sqlite3'\"'\"', '\"'\"'NAME'\"'\"': '\"'\"':memory:'\"'\"'}}, INSTALLED_APPS=[])\ndjango.setup()\nfrom django.db import connection\nwith connection.cursor() as cursor:\n    cursor.execute('\"'\"'SELECT 6 * 7'\"'\"')\n    assert cursor.fetchone() == (42,)\nconnection.close()\nprint('\"'\"'PASS: source Django configuration and SQLite execution'\"'\"')\n'",
+          "exit_code": 0,
+          "name": "api",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "PYTHONPATH=/testbed:/workspace python -B tests/runtests.py --settings=test_sqlite --parallel=1 --noinput --verbosity=2 basic.tests.ModelInstanceCreationTests.test_object_is_not_written_to_database_until_save_was_called",
+          "exit_code": 0,
+          "name": "public_tests",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "PYTHONPATH=/testbed:/workspace python -B tests/runtests.py --settings=test_sqlite --parallel=1 --noinput --verbosity=2 basic.tests.ModelInstanceCreationTests.test_object_is_not_written_to_database_until_save_was_called test_workspace_assertion_control.WorkspaceAssertionControl.test_assertion_control",
+          "exit_code": 1,
+          "name": "assertion_control",
+          "output_truncated": false,
+          "passed": true
+        }
+      ],
+      "image_id": "sha256:d10fbbbb16acdfa184b9e4c8292ca40becd40099afba97a19665384d4ea5d751",
+      "instance_id": "django__django-14170",
+      "mode": "repair",
+      "passed": true,
+      "pristine_sha256": "671e3f302274222a7b0d1ecc2d3564e83c9fd161becf1f3dd994685f85297073",
+      "repo": "django/django"
+    },
+    {
+      "checks": [
+        {
+          "command": "python -B -c 'from pathlib import Path\nPath('\"'\"'/workspace/test_workspace_assertion_control.py'\"'\"').write_text(\"from django.test import SimpleTestCase\\nclass WorkspaceAssertionControl(SimpleTestCase):\\n    def test_assertion_control(self):\\n        self.assertEqual(6 * 7, 43, '\"'\"'WORKSPACE_ASSERTION_CONTROL'\"'\"')\\n\")\nimport django\nfrom django.conf import settings\nassert django.__file__.startswith('\"'\"'/testbed/'\"'\"')\nsettings.configure(DATABASES={'\"'\"'default'\"'\"': {'\"'\"'ENGINE'\"'\"': '\"'\"'django.db.backends.sqlite3'\"'\"', '\"'\"'NAME'\"'\"': '\"'\"':memory:'\"'\"'}}, INSTALLED_APPS=[])\ndjango.setup()\nfrom django.db import connection\nwith connection.cursor() as cursor:\n    cursor.execute('\"'\"'SELECT 6 * 7'\"'\"')\n    assert cursor.fetchone() == (42,)\nconnection.close()\nprint('\"'\"'PASS: source Django configuration and SQLite execution'\"'\"')\n'",
+          "exit_code": 0,
+          "name": "api",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "PYTHONPATH=/testbed:/workspace python -B tests/runtests.py --settings=test_sqlite --parallel=1 --noinput --verbosity=2 basic.tests.ModelInstanceCreationTests.test_object_is_not_written_to_database_until_save_was_called",
+          "exit_code": 0,
+          "name": "public_tests",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "PYTHONPATH=/testbed:/workspace python -B tests/runtests.py --settings=test_sqlite --parallel=1 --noinput --verbosity=2 basic.tests.ModelInstanceCreationTests.test_object_is_not_written_to_database_until_save_was_called test_workspace_assertion_control.WorkspaceAssertionControl.test_assertion_control",
+          "exit_code": 1,
+          "name": "assertion_control",
+          "output_truncated": false,
+          "passed": true
+        }
+      ],
+      "image_id": "sha256:5f67eee68cd7e4eb00d1642840df30774b1fd42b0f8bfd9f08851df5bd6079ba",
+      "instance_id": "django__django-14631",
+      "mode": "preparation",
+      "passed": true,
+      "pristine_sha256": "1e6b24645f6f5d3b769c7d93076fd8307bc55bd058fb28f06071b3777cdcd135",
+      "repo": "django/django"
+    },
+    {
+      "checks": [
+        {
+          "command": "python -B -c 'from pathlib import Path\nPath('\"'\"'/workspace/test_workspace_assertion_control.py'\"'\"').write_text(\"from django.test import SimpleTestCase\\nclass WorkspaceAssertionControl(SimpleTestCase):\\n    def test_assertion_control(self):\\n        self.assertEqual(6 * 7, 43, '\"'\"'WORKSPACE_ASSERTION_CONTROL'\"'\"')\\n\")\nimport django\nfrom django.conf import settings\nassert django.__file__.startswith('\"'\"'/testbed/'\"'\"')\nsettings.configure(DATABASES={'\"'\"'default'\"'\"': {'\"'\"'ENGINE'\"'\"': '\"'\"'django.db.backends.sqlite3'\"'\"', '\"'\"'NAME'\"'\"': '\"'\"':memory:'\"'\"'}}, INSTALLED_APPS=[])\ndjango.setup()\nfrom django.db import connection\nwith connection.cursor() as cursor:\n    cursor.execute('\"'\"'SELECT 6 * 7'\"'\"')\n    assert cursor.fetchone() == (42,)\nconnection.close()\nprint('\"'\"'PASS: source Django configuration and SQLite execution'\"'\"')\n'",
+          "exit_code": 0,
+          "name": "api",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "PYTHONPATH=/testbed:/workspace python -B tests/runtests.py --settings=test_sqlite --parallel=1 --noinput --verbosity=2 basic.tests.ModelInstanceCreationTests.test_object_is_not_written_to_database_until_save_was_called",
+          "exit_code": 0,
+          "name": "public_tests",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "PYTHONPATH=/testbed:/workspace python -B tests/runtests.py --settings=test_sqlite --parallel=1 --noinput --verbosity=2 basic.tests.ModelInstanceCreationTests.test_object_is_not_written_to_database_until_save_was_called test_workspace_assertion_control.WorkspaceAssertionControl.test_assertion_control",
+          "exit_code": 1,
+          "name": "assertion_control",
+          "output_truncated": false,
+          "passed": true
+        }
+      ],
+      "image_id": "sha256:5f67eee68cd7e4eb00d1642840df30774b1fd42b0f8bfd9f08851df5bd6079ba",
+      "instance_id": "django__django-14631",
+      "mode": "repair",
+      "passed": true,
+      "pristine_sha256": "1e6b24645f6f5d3b769c7d93076fd8307bc55bd058fb28f06071b3777cdcd135",
+      "repo": "django/django"
+    },
+    {
+      "checks": [
+        {
+          "command": "python -B -c 'from pathlib import Path\nPath('\"'\"'/workspace/test_workspace_assertion_control.py'\"'\"').write_text(\"from django.test import SimpleTestCase\\nclass WorkspaceAssertionControl(SimpleTestCase):\\n    def test_assertion_control(self):\\n        self.assertEqual(6 * 7, 43, '\"'\"'WORKSPACE_ASSERTION_CONTROL'\"'\"')\\n\")\nimport django\nfrom django.conf import settings\nassert django.__file__.startswith('\"'\"'/testbed/'\"'\"')\nsettings.configure(DATABASES={'\"'\"'default'\"'\"': {'\"'\"'ENGINE'\"'\"': '\"'\"'django.db.backends.sqlite3'\"'\"', '\"'\"'NAME'\"'\"': '\"'\"':memory:'\"'\"'}}, INSTALLED_APPS=[])\ndjango.setup()\nfrom django.db import connection\nwith connection.cursor() as cursor:\n    cursor.execute('\"'\"'SELECT 6 * 7'\"'\"')\n    assert cursor.fetchone() == (42,)\nconnection.close()\nprint('\"'\"'PASS: source Django configuration and SQLite execution'\"'\"')\n'",
+          "exit_code": 0,
+          "name": "api",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "PYTHONPATH=/testbed:/workspace python -B tests/runtests.py --settings=test_sqlite --parallel=1 --noinput --verbosity=2 basic.tests.ModelInstanceCreationTests.test_object_is_not_written_to_database_until_save_was_called",
+          "exit_code": 0,
+          "name": "public_tests",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "PYTHONPATH=/testbed:/workspace python -B tests/runtests.py --settings=test_sqlite --parallel=1 --noinput --verbosity=2 basic.tests.ModelInstanceCreationTests.test_object_is_not_written_to_database_until_save_was_called test_workspace_assertion_control.WorkspaceAssertionControl.test_assertion_control",
+          "exit_code": 1,
+          "name": "assertion_control",
+          "output_truncated": false,
+          "passed": true
+        }
+      ],
+      "image_id": "sha256:94186b4d24bc8f1da5f54488e4367dd466aba0ceb6fc29f0057479e30275445e",
+      "instance_id": "django__django-15563",
+      "mode": "preparation",
+      "passed": true,
+      "pristine_sha256": "d33ae6ec1e4e6e6c6b6b5980bf40ef5453a578fd11c9bb83e5455d2b73ec6f34",
+      "repo": "django/django"
+    },
+    {
+      "checks": [
+        {
+          "command": "python -B -c 'from pathlib import Path\nPath('\"'\"'/workspace/test_workspace_assertion_control.py'\"'\"').write_text(\"from django.test import SimpleTestCase\\nclass WorkspaceAssertionControl(SimpleTestCase):\\n    def test_assertion_control(self):\\n        self.assertEqual(6 * 7, 43, '\"'\"'WORKSPACE_ASSERTION_CONTROL'\"'\"')\\n\")\nimport django\nfrom django.conf import settings\nassert django.__file__.startswith('\"'\"'/testbed/'\"'\"')\nsettings.configure(DATABASES={'\"'\"'default'\"'\"': {'\"'\"'ENGINE'\"'\"': '\"'\"'django.db.backends.sqlite3'\"'\"', '\"'\"'NAME'\"'\"': '\"'\"':memory:'\"'\"'}}, INSTALLED_APPS=[])\ndjango.setup()\nfrom django.db import connection\nwith connection.cursor() as cursor:\n    cursor.execute('\"'\"'SELECT 6 * 7'\"'\"')\n    assert cursor.fetchone() == (42,)\nconnection.close()\nprint('\"'\"'PASS: source Django configuration and SQLite execution'\"'\"')\n'",
+          "exit_code": 0,
+          "name": "api",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "PYTHONPATH=/testbed:/workspace python -B tests/runtests.py --settings=test_sqlite --parallel=1 --noinput --verbosity=2 basic.tests.ModelInstanceCreationTests.test_object_is_not_written_to_database_until_save_was_called",
+          "exit_code": 0,
+          "name": "public_tests",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "PYTHONPATH=/testbed:/workspace python -B tests/runtests.py --settings=test_sqlite --parallel=1 --noinput --verbosity=2 basic.tests.ModelInstanceCreationTests.test_object_is_not_written_to_database_until_save_was_called test_workspace_assertion_control.WorkspaceAssertionControl.test_assertion_control",
+          "exit_code": 1,
+          "name": "assertion_control",
+          "output_truncated": false,
+          "passed": true
+        }
+      ],
+      "image_id": "sha256:94186b4d24bc8f1da5f54488e4367dd466aba0ceb6fc29f0057479e30275445e",
+      "instance_id": "django__django-15563",
+      "mode": "repair",
+      "passed": true,
+      "pristine_sha256": "d33ae6ec1e4e6e6c6b6b5980bf40ef5453a578fd11c9bb83e5455d2b73ec6f34",
+      "repo": "django/django"
+    },
+    {
+      "checks": [
+        {
+          "command": "python -B -c 'from pathlib import Path\nPath('\"'\"'/workspace/test_workspace_assertion_control.py'\"'\"').write_text(\"from django.test import SimpleTestCase\\nclass WorkspaceAssertionControl(SimpleTestCase):\\n    def test_assertion_control(self):\\n        self.assertEqual(6 * 7, 43, '\"'\"'WORKSPACE_ASSERTION_CONTROL'\"'\"')\\n\")\nimport django\nfrom django.conf import settings\nassert django.__file__.startswith('\"'\"'/testbed/'\"'\"')\nsettings.configure(DATABASES={'\"'\"'default'\"'\"': {'\"'\"'ENGINE'\"'\"': '\"'\"'django.db.backends.sqlite3'\"'\"', '\"'\"'NAME'\"'\"': '\"'\"':memory:'\"'\"'}}, INSTALLED_APPS=[])\ndjango.setup()\nfrom django.db import connection\nwith connection.cursor() as cursor:\n    cursor.execute('\"'\"'SELECT 6 * 7'\"'\"')\n    assert cursor.fetchone() == (42,)\nconnection.close()\nprint('\"'\"'PASS: source Django configuration and SQLite execution'\"'\"')\n'",
+          "exit_code": 0,
+          "name": "api",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "PYTHONPATH=/testbed:/workspace python -B tests/runtests.py --settings=test_sqlite --parallel=1 --noinput --verbosity=2 basic.tests.ModelInstanceCreationTests.test_object_is_not_written_to_database_until_save_was_called",
+          "exit_code": 0,
+          "name": "public_tests",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "PYTHONPATH=/testbed:/workspace python -B tests/runtests.py --settings=test_sqlite --parallel=1 --noinput --verbosity=2 basic.tests.ModelInstanceCreationTests.test_object_is_not_written_to_database_until_save_was_called test_workspace_assertion_control.WorkspaceAssertionControl.test_assertion_control",
+          "exit_code": 1,
+          "name": "assertion_control",
+          "output_truncated": false,
+          "passed": true
+        }
+      ],
+      "image_id": "sha256:73106409d800e32a921110d86ba25e1ac6764b76dc5b6bddeca8b8e4439f0a20",
+      "instance_id": "django__django-16631",
+      "mode": "preparation",
+      "passed": true,
+      "pristine_sha256": "f7bbc8bdd2b0700d0f594d07196390b523e7db91a7e5e0cc920ee46cb99a2f21",
+      "repo": "django/django"
+    },
+    {
+      "checks": [
+        {
+          "command": "python -B -c 'from pathlib import Path\nPath('\"'\"'/workspace/test_workspace_assertion_control.py'\"'\"').write_text(\"from django.test import SimpleTestCase\\nclass WorkspaceAssertionControl(SimpleTestCase):\\n    def test_assertion_control(self):\\n        self.assertEqual(6 * 7, 43, '\"'\"'WORKSPACE_ASSERTION_CONTROL'\"'\"')\\n\")\nimport django\nfrom django.conf import settings\nassert django.__file__.startswith('\"'\"'/testbed/'\"'\"')\nsettings.configure(DATABASES={'\"'\"'default'\"'\"': {'\"'\"'ENGINE'\"'\"': '\"'\"'django.db.backends.sqlite3'\"'\"', '\"'\"'NAME'\"'\"': '\"'\"':memory:'\"'\"'}}, INSTALLED_APPS=[])\ndjango.setup()\nfrom django.db import connection\nwith connection.cursor() as cursor:\n    cursor.execute('\"'\"'SELECT 6 * 7'\"'\"')\n    assert cursor.fetchone() == (42,)\nconnection.close()\nprint('\"'\"'PASS: source Django configuration and SQLite execution'\"'\"')\n'",
+          "exit_code": 0,
+          "name": "api",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "PYTHONPATH=/testbed:/workspace python -B tests/runtests.py --settings=test_sqlite --parallel=1 --noinput --verbosity=2 basic.tests.ModelInstanceCreationTests.test_object_is_not_written_to_database_until_save_was_called",
+          "exit_code": 0,
+          "name": "public_tests",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "PYTHONPATH=/testbed:/workspace python -B tests/runtests.py --settings=test_sqlite --parallel=1 --noinput --verbosity=2 basic.tests.ModelInstanceCreationTests.test_object_is_not_written_to_database_until_save_was_called test_workspace_assertion_control.WorkspaceAssertionControl.test_assertion_control",
+          "exit_code": 1,
+          "name": "assertion_control",
+          "output_truncated": false,
+          "passed": true
+        }
+      ],
+      "image_id": "sha256:73106409d800e32a921110d86ba25e1ac6764b76dc5b6bddeca8b8e4439f0a20",
+      "instance_id": "django__django-16631",
+      "mode": "repair",
+      "passed": true,
+      "pristine_sha256": "f7bbc8bdd2b0700d0f594d07196390b523e7db91a7e5e0cc920ee46cb99a2f21",
+      "repo": "django/django"
+    },
+    {
+      "checks": [
+        {
+          "command": "python -B -c 'from pathlib import Path\nPath('\"'\"'/workspace/test_workspace_assertion_control.py'\"'\"').write_text(\"def test_workspace_assertion_control():\\n    assert 6 * 7 == 43, '\"'\"'WORKSPACE_ASSERTION_CONTROL'\"'\"'\\n\")\nfrom pathlib import Path\nimport matplotlib\nassert matplotlib.__file__.startswith('\"'\"'/testbed/'\"'\"')\nmatplotlib.use('\"'\"'Agg'\"'\"')\nfrom matplotlib.figure import Figure\nfigure = Figure()\naxes = figure.subplots()\naxes.plot([0, 1], [0, 1])\noutput = Path('\"'\"'/workspace/qualified-plot.png'\"'\"')\nfigure.savefig(str(output))\nassert output.read_bytes().startswith(b'\"'\"'\\x89PNG\\r\\n\\x1a\\n'\"'\"')\nprint('\"'\"'PASS: source Matplotlib renders a real PNG through Agg'\"'\"')\n'",
+          "exit_code": 0,
+          "name": "api",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "config=; for path in /testbed/pytest.ini; do if test -f \"$path\"; then config=\"$path\"; break; fi; done; test -n \"$config\" || exit 2; PYTHONPATH=/testbed/lib MPLCONFIGDIR=/workspace/matplotlib python -B -m pytest -c \"$config\" --rootdir=/testbed -q -rA -p no:cacheprovider --basetemp=/workspace/public-test-work --junitxml=/workspace/public-tests.xml lib/matplotlib/tests/test_agg.py::test_repeated_save_with_alpha lib/matplotlib/tests/test_png.py::test_imread_png_uint16 lib/matplotlib/tests/test_font_manager.py::test_font_priority; status=$?; python -c 'import json, xml.etree.ElementTree as ET\ncases = ET.parse('\"'\"'/workspace/public-tests.xml'\"'\"').getroot().findall('\"'\"'.//testcase'\"'\"')\nprint('\"'\"'WORKSPACE_JUNIT='\"'\"' + json.dumps([\n    {'\"'\"'name'\"'\"': case.get('\"'\"'name'\"'\"'), '\"'\"'skipped'\"'\"': case.find('\"'\"'skipped'\"'\"') is not None,\n     '\"'\"'errors'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'error'\"'\"')],\n     '\"'\"'failures'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'failure'\"'\"')]}\n    for case in cases]))\n'; exit \"$status\"",
+          "exit_code": 0,
+          "name": "public_tests",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "config=; for path in /testbed/pytest.ini; do if test -f \"$path\"; then config=\"$path\"; break; fi; done; test -n \"$config\" || exit 2; PYTHONPATH=/testbed/lib MPLCONFIGDIR=/workspace/matplotlib python -B -m pytest -c \"$config\" --rootdir=/testbed -q -rA -p no:cacheprovider --basetemp=/workspace/public-test-work --junitxml=/workspace/public-tests.xml lib/matplotlib/tests/test_agg.py::test_repeated_save_with_alpha lib/matplotlib/tests/test_png.py::test_imread_png_uint16 lib/matplotlib/tests/test_font_manager.py::test_font_priority /workspace/test_workspace_assertion_control.py::test_workspace_assertion_control; status=$?; python -c 'import json, xml.etree.ElementTree as ET\ncases = ET.parse('\"'\"'/workspace/public-tests.xml'\"'\"').getroot().findall('\"'\"'.//testcase'\"'\"')\nprint('\"'\"'WORKSPACE_JUNIT='\"'\"' + json.dumps([\n    {'\"'\"'name'\"'\"': case.get('\"'\"'name'\"'\"'), '\"'\"'skipped'\"'\"': case.find('\"'\"'skipped'\"'\"') is not None,\n     '\"'\"'errors'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'error'\"'\"')],\n     '\"'\"'failures'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'failure'\"'\"')]}\n    for case in cases]))\n'; exit \"$status\"",
+          "exit_code": 1,
+          "name": "assertion_control",
+          "output_truncated": false,
+          "passed": true
+        }
+      ],
+      "image_id": "sha256:52cdd8ac0f4a8b05f40507d500680ec613092186310cbaf7895d1554e9d654dc",
+      "instance_id": "matplotlib__matplotlib-14623",
+      "mode": "preparation",
+      "passed": true,
+      "pristine_sha256": "d0c541bf913b4d0ecf5733a3cd3856c14eb0564904ca48feba832861ab0f7633",
+      "repo": "matplotlib/matplotlib"
+    },
+    {
+      "checks": [
+        {
+          "command": "python -B -c 'from pathlib import Path\nPath('\"'\"'/workspace/test_workspace_assertion_control.py'\"'\"').write_text(\"def test_workspace_assertion_control():\\n    assert 6 * 7 == 43, '\"'\"'WORKSPACE_ASSERTION_CONTROL'\"'\"'\\n\")\nfrom pathlib import Path\nimport matplotlib\nassert matplotlib.__file__.startswith('\"'\"'/testbed/'\"'\"')\nmatplotlib.use('\"'\"'Agg'\"'\"')\nfrom matplotlib.figure import Figure\nfigure = Figure()\naxes = figure.subplots()\naxes.plot([0, 1], [0, 1])\noutput = Path('\"'\"'/workspace/qualified-plot.png'\"'\"')\nfigure.savefig(str(output))\nassert output.read_bytes().startswith(b'\"'\"'\\x89PNG\\r\\n\\x1a\\n'\"'\"')\nprint('\"'\"'PASS: source Matplotlib renders a real PNG through Agg'\"'\"')\n'",
+          "exit_code": 0,
+          "name": "api",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "config=; for path in /testbed/pytest.ini; do if test -f \"$path\"; then config=\"$path\"; break; fi; done; test -n \"$config\" || exit 2; PYTHONPATH=/testbed/lib MPLCONFIGDIR=/workspace/matplotlib python -B -m pytest -c \"$config\" --rootdir=/testbed -q -rA -p no:cacheprovider --basetemp=/workspace/public-test-work --junitxml=/workspace/public-tests.xml lib/matplotlib/tests/test_agg.py::test_repeated_save_with_alpha lib/matplotlib/tests/test_png.py::test_imread_png_uint16 lib/matplotlib/tests/test_font_manager.py::test_font_priority; status=$?; python -c 'import json, xml.etree.ElementTree as ET\ncases = ET.parse('\"'\"'/workspace/public-tests.xml'\"'\"').getroot().findall('\"'\"'.//testcase'\"'\"')\nprint('\"'\"'WORKSPACE_JUNIT='\"'\"' + json.dumps([\n    {'\"'\"'name'\"'\"': case.get('\"'\"'name'\"'\"'), '\"'\"'skipped'\"'\"': case.find('\"'\"'skipped'\"'\"') is not None,\n     '\"'\"'errors'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'error'\"'\"')],\n     '\"'\"'failures'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'failure'\"'\"')]}\n    for case in cases]))\n'; exit \"$status\"",
+          "exit_code": 0,
+          "name": "public_tests",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "config=; for path in /testbed/pytest.ini; do if test -f \"$path\"; then config=\"$path\"; break; fi; done; test -n \"$config\" || exit 2; PYTHONPATH=/testbed/lib MPLCONFIGDIR=/workspace/matplotlib python -B -m pytest -c \"$config\" --rootdir=/testbed -q -rA -p no:cacheprovider --basetemp=/workspace/public-test-work --junitxml=/workspace/public-tests.xml lib/matplotlib/tests/test_agg.py::test_repeated_save_with_alpha lib/matplotlib/tests/test_png.py::test_imread_png_uint16 lib/matplotlib/tests/test_font_manager.py::test_font_priority /workspace/test_workspace_assertion_control.py::test_workspace_assertion_control; status=$?; python -c 'import json, xml.etree.ElementTree as ET\ncases = ET.parse('\"'\"'/workspace/public-tests.xml'\"'\"').getroot().findall('\"'\"'.//testcase'\"'\"')\nprint('\"'\"'WORKSPACE_JUNIT='\"'\"' + json.dumps([\n    {'\"'\"'name'\"'\"': case.get('\"'\"'name'\"'\"'), '\"'\"'skipped'\"'\"': case.find('\"'\"'skipped'\"'\"') is not None,\n     '\"'\"'errors'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'error'\"'\"')],\n     '\"'\"'failures'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'failure'\"'\"')]}\n    for case in cases]))\n'; exit \"$status\"",
+          "exit_code": 1,
+          "name": "assertion_control",
+          "output_truncated": false,
+          "passed": true
+        }
+      ],
+      "image_id": "sha256:52cdd8ac0f4a8b05f40507d500680ec613092186310cbaf7895d1554e9d654dc",
+      "instance_id": "matplotlib__matplotlib-14623",
+      "mode": "repair",
+      "passed": true,
+      "pristine_sha256": "d0c541bf913b4d0ecf5733a3cd3856c14eb0564904ca48feba832861ab0f7633",
+      "repo": "matplotlib/matplotlib"
+    },
+    {
+      "checks": [
+        {
+          "command": "python -B -c 'from pathlib import Path\nPath('\"'\"'/workspace/test_workspace_assertion_control.py'\"'\"').write_text(\"def test_workspace_assertion_control():\\n    assert 6 * 7 == 43, '\"'\"'WORKSPACE_ASSERTION_CONTROL'\"'\"'\\n\")\nimport numpy as np\nimport xarray as xr\nassert xr.__file__.startswith('\"'\"'/testbed/'\"'\"')\noriginal = xr.DataArray(np.array([1, 2]), dims='\"'\"'x'\"'\"')\ncopied = original.copy(deep=True)\ncopied.values[0] = 7\nassert original.values.tolist() == [1, 2]\nassert copied.values.tolist() == [7, 2]\nprint('\"'\"'PASS: source Xarray deep copy preserves independent data'\"'\"')\n'",
+          "exit_code": 0,
+          "name": "api",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "config=; for path in /testbed/setup.cfg; do if test -f \"$path\"; then config=\"$path\"; break; fi; done; test -n \"$config\" || exit 2; PYTHONPATH=/testbed MPLCONFIGDIR=/workspace/matplotlib python -B -m pytest -c \"$config\" --rootdir=/testbed -q -rA -p no:cacheprovider --basetemp=/workspace/public-test-work --junitxml=/workspace/public-tests.xml xarray/tests/test_dataarray.py::TestDataArray::test_get_index; status=$?; python -c 'import json, xml.etree.ElementTree as ET\ncases = ET.parse('\"'\"'/workspace/public-tests.xml'\"'\"').getroot().findall('\"'\"'.//testcase'\"'\"')\nprint('\"'\"'WORKSPACE_JUNIT='\"'\"' + json.dumps([\n    {'\"'\"'name'\"'\"': case.get('\"'\"'name'\"'\"'), '\"'\"'skipped'\"'\"': case.find('\"'\"'skipped'\"'\"') is not None,\n     '\"'\"'errors'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'error'\"'\"')],\n     '\"'\"'failures'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'failure'\"'\"')]}\n    for case in cases]))\n'; exit \"$status\"",
+          "exit_code": 0,
+          "name": "public_tests",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "config=; for path in /testbed/setup.cfg; do if test -f \"$path\"; then config=\"$path\"; break; fi; done; test -n \"$config\" || exit 2; PYTHONPATH=/testbed MPLCONFIGDIR=/workspace/matplotlib python -B -m pytest -c \"$config\" --rootdir=/testbed -q -rA -p no:cacheprovider --basetemp=/workspace/public-test-work --junitxml=/workspace/public-tests.xml xarray/tests/test_dataarray.py::TestDataArray::test_get_index /workspace/test_workspace_assertion_control.py::test_workspace_assertion_control; status=$?; python -c 'import json, xml.etree.ElementTree as ET\ncases = ET.parse('\"'\"'/workspace/public-tests.xml'\"'\"').getroot().findall('\"'\"'.//testcase'\"'\"')\nprint('\"'\"'WORKSPACE_JUNIT='\"'\"' + json.dumps([\n    {'\"'\"'name'\"'\"': case.get('\"'\"'name'\"'\"'), '\"'\"'skipped'\"'\"': case.find('\"'\"'skipped'\"'\"') is not None,\n     '\"'\"'errors'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'error'\"'\"')],\n     '\"'\"'failures'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'failure'\"'\"')]}\n    for case in cases]))\n'; exit \"$status\"",
+          "exit_code": 1,
+          "name": "assertion_control",
+          "output_truncated": false,
+          "passed": true
+        }
+      ],
+      "image_id": "sha256:fb721923cba0d05faafdafb2fb76e6caa3adc22fd4fdcbf2de45741312f91c74",
+      "instance_id": "pydata__xarray-3095",
+      "mode": "preparation",
+      "passed": true,
+      "pristine_sha256": "7ae7fcab941c04aa6d5249ef65293ac34e9aa6a958948864574304efb13d2078",
+      "repo": "pydata/xarray"
+    },
+    {
+      "checks": [
+        {
+          "command": "python -B -c 'from pathlib import Path\nPath('\"'\"'/workspace/test_workspace_assertion_control.py'\"'\"').write_text(\"def test_workspace_assertion_control():\\n    assert 6 * 7 == 43, '\"'\"'WORKSPACE_ASSERTION_CONTROL'\"'\"'\\n\")\nimport numpy as np\nimport xarray as xr\nassert xr.__file__.startswith('\"'\"'/testbed/'\"'\"')\noriginal = xr.DataArray(np.array([1, 2]), dims='\"'\"'x'\"'\"')\ncopied = original.copy(deep=True)\ncopied.values[0] = 7\nassert original.values.tolist() == [1, 2]\nassert copied.values.tolist() == [7, 2]\nprint('\"'\"'PASS: source Xarray deep copy preserves independent data'\"'\"')\n'",
+          "exit_code": 0,
+          "name": "api",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "config=; for path in /testbed/setup.cfg; do if test -f \"$path\"; then config=\"$path\"; break; fi; done; test -n \"$config\" || exit 2; PYTHONPATH=/testbed MPLCONFIGDIR=/workspace/matplotlib python -B -m pytest -c \"$config\" --rootdir=/testbed -q -rA -p no:cacheprovider --basetemp=/workspace/public-test-work --junitxml=/workspace/public-tests.xml xarray/tests/test_dataarray.py::TestDataArray::test_get_index; status=$?; python -c 'import json, xml.etree.ElementTree as ET\ncases = ET.parse('\"'\"'/workspace/public-tests.xml'\"'\"').getroot().findall('\"'\"'.//testcase'\"'\"')\nprint('\"'\"'WORKSPACE_JUNIT='\"'\"' + json.dumps([\n    {'\"'\"'name'\"'\"': case.get('\"'\"'name'\"'\"'), '\"'\"'skipped'\"'\"': case.find('\"'\"'skipped'\"'\"') is not None,\n     '\"'\"'errors'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'error'\"'\"')],\n     '\"'\"'failures'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'failure'\"'\"')]}\n    for case in cases]))\n'; exit \"$status\"",
+          "exit_code": 0,
+          "name": "public_tests",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "config=; for path in /testbed/setup.cfg; do if test -f \"$path\"; then config=\"$path\"; break; fi; done; test -n \"$config\" || exit 2; PYTHONPATH=/testbed MPLCONFIGDIR=/workspace/matplotlib python -B -m pytest -c \"$config\" --rootdir=/testbed -q -rA -p no:cacheprovider --basetemp=/workspace/public-test-work --junitxml=/workspace/public-tests.xml xarray/tests/test_dataarray.py::TestDataArray::test_get_index /workspace/test_workspace_assertion_control.py::test_workspace_assertion_control; status=$?; python -c 'import json, xml.etree.ElementTree as ET\ncases = ET.parse('\"'\"'/workspace/public-tests.xml'\"'\"').getroot().findall('\"'\"'.//testcase'\"'\"')\nprint('\"'\"'WORKSPACE_JUNIT='\"'\"' + json.dumps([\n    {'\"'\"'name'\"'\"': case.get('\"'\"'name'\"'\"'), '\"'\"'skipped'\"'\"': case.find('\"'\"'skipped'\"'\"') is not None,\n     '\"'\"'errors'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'error'\"'\"')],\n     '\"'\"'failures'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'failure'\"'\"')]}\n    for case in cases]))\n'; exit \"$status\"",
+          "exit_code": 1,
+          "name": "assertion_control",
+          "output_truncated": false,
+          "passed": true
+        }
+      ],
+      "image_id": "sha256:fb721923cba0d05faafdafb2fb76e6caa3adc22fd4fdcbf2de45741312f91c74",
+      "instance_id": "pydata__xarray-3095",
+      "mode": "repair",
+      "passed": true,
+      "pristine_sha256": "7ae7fcab941c04aa6d5249ef65293ac34e9aa6a958948864574304efb13d2078",
+      "repo": "pydata/xarray"
+    },
+    {
+      "checks": [
+        {
+          "command": "python -B -c 'from pathlib import Path\nPath('\"'\"'/workspace/test_workspace_assertion_control.py'\"'\"').write_text(\"def test_workspace_assertion_control():\\n    assert 6 * 7 == 43, '\"'\"'WORKSPACE_ASSERTION_CONTROL'\"'\"'\\n\")\nimport numpy as np\nimport xarray as xr\nassert xr.__file__.startswith('\"'\"'/testbed/'\"'\"')\noriginal = xr.DataArray(np.array([1, 2]), dims='\"'\"'x'\"'\"')\ncopied = original.copy(deep=True)\ncopied.values[0] = 7\nassert original.values.tolist() == [1, 2]\nassert copied.values.tolist() == [7, 2]\nprint('\"'\"'PASS: source Xarray deep copy preserves independent data'\"'\"')\n'",
+          "exit_code": 0,
+          "name": "api",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "config=; for path in /testbed/setup.cfg; do if test -f \"$path\"; then config=\"$path\"; break; fi; done; test -n \"$config\" || exit 2; PYTHONPATH=/testbed MPLCONFIGDIR=/workspace/matplotlib python -B -m pytest -c \"$config\" --rootdir=/testbed -q -rA -p no:cacheprovider --basetemp=/workspace/public-test-work --junitxml=/workspace/public-tests.xml xarray/tests/test_dataarray.py::TestDataArray::test_get_index; status=$?; python -c 'import json, xml.etree.ElementTree as ET\ncases = ET.parse('\"'\"'/workspace/public-tests.xml'\"'\"').getroot().findall('\"'\"'.//testcase'\"'\"')\nprint('\"'\"'WORKSPACE_JUNIT='\"'\"' + json.dumps([\n    {'\"'\"'name'\"'\"': case.get('\"'\"'name'\"'\"'), '\"'\"'skipped'\"'\"': case.find('\"'\"'skipped'\"'\"') is not None,\n     '\"'\"'errors'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'error'\"'\"')],\n     '\"'\"'failures'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'failure'\"'\"')]}\n    for case in cases]))\n'; exit \"$status\"",
+          "exit_code": 0,
+          "name": "public_tests",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "config=; for path in /testbed/setup.cfg; do if test -f \"$path\"; then config=\"$path\"; break; fi; done; test -n \"$config\" || exit 2; PYTHONPATH=/testbed MPLCONFIGDIR=/workspace/matplotlib python -B -m pytest -c \"$config\" --rootdir=/testbed -q -rA -p no:cacheprovider --basetemp=/workspace/public-test-work --junitxml=/workspace/public-tests.xml xarray/tests/test_dataarray.py::TestDataArray::test_get_index /workspace/test_workspace_assertion_control.py::test_workspace_assertion_control; status=$?; python -c 'import json, xml.etree.ElementTree as ET\ncases = ET.parse('\"'\"'/workspace/public-tests.xml'\"'\"').getroot().findall('\"'\"'.//testcase'\"'\"')\nprint('\"'\"'WORKSPACE_JUNIT='\"'\"' + json.dumps([\n    {'\"'\"'name'\"'\"': case.get('\"'\"'name'\"'\"'), '\"'\"'skipped'\"'\"': case.find('\"'\"'skipped'\"'\"') is not None,\n     '\"'\"'errors'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'error'\"'\"')],\n     '\"'\"'failures'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'failure'\"'\"')]}\n    for case in cases]))\n'; exit \"$status\"",
+          "exit_code": 1,
+          "name": "assertion_control",
+          "output_truncated": false,
+          "passed": true
+        }
+      ],
+      "image_id": "sha256:0e234daddf9a42b85a77ba0436f3fcbad90759921c978b127dff90d55cba0f89",
+      "instance_id": "pydata__xarray-3305",
+      "mode": "preparation",
+      "passed": true,
+      "pristine_sha256": "8849fbe88f68a4c3c7878d9b0fae3d3d1495bfcc6bc9031ea27f5296f2eeefd9",
+      "repo": "pydata/xarray"
+    },
+    {
+      "checks": [
+        {
+          "command": "python -B -c 'from pathlib import Path\nPath('\"'\"'/workspace/test_workspace_assertion_control.py'\"'\"').write_text(\"def test_workspace_assertion_control():\\n    assert 6 * 7 == 43, '\"'\"'WORKSPACE_ASSERTION_CONTROL'\"'\"'\\n\")\nimport numpy as np\nimport xarray as xr\nassert xr.__file__.startswith('\"'\"'/testbed/'\"'\"')\noriginal = xr.DataArray(np.array([1, 2]), dims='\"'\"'x'\"'\"')\ncopied = original.copy(deep=True)\ncopied.values[0] = 7\nassert original.values.tolist() == [1, 2]\nassert copied.values.tolist() == [7, 2]\nprint('\"'\"'PASS: source Xarray deep copy preserves independent data'\"'\"')\n'",
+          "exit_code": 0,
+          "name": "api",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "config=; for path in /testbed/setup.cfg; do if test -f \"$path\"; then config=\"$path\"; break; fi; done; test -n \"$config\" || exit 2; PYTHONPATH=/testbed MPLCONFIGDIR=/workspace/matplotlib python -B -m pytest -c \"$config\" --rootdir=/testbed -q -rA -p no:cacheprovider --basetemp=/workspace/public-test-work --junitxml=/workspace/public-tests.xml xarray/tests/test_dataarray.py::TestDataArray::test_get_index; status=$?; python -c 'import json, xml.etree.ElementTree as ET\ncases = ET.parse('\"'\"'/workspace/public-tests.xml'\"'\"').getroot().findall('\"'\"'.//testcase'\"'\"')\nprint('\"'\"'WORKSPACE_JUNIT='\"'\"' + json.dumps([\n    {'\"'\"'name'\"'\"': case.get('\"'\"'name'\"'\"'), '\"'\"'skipped'\"'\"': case.find('\"'\"'skipped'\"'\"') is not None,\n     '\"'\"'errors'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'error'\"'\"')],\n     '\"'\"'failures'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'failure'\"'\"')]}\n    for case in cases]))\n'; exit \"$status\"",
+          "exit_code": 0,
+          "name": "public_tests",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "config=; for path in /testbed/setup.cfg; do if test -f \"$path\"; then config=\"$path\"; break; fi; done; test -n \"$config\" || exit 2; PYTHONPATH=/testbed MPLCONFIGDIR=/workspace/matplotlib python -B -m pytest -c \"$config\" --rootdir=/testbed -q -rA -p no:cacheprovider --basetemp=/workspace/public-test-work --junitxml=/workspace/public-tests.xml xarray/tests/test_dataarray.py::TestDataArray::test_get_index /workspace/test_workspace_assertion_control.py::test_workspace_assertion_control; status=$?; python -c 'import json, xml.etree.ElementTree as ET\ncases = ET.parse('\"'\"'/workspace/public-tests.xml'\"'\"').getroot().findall('\"'\"'.//testcase'\"'\"')\nprint('\"'\"'WORKSPACE_JUNIT='\"'\"' + json.dumps([\n    {'\"'\"'name'\"'\"': case.get('\"'\"'name'\"'\"'), '\"'\"'skipped'\"'\"': case.find('\"'\"'skipped'\"'\"') is not None,\n     '\"'\"'errors'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'error'\"'\"')],\n     '\"'\"'failures'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'failure'\"'\"')]}\n    for case in cases]))\n'; exit \"$status\"",
+          "exit_code": 1,
+          "name": "assertion_control",
+          "output_truncated": false,
+          "passed": true
+        }
+      ],
+      "image_id": "sha256:0e234daddf9a42b85a77ba0436f3fcbad90759921c978b127dff90d55cba0f89",
+      "instance_id": "pydata__xarray-3305",
+      "mode": "repair",
+      "passed": true,
+      "pristine_sha256": "8849fbe88f68a4c3c7878d9b0fae3d3d1495bfcc6bc9031ea27f5296f2eeefd9",
+      "repo": "pydata/xarray"
+    },
+    {
+      "checks": [
+        {
+          "command": "python -B -c 'from pathlib import Path\nPath('\"'\"'/workspace/test_workspace_assertion_control.py'\"'\"').write_text(\"def test_workspace_assertion_control():\\n    assert 6 * 7 == 43, '\"'\"'WORKSPACE_ASSERTION_CONTROL'\"'\"'\\n\")\nimport numpy as np\nimport xarray as xr\nassert xr.__file__.startswith('\"'\"'/testbed/'\"'\"')\noriginal = xr.DataArray(np.array([1, 2]), dims='\"'\"'x'\"'\"')\ncopied = original.copy(deep=True)\ncopied.values[0] = 7\nassert original.values.tolist() == [1, 2]\nassert copied.values.tolist() == [7, 2]\nprint('\"'\"'PASS: source Xarray deep copy preserves independent data'\"'\"')\n'",
+          "exit_code": 0,
+          "name": "api",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "config=; for path in /testbed/setup.cfg; do if test -f \"$path\"; then config=\"$path\"; break; fi; done; test -n \"$config\" || exit 2; PYTHONPATH=/testbed MPLCONFIGDIR=/workspace/matplotlib python -B -m pytest -c \"$config\" --rootdir=/testbed -q -rA -p no:cacheprovider --basetemp=/workspace/public-test-work --junitxml=/workspace/public-tests.xml xarray/tests/test_dataarray.py::TestDataArray::test_get_index; status=$?; python -c 'import json, xml.etree.ElementTree as ET\ncases = ET.parse('\"'\"'/workspace/public-tests.xml'\"'\"').getroot().findall('\"'\"'.//testcase'\"'\"')\nprint('\"'\"'WORKSPACE_JUNIT='\"'\"' + json.dumps([\n    {'\"'\"'name'\"'\"': case.get('\"'\"'name'\"'\"'), '\"'\"'skipped'\"'\"': case.find('\"'\"'skipped'\"'\"') is not None,\n     '\"'\"'errors'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'error'\"'\"')],\n     '\"'\"'failures'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'failure'\"'\"')]}\n    for case in cases]))\n'; exit \"$status\"",
+          "exit_code": 0,
+          "name": "public_tests",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "config=; for path in /testbed/setup.cfg; do if test -f \"$path\"; then config=\"$path\"; break; fi; done; test -n \"$config\" || exit 2; PYTHONPATH=/testbed MPLCONFIGDIR=/workspace/matplotlib python -B -m pytest -c \"$config\" --rootdir=/testbed -q -rA -p no:cacheprovider --basetemp=/workspace/public-test-work --junitxml=/workspace/public-tests.xml xarray/tests/test_dataarray.py::TestDataArray::test_get_index /workspace/test_workspace_assertion_control.py::test_workspace_assertion_control; status=$?; python -c 'import json, xml.etree.ElementTree as ET\ncases = ET.parse('\"'\"'/workspace/public-tests.xml'\"'\"').getroot().findall('\"'\"'.//testcase'\"'\"')\nprint('\"'\"'WORKSPACE_JUNIT='\"'\"' + json.dumps([\n    {'\"'\"'name'\"'\"': case.get('\"'\"'name'\"'\"'), '\"'\"'skipped'\"'\"': case.find('\"'\"'skipped'\"'\"') is not None,\n     '\"'\"'errors'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'error'\"'\"')],\n     '\"'\"'failures'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'failure'\"'\"')]}\n    for case in cases]))\n'; exit \"$status\"",
+          "exit_code": 1,
+          "name": "assertion_control",
+          "output_truncated": false,
+          "passed": true
+        }
+      ],
+      "image_id": "sha256:2811e30973fd2cca1ccad4858a4e1a51cc615f2590ebfc8df44baeecf3596221",
+      "instance_id": "pydata__xarray-6992",
+      "mode": "preparation",
+      "passed": true,
+      "pristine_sha256": "d370336c407772d6e1224c222fc255c11947f01e29c059fac4d1aac3ec935f3d",
+      "repo": "pydata/xarray"
+    },
+    {
+      "checks": [
+        {
+          "command": "python -B -c 'from pathlib import Path\nPath('\"'\"'/workspace/test_workspace_assertion_control.py'\"'\"').write_text(\"def test_workspace_assertion_control():\\n    assert 6 * 7 == 43, '\"'\"'WORKSPACE_ASSERTION_CONTROL'\"'\"'\\n\")\nimport numpy as np\nimport xarray as xr\nassert xr.__file__.startswith('\"'\"'/testbed/'\"'\"')\noriginal = xr.DataArray(np.array([1, 2]), dims='\"'\"'x'\"'\"')\ncopied = original.copy(deep=True)\ncopied.values[0] = 7\nassert original.values.tolist() == [1, 2]\nassert copied.values.tolist() == [7, 2]\nprint('\"'\"'PASS: source Xarray deep copy preserves independent data'\"'\"')\n'",
+          "exit_code": 0,
+          "name": "api",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "config=; for path in /testbed/setup.cfg; do if test -f \"$path\"; then config=\"$path\"; break; fi; done; test -n \"$config\" || exit 2; PYTHONPATH=/testbed MPLCONFIGDIR=/workspace/matplotlib python -B -m pytest -c \"$config\" --rootdir=/testbed -q -rA -p no:cacheprovider --basetemp=/workspace/public-test-work --junitxml=/workspace/public-tests.xml xarray/tests/test_dataarray.py::TestDataArray::test_get_index; status=$?; python -c 'import json, xml.etree.ElementTree as ET\ncases = ET.parse('\"'\"'/workspace/public-tests.xml'\"'\"').getroot().findall('\"'\"'.//testcase'\"'\"')\nprint('\"'\"'WORKSPACE_JUNIT='\"'\"' + json.dumps([\n    {'\"'\"'name'\"'\"': case.get('\"'\"'name'\"'\"'), '\"'\"'skipped'\"'\"': case.find('\"'\"'skipped'\"'\"') is not None,\n     '\"'\"'errors'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'error'\"'\"')],\n     '\"'\"'failures'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'failure'\"'\"')]}\n    for case in cases]))\n'; exit \"$status\"",
+          "exit_code": 0,
+          "name": "public_tests",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "config=; for path in /testbed/setup.cfg; do if test -f \"$path\"; then config=\"$path\"; break; fi; done; test -n \"$config\" || exit 2; PYTHONPATH=/testbed MPLCONFIGDIR=/workspace/matplotlib python -B -m pytest -c \"$config\" --rootdir=/testbed -q -rA -p no:cacheprovider --basetemp=/workspace/public-test-work --junitxml=/workspace/public-tests.xml xarray/tests/test_dataarray.py::TestDataArray::test_get_index /workspace/test_workspace_assertion_control.py::test_workspace_assertion_control; status=$?; python -c 'import json, xml.etree.ElementTree as ET\ncases = ET.parse('\"'\"'/workspace/public-tests.xml'\"'\"').getroot().findall('\"'\"'.//testcase'\"'\"')\nprint('\"'\"'WORKSPACE_JUNIT='\"'\"' + json.dumps([\n    {'\"'\"'name'\"'\"': case.get('\"'\"'name'\"'\"'), '\"'\"'skipped'\"'\"': case.find('\"'\"'skipped'\"'\"') is not None,\n     '\"'\"'errors'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'error'\"'\"')],\n     '\"'\"'failures'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'failure'\"'\"')]}\n    for case in cases]))\n'; exit \"$status\"",
+          "exit_code": 1,
+          "name": "assertion_control",
+          "output_truncated": false,
+          "passed": true
+        }
+      ],
+      "image_id": "sha256:2811e30973fd2cca1ccad4858a4e1a51cc615f2590ebfc8df44baeecf3596221",
+      "instance_id": "pydata__xarray-6992",
+      "mode": "repair",
+      "passed": true,
+      "pristine_sha256": "d370336c407772d6e1224c222fc255c11947f01e29c059fac4d1aac3ec935f3d",
+      "repo": "pydata/xarray"
+    },
+    {
+      "checks": [
+        {
+          "command": "python -B -c 'from pathlib import Path\nPath('\"'\"'/workspace/test_workspace_assertion_control.py'\"'\"').write_text(\"def test_workspace_assertion_control():\\n    assert 6 * 7 == 43, '\"'\"'WORKSPACE_ASSERTION_CONTROL'\"'\"'\\n\")\nimport json, pathlib, subprocess, sys, pylint\nassert pylint.__file__.startswith('\"'\"'/testbed/'\"'\"')\nsource = pathlib.Path('\"'\"'/workspace/qualification.py'\"'\"')\nsource.write_text('\"'\"'print(missing_name)\\n'\"'\"')\nresult = subprocess.run([sys.executable, '\"'\"'-m'\"'\"', '\"'\"'pylint'\"'\"', '\"'\"'--rcfile=/dev/null'\"'\"', '\"'\"'--persistent=n'\"'\"', '\"'\"'--disable=all'\"'\"', '\"'\"'--enable=E0602'\"'\"', '\"'\"'--output-format=json'\"'\"', str(source)], capture_output=True, text=True, timeout=30)\nassert result.returncode == 2, (result.returncode, result.stdout, result.stderr)\nmessages = json.loads(result.stdout)\nassert [(item['\"'\"'message-id'\"'\"'], item['\"'\"'line'\"'\"']) for item in messages] == [('\"'\"'E0602'\"'\"', 1)], messages\nprint('\"'\"'PASS: source Pylint detects the deliberately undefined variable'\"'\"')\n'",
+          "exit_code": 0,
+          "name": "api",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "config=; for path in /testbed/pyproject.toml /testbed/setup.cfg; do if test -f \"$path\"; then config=\"$path\"; break; fi; done; test -n \"$config\" || exit 2; PYTHONPATH=/testbed MPLCONFIGDIR=/workspace/matplotlib python -B -m pytest -c \"$config\" --rootdir=/testbed -q -rA -p no:cacheprovider --basetemp=/workspace/public-test-work --junitxml=/workspace/public-tests.xml tests/checkers/unittest_misc.py::TestFixme::test_fixme_with_message; status=$?; python -c 'import json, xml.etree.ElementTree as ET\ncases = ET.parse('\"'\"'/workspace/public-tests.xml'\"'\"').getroot().findall('\"'\"'.//testcase'\"'\"')\nprint('\"'\"'WORKSPACE_JUNIT='\"'\"' + json.dumps([\n    {'\"'\"'name'\"'\"': case.get('\"'\"'name'\"'\"'), '\"'\"'skipped'\"'\"': case.find('\"'\"'skipped'\"'\"') is not None,\n     '\"'\"'errors'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'error'\"'\"')],\n     '\"'\"'failures'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'failure'\"'\"')]}\n    for case in cases]))\n'; exit \"$status\"",
+          "exit_code": 0,
+          "name": "public_tests",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "config=; for path in /testbed/pyproject.toml /testbed/setup.cfg; do if test -f \"$path\"; then config=\"$path\"; break; fi; done; test -n \"$config\" || exit 2; PYTHONPATH=/testbed MPLCONFIGDIR=/workspace/matplotlib python -B -m pytest -c \"$config\" --rootdir=/testbed -q -rA -p no:cacheprovider --basetemp=/workspace/public-test-work --junitxml=/workspace/public-tests.xml tests/checkers/unittest_misc.py::TestFixme::test_fixme_with_message /workspace/test_workspace_assertion_control.py::test_workspace_assertion_control; status=$?; python -c 'import json, xml.etree.ElementTree as ET\ncases = ET.parse('\"'\"'/workspace/public-tests.xml'\"'\"').getroot().findall('\"'\"'.//testcase'\"'\"')\nprint('\"'\"'WORKSPACE_JUNIT='\"'\"' + json.dumps([\n    {'\"'\"'name'\"'\"': case.get('\"'\"'name'\"'\"'), '\"'\"'skipped'\"'\"': case.find('\"'\"'skipped'\"'\"') is not None,\n     '\"'\"'errors'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'error'\"'\"')],\n     '\"'\"'failures'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'failure'\"'\"')]}\n    for case in cases]))\n'; exit \"$status\"",
+          "exit_code": 1,
+          "name": "assertion_control",
+          "output_truncated": false,
+          "passed": true
+        }
+      ],
+      "image_id": "sha256:83f7a8849f90aff7654ca4a8dfa61b33d67312710bb7be8c2f15533581cd3821",
+      "instance_id": "pylint-dev__pylint-6386",
+      "mode": "preparation",
+      "passed": true,
+      "pristine_sha256": "03299619c0e5a3fc5b3bd549289e7aa533b5b6179c8fd31889421a4b1734d016",
+      "repo": "pylint-dev/pylint"
+    },
+    {
+      "checks": [
+        {
+          "command": "python -B -c 'from pathlib import Path\nPath('\"'\"'/workspace/test_workspace_assertion_control.py'\"'\"').write_text(\"def test_workspace_assertion_control():\\n    assert 6 * 7 == 43, '\"'\"'WORKSPACE_ASSERTION_CONTROL'\"'\"'\\n\")\nimport json, pathlib, subprocess, sys, pylint\nassert pylint.__file__.startswith('\"'\"'/testbed/'\"'\"')\nsource = pathlib.Path('\"'\"'/workspace/qualification.py'\"'\"')\nsource.write_text('\"'\"'print(missing_name)\\n'\"'\"')\nresult = subprocess.run([sys.executable, '\"'\"'-m'\"'\"', '\"'\"'pylint'\"'\"', '\"'\"'--rcfile=/dev/null'\"'\"', '\"'\"'--persistent=n'\"'\"', '\"'\"'--disable=all'\"'\"', '\"'\"'--enable=E0602'\"'\"', '\"'\"'--output-format=json'\"'\"', str(source)], capture_output=True, text=True, timeout=30)\nassert result.returncode == 2, (result.returncode, result.stdout, result.stderr)\nmessages = json.loads(result.stdout)\nassert [(item['\"'\"'message-id'\"'\"'], item['\"'\"'line'\"'\"']) for item in messages] == [('\"'\"'E0602'\"'\"', 1)], messages\nprint('\"'\"'PASS: source Pylint detects the deliberately undefined variable'\"'\"')\n'",
+          "exit_code": 0,
+          "name": "api",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "config=; for path in /testbed/pyproject.toml /testbed/setup.cfg; do if test -f \"$path\"; then config=\"$path\"; break; fi; done; test -n \"$config\" || exit 2; PYTHONPATH=/testbed MPLCONFIGDIR=/workspace/matplotlib python -B -m pytest -c \"$config\" --rootdir=/testbed -q -rA -p no:cacheprovider --basetemp=/workspace/public-test-work --junitxml=/workspace/public-tests.xml tests/checkers/unittest_misc.py::TestFixme::test_fixme_with_message; status=$?; python -c 'import json, xml.etree.ElementTree as ET\ncases = ET.parse('\"'\"'/workspace/public-tests.xml'\"'\"').getroot().findall('\"'\"'.//testcase'\"'\"')\nprint('\"'\"'WORKSPACE_JUNIT='\"'\"' + json.dumps([\n    {'\"'\"'name'\"'\"': case.get('\"'\"'name'\"'\"'), '\"'\"'skipped'\"'\"': case.find('\"'\"'skipped'\"'\"') is not None,\n     '\"'\"'errors'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'error'\"'\"')],\n     '\"'\"'failures'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'failure'\"'\"')]}\n    for case in cases]))\n'; exit \"$status\"",
+          "exit_code": 0,
+          "name": "public_tests",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "config=; for path in /testbed/pyproject.toml /testbed/setup.cfg; do if test -f \"$path\"; then config=\"$path\"; break; fi; done; test -n \"$config\" || exit 2; PYTHONPATH=/testbed MPLCONFIGDIR=/workspace/matplotlib python -B -m pytest -c \"$config\" --rootdir=/testbed -q -rA -p no:cacheprovider --basetemp=/workspace/public-test-work --junitxml=/workspace/public-tests.xml tests/checkers/unittest_misc.py::TestFixme::test_fixme_with_message /workspace/test_workspace_assertion_control.py::test_workspace_assertion_control; status=$?; python -c 'import json, xml.etree.ElementTree as ET\ncases = ET.parse('\"'\"'/workspace/public-tests.xml'\"'\"').getroot().findall('\"'\"'.//testcase'\"'\"')\nprint('\"'\"'WORKSPACE_JUNIT='\"'\"' + json.dumps([\n    {'\"'\"'name'\"'\"': case.get('\"'\"'name'\"'\"'), '\"'\"'skipped'\"'\"': case.find('\"'\"'skipped'\"'\"') is not None,\n     '\"'\"'errors'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'error'\"'\"')],\n     '\"'\"'failures'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'failure'\"'\"')]}\n    for case in cases]))\n'; exit \"$status\"",
+          "exit_code": 1,
+          "name": "assertion_control",
+          "output_truncated": false,
+          "passed": true
+        }
+      ],
+      "image_id": "sha256:83f7a8849f90aff7654ca4a8dfa61b33d67312710bb7be8c2f15533581cd3821",
+      "instance_id": "pylint-dev__pylint-6386",
+      "mode": "repair",
+      "passed": true,
+      "pristine_sha256": "03299619c0e5a3fc5b3bd549289e7aa533b5b6179c8fd31889421a4b1734d016",
+      "repo": "pylint-dev/pylint"
+    },
+    {
+      "checks": [
+        {
+          "command": "python -B -c 'from pathlib import Path\nPath('\"'\"'/workspace/test_workspace_assertion_control.py'\"'\"').write_text(\"def test_workspace_assertion_control():\\n    assert 6 * 7 == 43, '\"'\"'WORKSPACE_ASSERTION_CONTROL'\"'\"'\\n\")\nimport json, pathlib, subprocess, sys, pylint\nassert pylint.__file__.startswith('\"'\"'/testbed/'\"'\"')\nsource = pathlib.Path('\"'\"'/workspace/qualification.py'\"'\"')\nsource.write_text('\"'\"'print(missing_name)\\n'\"'\"')\nresult = subprocess.run([sys.executable, '\"'\"'-m'\"'\"', '\"'\"'pylint'\"'\"', '\"'\"'--rcfile=/dev/null'\"'\"', '\"'\"'--persistent=n'\"'\"', '\"'\"'--disable=all'\"'\"', '\"'\"'--enable=E0602'\"'\"', '\"'\"'--output-format=json'\"'\"', str(source)], capture_output=True, text=True, timeout=30)\nassert result.returncode == 2, (result.returncode, result.stdout, result.stderr)\nmessages = json.loads(result.stdout)\nassert [(item['\"'\"'message-id'\"'\"'], item['\"'\"'line'\"'\"']) for item in messages] == [('\"'\"'E0602'\"'\"', 1)], messages\nprint('\"'\"'PASS: source Pylint detects the deliberately undefined variable'\"'\"')\n'",
+          "exit_code": 0,
+          "name": "api",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "config=; for path in /testbed/pyproject.toml /testbed/setup.cfg; do if test -f \"$path\"; then config=\"$path\"; break; fi; done; test -n \"$config\" || exit 2; PYTHONPATH=/testbed MPLCONFIGDIR=/workspace/matplotlib python -B -m pytest -c \"$config\" --rootdir=/testbed -q -rA -p no:cacheprovider --basetemp=/workspace/public-test-work --junitxml=/workspace/public-tests.xml tests/checkers/unittest_misc.py::TestFixme::test_fixme_with_message; status=$?; python -c 'import json, xml.etree.ElementTree as ET\ncases = ET.parse('\"'\"'/workspace/public-tests.xml'\"'\"').getroot().findall('\"'\"'.//testcase'\"'\"')\nprint('\"'\"'WORKSPACE_JUNIT='\"'\"' + json.dumps([\n    {'\"'\"'name'\"'\"': case.get('\"'\"'name'\"'\"'), '\"'\"'skipped'\"'\"': case.find('\"'\"'skipped'\"'\"') is not None,\n     '\"'\"'errors'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'error'\"'\"')],\n     '\"'\"'failures'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'failure'\"'\"')]}\n    for case in cases]))\n'; exit \"$status\"",
+          "exit_code": 0,
+          "name": "public_tests",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "config=; for path in /testbed/pyproject.toml /testbed/setup.cfg; do if test -f \"$path\"; then config=\"$path\"; break; fi; done; test -n \"$config\" || exit 2; PYTHONPATH=/testbed MPLCONFIGDIR=/workspace/matplotlib python -B -m pytest -c \"$config\" --rootdir=/testbed -q -rA -p no:cacheprovider --basetemp=/workspace/public-test-work --junitxml=/workspace/public-tests.xml tests/checkers/unittest_misc.py::TestFixme::test_fixme_with_message /workspace/test_workspace_assertion_control.py::test_workspace_assertion_control; status=$?; python -c 'import json, xml.etree.ElementTree as ET\ncases = ET.parse('\"'\"'/workspace/public-tests.xml'\"'\"').getroot().findall('\"'\"'.//testcase'\"'\"')\nprint('\"'\"'WORKSPACE_JUNIT='\"'\"' + json.dumps([\n    {'\"'\"'name'\"'\"': case.get('\"'\"'name'\"'\"'), '\"'\"'skipped'\"'\"': case.find('\"'\"'skipped'\"'\"') is not None,\n     '\"'\"'errors'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'error'\"'\"')],\n     '\"'\"'failures'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'failure'\"'\"')]}\n    for case in cases]))\n'; exit \"$status\"",
+          "exit_code": 1,
+          "name": "assertion_control",
+          "output_truncated": false,
+          "passed": true
+        }
+      ],
+      "image_id": "sha256:6a3950d518eac34eff08f89136006c94526afc1cdf2b34d1a4d8f598faa4eaea",
+      "instance_id": "pylint-dev__pylint-8898",
+      "mode": "preparation",
+      "passed": true,
+      "pristine_sha256": "41277ccf9e3a391018ddeafa469713488a3a9174ee3ee197814e76b085ba35e2",
+      "repo": "pylint-dev/pylint"
+    },
+    {
+      "checks": [
+        {
+          "command": "python -B -c 'from pathlib import Path\nPath('\"'\"'/workspace/test_workspace_assertion_control.py'\"'\"').write_text(\"def test_workspace_assertion_control():\\n    assert 6 * 7 == 43, '\"'\"'WORKSPACE_ASSERTION_CONTROL'\"'\"'\\n\")\nimport json, pathlib, subprocess, sys, pylint\nassert pylint.__file__.startswith('\"'\"'/testbed/'\"'\"')\nsource = pathlib.Path('\"'\"'/workspace/qualification.py'\"'\"')\nsource.write_text('\"'\"'print(missing_name)\\n'\"'\"')\nresult = subprocess.run([sys.executable, '\"'\"'-m'\"'\"', '\"'\"'pylint'\"'\"', '\"'\"'--rcfile=/dev/null'\"'\"', '\"'\"'--persistent=n'\"'\"', '\"'\"'--disable=all'\"'\"', '\"'\"'--enable=E0602'\"'\"', '\"'\"'--output-format=json'\"'\"', str(source)], capture_output=True, text=True, timeout=30)\nassert result.returncode == 2, (result.returncode, result.stdout, result.stderr)\nmessages = json.loads(result.stdout)\nassert [(item['\"'\"'message-id'\"'\"'], item['\"'\"'line'\"'\"']) for item in messages] == [('\"'\"'E0602'\"'\"', 1)], messages\nprint('\"'\"'PASS: source Pylint detects the deliberately undefined variable'\"'\"')\n'",
+          "exit_code": 0,
+          "name": "api",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "config=; for path in /testbed/pyproject.toml /testbed/setup.cfg; do if test -f \"$path\"; then config=\"$path\"; break; fi; done; test -n \"$config\" || exit 2; PYTHONPATH=/testbed MPLCONFIGDIR=/workspace/matplotlib python -B -m pytest -c \"$config\" --rootdir=/testbed -q -rA -p no:cacheprovider --basetemp=/workspace/public-test-work --junitxml=/workspace/public-tests.xml tests/checkers/unittest_misc.py::TestFixme::test_fixme_with_message; status=$?; python -c 'import json, xml.etree.ElementTree as ET\ncases = ET.parse('\"'\"'/workspace/public-tests.xml'\"'\"').getroot().findall('\"'\"'.//testcase'\"'\"')\nprint('\"'\"'WORKSPACE_JUNIT='\"'\"' + json.dumps([\n    {'\"'\"'name'\"'\"': case.get('\"'\"'name'\"'\"'), '\"'\"'skipped'\"'\"': case.find('\"'\"'skipped'\"'\"') is not None,\n     '\"'\"'errors'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'error'\"'\"')],\n     '\"'\"'failures'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'failure'\"'\"')]}\n    for case in cases]))\n'; exit \"$status\"",
+          "exit_code": 0,
+          "name": "public_tests",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "config=; for path in /testbed/pyproject.toml /testbed/setup.cfg; do if test -f \"$path\"; then config=\"$path\"; break; fi; done; test -n \"$config\" || exit 2; PYTHONPATH=/testbed MPLCONFIGDIR=/workspace/matplotlib python -B -m pytest -c \"$config\" --rootdir=/testbed -q -rA -p no:cacheprovider --basetemp=/workspace/public-test-work --junitxml=/workspace/public-tests.xml tests/checkers/unittest_misc.py::TestFixme::test_fixme_with_message /workspace/test_workspace_assertion_control.py::test_workspace_assertion_control; status=$?; python -c 'import json, xml.etree.ElementTree as ET\ncases = ET.parse('\"'\"'/workspace/public-tests.xml'\"'\"').getroot().findall('\"'\"'.//testcase'\"'\"')\nprint('\"'\"'WORKSPACE_JUNIT='\"'\"' + json.dumps([\n    {'\"'\"'name'\"'\"': case.get('\"'\"'name'\"'\"'), '\"'\"'skipped'\"'\"': case.find('\"'\"'skipped'\"'\"') is not None,\n     '\"'\"'errors'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'error'\"'\"')],\n     '\"'\"'failures'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'failure'\"'\"')]}\n    for case in cases]))\n'; exit \"$status\"",
+          "exit_code": 1,
+          "name": "assertion_control",
+          "output_truncated": false,
+          "passed": true
+        }
+      ],
+      "image_id": "sha256:6a3950d518eac34eff08f89136006c94526afc1cdf2b34d1a4d8f598faa4eaea",
+      "instance_id": "pylint-dev__pylint-8898",
+      "mode": "repair",
+      "passed": true,
+      "pristine_sha256": "41277ccf9e3a391018ddeafa469713488a3a9174ee3ee197814e76b085ba35e2",
+      "repo": "pylint-dev/pylint"
+    },
+    {
+      "checks": [
+        {
+          "command": "python -B -c 'from pathlib import Path\nPath('\"'\"'/workspace/test_workspace_assertion_control.py'\"'\"').write_text(\"def test_workspace_assertion_control():\\n    assert 6 * 7 == 43, '\"'\"'WORKSPACE_ASSERTION_CONTROL'\"'\"'\\n\")\nfrom pathlib import Path\nimport sphinx\nfrom sphinx.application import Sphinx\nassert sphinx.__file__.startswith('\"'\"'/testbed/'\"'\"')\nroot = Path('\"'\"'/workspace/qualification-docs'\"'\"')\nsource = root / '\"'\"'source'\"'\"'\nsource.mkdir(parents=True)\n(source / '\"'\"'conf.py'\"'\"').write_text(\"project = '\"'\"'Qualification'\"'\"'\\nmaster_doc = '\"'\"'index'\"'\"'\\n\")\n(source / '\"'\"'index.rst'\"'\"').write_text('\"'\"'Qualification\\n=============\\n\\nVerified public documentation build.\\n'\"'\"')\napp = Sphinx(str(source), str(source), str(root / '\"'\"'html'\"'\"'), str(root / '\"'\"'doctrees'\"'\"'), '\"'\"'html'\"'\"')\napp.build(force_all=True)\nassert app.statuscode == 0\nassert '\"'\"'Verified public documentation build.'\"'\"' in (root / '\"'\"'html/index.html'\"'\"').read_text()\nprint('\"'\"'PASS: source Sphinx builds actual HTML documentation'\"'\"')\n'",
+          "exit_code": 0,
+          "name": "api",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "config=; for path in /testbed/setup.cfg; do if test -f \"$path\"; then config=\"$path\"; break; fi; done; test -n \"$config\" || exit 2; PYTHONPATH=/testbed MPLCONFIGDIR=/workspace/matplotlib python -B -m pytest -c \"$config\" --rootdir=/testbed -q -rA -p no:cacheprovider --basetemp=/workspace/public-test-work --junitxml=/workspace/public-tests.xml tests/test_build_text.py::test_lineblock; status=$?; python -c 'import json, xml.etree.ElementTree as ET\ncases = ET.parse('\"'\"'/workspace/public-tests.xml'\"'\"').getroot().findall('\"'\"'.//testcase'\"'\"')\nprint('\"'\"'WORKSPACE_JUNIT='\"'\"' + json.dumps([\n    {'\"'\"'name'\"'\"': case.get('\"'\"'name'\"'\"'), '\"'\"'skipped'\"'\"': case.find('\"'\"'skipped'\"'\"') is not None,\n     '\"'\"'errors'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'error'\"'\"')],\n     '\"'\"'failures'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'failure'\"'\"')]}\n    for case in cases]))\n'; exit \"$status\"",
+          "exit_code": 0,
+          "name": "public_tests",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "config=; for path in /testbed/setup.cfg; do if test -f \"$path\"; then config=\"$path\"; break; fi; done; test -n \"$config\" || exit 2; PYTHONPATH=/testbed MPLCONFIGDIR=/workspace/matplotlib python -B -m pytest -c \"$config\" --rootdir=/testbed -q -rA -p no:cacheprovider --basetemp=/workspace/public-test-work --junitxml=/workspace/public-tests.xml tests/test_build_text.py::test_lineblock /workspace/test_workspace_assertion_control.py::test_workspace_assertion_control; status=$?; python -c 'import json, xml.etree.ElementTree as ET\ncases = ET.parse('\"'\"'/workspace/public-tests.xml'\"'\"').getroot().findall('\"'\"'.//testcase'\"'\"')\nprint('\"'\"'WORKSPACE_JUNIT='\"'\"' + json.dumps([\n    {'\"'\"'name'\"'\"': case.get('\"'\"'name'\"'\"'), '\"'\"'skipped'\"'\"': case.find('\"'\"'skipped'\"'\"') is not None,\n     '\"'\"'errors'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'error'\"'\"')],\n     '\"'\"'failures'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'failure'\"'\"')]}\n    for case in cases]))\n'; exit \"$status\"",
+          "exit_code": 1,
+          "name": "assertion_control",
+          "output_truncated": false,
+          "passed": true
+        }
+      ],
+      "image_id": "sha256:0cee9556d1dab507161552be8bd82757ee1a835fe660a832a6df023bcb60b67d",
+      "instance_id": "sphinx-doc__sphinx-8551",
+      "mode": "preparation",
+      "passed": true,
+      "pristine_sha256": "94a09d9e0b494e52d9d714f1f961dd09be43c31b5cfbd5d54447cf1afe7ee583",
+      "repo": "sphinx-doc/sphinx"
+    },
+    {
+      "checks": [
+        {
+          "command": "python -B -c 'from pathlib import Path\nPath('\"'\"'/workspace/test_workspace_assertion_control.py'\"'\"').write_text(\"def test_workspace_assertion_control():\\n    assert 6 * 7 == 43, '\"'\"'WORKSPACE_ASSERTION_CONTROL'\"'\"'\\n\")\nfrom pathlib import Path\nimport sphinx\nfrom sphinx.application import Sphinx\nassert sphinx.__file__.startswith('\"'\"'/testbed/'\"'\"')\nroot = Path('\"'\"'/workspace/qualification-docs'\"'\"')\nsource = root / '\"'\"'source'\"'\"'\nsource.mkdir(parents=True)\n(source / '\"'\"'conf.py'\"'\"').write_text(\"project = '\"'\"'Qualification'\"'\"'\\nmaster_doc = '\"'\"'index'\"'\"'\\n\")\n(source / '\"'\"'index.rst'\"'\"').write_text('\"'\"'Qualification\\n=============\\n\\nVerified public documentation build.\\n'\"'\"')\napp = Sphinx(str(source), str(source), str(root / '\"'\"'html'\"'\"'), str(root / '\"'\"'doctrees'\"'\"'), '\"'\"'html'\"'\"')\napp.build(force_all=True)\nassert app.statuscode == 0\nassert '\"'\"'Verified public documentation build.'\"'\"' in (root / '\"'\"'html/index.html'\"'\"').read_text()\nprint('\"'\"'PASS: source Sphinx builds actual HTML documentation'\"'\"')\n'",
+          "exit_code": 0,
+          "name": "api",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "config=; for path in /testbed/setup.cfg; do if test -f \"$path\"; then config=\"$path\"; break; fi; done; test -n \"$config\" || exit 2; PYTHONPATH=/testbed MPLCONFIGDIR=/workspace/matplotlib python -B -m pytest -c \"$config\" --rootdir=/testbed -q -rA -p no:cacheprovider --basetemp=/workspace/public-test-work --junitxml=/workspace/public-tests.xml tests/test_build_text.py::test_lineblock; status=$?; python -c 'import json, xml.etree.ElementTree as ET\ncases = ET.parse('\"'\"'/workspace/public-tests.xml'\"'\"').getroot().findall('\"'\"'.//testcase'\"'\"')\nprint('\"'\"'WORKSPACE_JUNIT='\"'\"' + json.dumps([\n    {'\"'\"'name'\"'\"': case.get('\"'\"'name'\"'\"'), '\"'\"'skipped'\"'\"': case.find('\"'\"'skipped'\"'\"') is not None,\n     '\"'\"'errors'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'error'\"'\"')],\n     '\"'\"'failures'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'failure'\"'\"')]}\n    for case in cases]))\n'; exit \"$status\"",
+          "exit_code": 0,
+          "name": "public_tests",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "config=; for path in /testbed/setup.cfg; do if test -f \"$path\"; then config=\"$path\"; break; fi; done; test -n \"$config\" || exit 2; PYTHONPATH=/testbed MPLCONFIGDIR=/workspace/matplotlib python -B -m pytest -c \"$config\" --rootdir=/testbed -q -rA -p no:cacheprovider --basetemp=/workspace/public-test-work --junitxml=/workspace/public-tests.xml tests/test_build_text.py::test_lineblock /workspace/test_workspace_assertion_control.py::test_workspace_assertion_control; status=$?; python -c 'import json, xml.etree.ElementTree as ET\ncases = ET.parse('\"'\"'/workspace/public-tests.xml'\"'\"').getroot().findall('\"'\"'.//testcase'\"'\"')\nprint('\"'\"'WORKSPACE_JUNIT='\"'\"' + json.dumps([\n    {'\"'\"'name'\"'\"': case.get('\"'\"'name'\"'\"'), '\"'\"'skipped'\"'\"': case.find('\"'\"'skipped'\"'\"') is not None,\n     '\"'\"'errors'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'error'\"'\"')],\n     '\"'\"'failures'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'failure'\"'\"')]}\n    for case in cases]))\n'; exit \"$status\"",
+          "exit_code": 1,
+          "name": "assertion_control",
+          "output_truncated": false,
+          "passed": true
+        }
+      ],
+      "image_id": "sha256:0cee9556d1dab507161552be8bd82757ee1a835fe660a832a6df023bcb60b67d",
+      "instance_id": "sphinx-doc__sphinx-8551",
+      "mode": "repair",
+      "passed": true,
+      "pristine_sha256": "94a09d9e0b494e52d9d714f1f961dd09be43c31b5cfbd5d54447cf1afe7ee583",
+      "repo": "sphinx-doc/sphinx"
+    },
+    {
+      "checks": [
+        {
+          "command": "python -B -c 'from pathlib import Path\nPath('\"'\"'/workspace/test_workspace_assertion_control.py'\"'\"').write_text(\"def test_workspace_assertion_control():\\n    assert 6 * 7 == 43, '\"'\"'WORKSPACE_ASSERTION_CONTROL'\"'\"'\\n\")\nfrom pathlib import Path\nimport sphinx\nfrom sphinx.application import Sphinx\nassert sphinx.__file__.startswith('\"'\"'/testbed/'\"'\"')\nroot = Path('\"'\"'/workspace/qualification-docs'\"'\"')\nsource = root / '\"'\"'source'\"'\"'\nsource.mkdir(parents=True)\n(source / '\"'\"'conf.py'\"'\"').write_text(\"project = '\"'\"'Qualification'\"'\"'\\nmaster_doc = '\"'\"'index'\"'\"'\\n\")\n(source / '\"'\"'index.rst'\"'\"').write_text('\"'\"'Qualification\\n=============\\n\\nVerified public documentation build.\\n'\"'\"')\napp = Sphinx(str(source), str(source), str(root / '\"'\"'html'\"'\"'), str(root / '\"'\"'doctrees'\"'\"'), '\"'\"'html'\"'\"')\napp.build(force_all=True)\nassert app.statuscode == 0\nassert '\"'\"'Verified public documentation build.'\"'\"' in (root / '\"'\"'html/index.html'\"'\"').read_text()\nprint('\"'\"'PASS: source Sphinx builds actual HTML documentation'\"'\"')\n'",
+          "exit_code": 0,
+          "name": "api",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "config=; for path in /testbed/setup.cfg; do if test -f \"$path\"; then config=\"$path\"; break; fi; done; test -n \"$config\" || exit 2; PYTHONPATH=/testbed MPLCONFIGDIR=/workspace/matplotlib python -B -m pytest -c \"$config\" --rootdir=/testbed -q -rA -p no:cacheprovider --basetemp=/workspace/public-test-work --junitxml=/workspace/public-tests.xml tests/test_build_text.py::test_lineblock; status=$?; python -c 'import json, xml.etree.ElementTree as ET\ncases = ET.parse('\"'\"'/workspace/public-tests.xml'\"'\"').getroot().findall('\"'\"'.//testcase'\"'\"')\nprint('\"'\"'WORKSPACE_JUNIT='\"'\"' + json.dumps([\n    {'\"'\"'name'\"'\"': case.get('\"'\"'name'\"'\"'), '\"'\"'skipped'\"'\"': case.find('\"'\"'skipped'\"'\"') is not None,\n     '\"'\"'errors'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'error'\"'\"')],\n     '\"'\"'failures'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'failure'\"'\"')]}\n    for case in cases]))\n'; exit \"$status\"",
+          "exit_code": 0,
+          "name": "public_tests",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "config=; for path in /testbed/setup.cfg; do if test -f \"$path\"; then config=\"$path\"; break; fi; done; test -n \"$config\" || exit 2; PYTHONPATH=/testbed MPLCONFIGDIR=/workspace/matplotlib python -B -m pytest -c \"$config\" --rootdir=/testbed -q -rA -p no:cacheprovider --basetemp=/workspace/public-test-work --junitxml=/workspace/public-tests.xml tests/test_build_text.py::test_lineblock /workspace/test_workspace_assertion_control.py::test_workspace_assertion_control; status=$?; python -c 'import json, xml.etree.ElementTree as ET\ncases = ET.parse('\"'\"'/workspace/public-tests.xml'\"'\"').getroot().findall('\"'\"'.//testcase'\"'\"')\nprint('\"'\"'WORKSPACE_JUNIT='\"'\"' + json.dumps([\n    {'\"'\"'name'\"'\"': case.get('\"'\"'name'\"'\"'), '\"'\"'skipped'\"'\"': case.find('\"'\"'skipped'\"'\"') is not None,\n     '\"'\"'errors'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'error'\"'\"')],\n     '\"'\"'failures'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'failure'\"'\"')]}\n    for case in cases]))\n'; exit \"$status\"",
+          "exit_code": 1,
+          "name": "assertion_control",
+          "output_truncated": false,
+          "passed": true
+        }
+      ],
+      "image_id": "sha256:7002375c0d6c01c893097a1214c94186f573b15d71d3ead09f50e0d5002deee0",
+      "instance_id": "sphinx-doc__sphinx-9461",
+      "mode": "preparation",
+      "passed": true,
+      "pristine_sha256": "e379d426c70fe76fba13ea8d9e949d66f201bcae1f075e32339351839fca2ea2",
+      "repo": "sphinx-doc/sphinx"
+    },
+    {
+      "checks": [
+        {
+          "command": "python -B -c 'from pathlib import Path\nPath('\"'\"'/workspace/test_workspace_assertion_control.py'\"'\"').write_text(\"def test_workspace_assertion_control():\\n    assert 6 * 7 == 43, '\"'\"'WORKSPACE_ASSERTION_CONTROL'\"'\"'\\n\")\nfrom pathlib import Path\nimport sphinx\nfrom sphinx.application import Sphinx\nassert sphinx.__file__.startswith('\"'\"'/testbed/'\"'\"')\nroot = Path('\"'\"'/workspace/qualification-docs'\"'\"')\nsource = root / '\"'\"'source'\"'\"'\nsource.mkdir(parents=True)\n(source / '\"'\"'conf.py'\"'\"').write_text(\"project = '\"'\"'Qualification'\"'\"'\\nmaster_doc = '\"'\"'index'\"'\"'\\n\")\n(source / '\"'\"'index.rst'\"'\"').write_text('\"'\"'Qualification\\n=============\\n\\nVerified public documentation build.\\n'\"'\"')\napp = Sphinx(str(source), str(source), str(root / '\"'\"'html'\"'\"'), str(root / '\"'\"'doctrees'\"'\"'), '\"'\"'html'\"'\"')\napp.build(force_all=True)\nassert app.statuscode == 0\nassert '\"'\"'Verified public documentation build.'\"'\"' in (root / '\"'\"'html/index.html'\"'\"').read_text()\nprint('\"'\"'PASS: source Sphinx builds actual HTML documentation'\"'\"')\n'",
+          "exit_code": 0,
+          "name": "api",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "config=; for path in /testbed/setup.cfg; do if test -f \"$path\"; then config=\"$path\"; break; fi; done; test -n \"$config\" || exit 2; PYTHONPATH=/testbed MPLCONFIGDIR=/workspace/matplotlib python -B -m pytest -c \"$config\" --rootdir=/testbed -q -rA -p no:cacheprovider --basetemp=/workspace/public-test-work --junitxml=/workspace/public-tests.xml tests/test_build_text.py::test_lineblock; status=$?; python -c 'import json, xml.etree.ElementTree as ET\ncases = ET.parse('\"'\"'/workspace/public-tests.xml'\"'\"').getroot().findall('\"'\"'.//testcase'\"'\"')\nprint('\"'\"'WORKSPACE_JUNIT='\"'\"' + json.dumps([\n    {'\"'\"'name'\"'\"': case.get('\"'\"'name'\"'\"'), '\"'\"'skipped'\"'\"': case.find('\"'\"'skipped'\"'\"') is not None,\n     '\"'\"'errors'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'error'\"'\"')],\n     '\"'\"'failures'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'failure'\"'\"')]}\n    for case in cases]))\n'; exit \"$status\"",
+          "exit_code": 0,
+          "name": "public_tests",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "config=; for path in /testbed/setup.cfg; do if test -f \"$path\"; then config=\"$path\"; break; fi; done; test -n \"$config\" || exit 2; PYTHONPATH=/testbed MPLCONFIGDIR=/workspace/matplotlib python -B -m pytest -c \"$config\" --rootdir=/testbed -q -rA -p no:cacheprovider --basetemp=/workspace/public-test-work --junitxml=/workspace/public-tests.xml tests/test_build_text.py::test_lineblock /workspace/test_workspace_assertion_control.py::test_workspace_assertion_control; status=$?; python -c 'import json, xml.etree.ElementTree as ET\ncases = ET.parse('\"'\"'/workspace/public-tests.xml'\"'\"').getroot().findall('\"'\"'.//testcase'\"'\"')\nprint('\"'\"'WORKSPACE_JUNIT='\"'\"' + json.dumps([\n    {'\"'\"'name'\"'\"': case.get('\"'\"'name'\"'\"'), '\"'\"'skipped'\"'\"': case.find('\"'\"'skipped'\"'\"') is not None,\n     '\"'\"'errors'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'error'\"'\"')],\n     '\"'\"'failures'\"'\"': [node.text or '\"'\"''\"'\"' for node in case.findall('\"'\"'failure'\"'\"')]}\n    for case in cases]))\n'; exit \"$status\"",
+          "exit_code": 1,
+          "name": "assertion_control",
+          "output_truncated": false,
+          "passed": true
+        }
+      ],
+      "image_id": "sha256:7002375c0d6c01c893097a1214c94186f573b15d71d3ead09f50e0d5002deee0",
+      "instance_id": "sphinx-doc__sphinx-9461",
+      "mode": "repair",
+      "passed": true,
+      "pristine_sha256": "e379d426c70fe76fba13ea8d9e949d66f201bcae1f075e32339351839fca2ea2",
+      "repo": "sphinx-doc/sphinx"
+    },
+    {
+      "checks": [
+        {
+          "command": "python -B -c 'from pathlib import Path\nPath('\"'\"'/workspace/test_workspace_assertion_control.py'\"'\"').write_text(\"def test_workspace_assertion_control():\\n    assert 6 * 7 == 43, '\"'\"'WORKSPACE_ASSERTION_CONTROL'\"'\"'\\n\")\nimport sympy\nfrom sympy import FiniteSet, symbols, lambdify\nassert sympy.__file__.startswith('\"'\"'/testbed/'\"'\"')\nassert FiniteSet(1).is_subset(FiniteSet(1, 2)) is True\nx = symbols('\"'\"'x'\"'\"')\nassert lambdify(x, x + 1, modules='\"'\"'math'\"'\"')(2) == 3\nprint('\"'\"'PASS: source SymPy set operations and generated numeric function'\"'\"')\n'",
+          "exit_code": 0,
+          "name": "api",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "PYTHONHASHSEED=0 python -B bin/test --no-colors --verbose --no-subprocess --seed=0 sympy/core/tests/test_sympify.py -k test_sympify3",
+          "exit_code": 0,
+          "name": "public_tests",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "PYTHONHASHSEED=0 python -B -c 'import importlib\nfrom pathlib import Path\npath = next(path for path in ('\"'\"'sympy/testing/runtests.py'\"'\"', '\"'\"'sympy/utilities/runtests.py'\"'\"')\n            if Path('\"'\"'/testbed'\"'\"', path).is_file())\nrunner = importlib.import_module(path[:-3].replace('\"'\"'/'\"'\"', '\"'\"'.'\"'\"'))\nreporter = runner.PyTestReporter(verbose=True, colors=False)\ntests = runner.SymPyTests(reporter, kw=('\"'\"'test_workspace_assertion_control'\"'\"',), seed=0)\ntests._testfiles.append('\"'\"'/workspace/test_workspace_assertion_control.py'\"'\"')\nraise SystemExit(0 if tests.test(sort=True) else 1)\n'",
+          "exit_code": 1,
+          "name": "assertion_control",
+          "output_truncated": false,
+          "passed": true
+        }
+      ],
+      "image_id": "sha256:166853c298d0dc29ad6cb0468b996714d2682dae62fc7103fcc7bd85bdbc1916",
+      "instance_id": "sympy__sympy-16597",
+      "mode": "preparation",
+      "passed": true,
+      "pristine_sha256": "5f917435a856c106f58086030596ff1a7cd8671110fc1e4063d5b627f28a4aba",
+      "repo": "sympy/sympy"
+    },
+    {
+      "checks": [
+        {
+          "command": "python -B -c 'from pathlib import Path\nPath('\"'\"'/workspace/test_workspace_assertion_control.py'\"'\"').write_text(\"def test_workspace_assertion_control():\\n    assert 6 * 7 == 43, '\"'\"'WORKSPACE_ASSERTION_CONTROL'\"'\"'\\n\")\nimport sympy\nfrom sympy import FiniteSet, symbols, lambdify\nassert sympy.__file__.startswith('\"'\"'/testbed/'\"'\"')\nassert FiniteSet(1).is_subset(FiniteSet(1, 2)) is True\nx = symbols('\"'\"'x'\"'\"')\nassert lambdify(x, x + 1, modules='\"'\"'math'\"'\"')(2) == 3\nprint('\"'\"'PASS: source SymPy set operations and generated numeric function'\"'\"')\n'",
+          "exit_code": 0,
+          "name": "api",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "PYTHONHASHSEED=0 python -B bin/test --no-colors --verbose --no-subprocess --seed=0 sympy/core/tests/test_sympify.py -k test_sympify3",
+          "exit_code": 0,
+          "name": "public_tests",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "PYTHONHASHSEED=0 python -B -c 'import importlib\nfrom pathlib import Path\npath = next(path for path in ('\"'\"'sympy/testing/runtests.py'\"'\"', '\"'\"'sympy/utilities/runtests.py'\"'\"')\n            if Path('\"'\"'/testbed'\"'\"', path).is_file())\nrunner = importlib.import_module(path[:-3].replace('\"'\"'/'\"'\"', '\"'\"'.'\"'\"'))\nreporter = runner.PyTestReporter(verbose=True, colors=False)\ntests = runner.SymPyTests(reporter, kw=('\"'\"'test_workspace_assertion_control'\"'\"',), seed=0)\ntests._testfiles.append('\"'\"'/workspace/test_workspace_assertion_control.py'\"'\"')\nraise SystemExit(0 if tests.test(sort=True) else 1)\n'",
+          "exit_code": 1,
+          "name": "assertion_control",
+          "output_truncated": false,
+          "passed": true
+        }
+      ],
+      "image_id": "sha256:166853c298d0dc29ad6cb0468b996714d2682dae62fc7103fcc7bd85bdbc1916",
+      "instance_id": "sympy__sympy-16597",
+      "mode": "repair",
+      "passed": true,
+      "pristine_sha256": "5f917435a856c106f58086030596ff1a7cd8671110fc1e4063d5b627f28a4aba",
+      "repo": "sympy/sympy"
+    },
+    {
+      "checks": [
+        {
+          "command": "python -B -c 'from pathlib import Path\nPath('\"'\"'/workspace/test_workspace_assertion_control.py'\"'\"').write_text(\"def test_workspace_assertion_control():\\n    assert 6 * 7 == 43, '\"'\"'WORKSPACE_ASSERTION_CONTROL'\"'\"'\\n\")\nimport sympy\nfrom sympy import FiniteSet, symbols, lambdify\nassert sympy.__file__.startswith('\"'\"'/testbed/'\"'\"')\nassert FiniteSet(1).is_subset(FiniteSet(1, 2)) is True\nx = symbols('\"'\"'x'\"'\"')\nassert lambdify(x, x + 1, modules='\"'\"'math'\"'\"')(2) == 3\nprint('\"'\"'PASS: source SymPy set operations and generated numeric function'\"'\"')\n'",
+          "exit_code": 0,
+          "name": "api",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "PYTHONHASHSEED=0 python -B bin/test --no-colors --verbose --no-subprocess --seed=0 sympy/core/tests/test_sympify.py -k test_sympify3",
+          "exit_code": 0,
+          "name": "public_tests",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "PYTHONHASHSEED=0 python -B -c 'import importlib\nfrom pathlib import Path\npath = next(path for path in ('\"'\"'sympy/testing/runtests.py'\"'\"', '\"'\"'sympy/utilities/runtests.py'\"'\"')\n            if Path('\"'\"'/testbed'\"'\"', path).is_file())\nrunner = importlib.import_module(path[:-3].replace('\"'\"'/'\"'\"', '\"'\"'.'\"'\"'))\nreporter = runner.PyTestReporter(verbose=True, colors=False)\ntests = runner.SymPyTests(reporter, kw=('\"'\"'test_workspace_assertion_control'\"'\"',), seed=0)\ntests._testfiles.append('\"'\"'/workspace/test_workspace_assertion_control.py'\"'\"')\nraise SystemExit(0 if tests.test(sort=True) else 1)\n'",
+          "exit_code": 1,
+          "name": "assertion_control",
+          "output_truncated": false,
+          "passed": true
+        }
+      ],
+      "image_id": "sha256:cb6d4d5d94b5ef2dbf611a8caf1a82b52b88564c286767cd460c33cad9965ae0",
+      "instance_id": "sympy__sympy-20438",
+      "mode": "preparation",
+      "passed": true,
+      "pristine_sha256": "2e7f9ba3a965d83306e0c984da37ba9da6ec025b6a94d00e666d590b0690ebd4",
+      "repo": "sympy/sympy"
+    },
+    {
+      "checks": [
+        {
+          "command": "python -B -c 'from pathlib import Path\nPath('\"'\"'/workspace/test_workspace_assertion_control.py'\"'\"').write_text(\"def test_workspace_assertion_control():\\n    assert 6 * 7 == 43, '\"'\"'WORKSPACE_ASSERTION_CONTROL'\"'\"'\\n\")\nimport sympy\nfrom sympy import FiniteSet, symbols, lambdify\nassert sympy.__file__.startswith('\"'\"'/testbed/'\"'\"')\nassert FiniteSet(1).is_subset(FiniteSet(1, 2)) is True\nx = symbols('\"'\"'x'\"'\"')\nassert lambdify(x, x + 1, modules='\"'\"'math'\"'\"')(2) == 3\nprint('\"'\"'PASS: source SymPy set operations and generated numeric function'\"'\"')\n'",
+          "exit_code": 0,
+          "name": "api",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "PYTHONHASHSEED=0 python -B bin/test --no-colors --verbose --no-subprocess --seed=0 sympy/core/tests/test_sympify.py -k test_sympify3",
+          "exit_code": 0,
+          "name": "public_tests",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "PYTHONHASHSEED=0 python -B -c 'import importlib\nfrom pathlib import Path\npath = next(path for path in ('\"'\"'sympy/testing/runtests.py'\"'\"', '\"'\"'sympy/utilities/runtests.py'\"'\"')\n            if Path('\"'\"'/testbed'\"'\"', path).is_file())\nrunner = importlib.import_module(path[:-3].replace('\"'\"'/'\"'\"', '\"'\"'.'\"'\"'))\nreporter = runner.PyTestReporter(verbose=True, colors=False)\ntests = runner.SymPyTests(reporter, kw=('\"'\"'test_workspace_assertion_control'\"'\"',), seed=0)\ntests._testfiles.append('\"'\"'/workspace/test_workspace_assertion_control.py'\"'\"')\nraise SystemExit(0 if tests.test(sort=True) else 1)\n'",
+          "exit_code": 1,
+          "name": "assertion_control",
+          "output_truncated": false,
+          "passed": true
+        }
+      ],
+      "image_id": "sha256:cb6d4d5d94b5ef2dbf611a8caf1a82b52b88564c286767cd460c33cad9965ae0",
+      "instance_id": "sympy__sympy-20438",
+      "mode": "repair",
+      "passed": true,
+      "pristine_sha256": "2e7f9ba3a965d83306e0c984da37ba9da6ec025b6a94d00e666d590b0690ebd4",
+      "repo": "sympy/sympy"
+    },
+    {
+      "checks": [
+        {
+          "command": "python -B -c 'from pathlib import Path\nPath('\"'\"'/workspace/test_workspace_assertion_control.py'\"'\"').write_text(\"def test_workspace_assertion_control():\\n    assert 6 * 7 == 43, '\"'\"'WORKSPACE_ASSERTION_CONTROL'\"'\"'\\n\")\nimport sympy\nfrom sympy import FiniteSet, symbols, lambdify\nassert sympy.__file__.startswith('\"'\"'/testbed/'\"'\"')\nassert FiniteSet(1).is_subset(FiniteSet(1, 2)) is True\nx = symbols('\"'\"'x'\"'\"')\nassert lambdify(x, x + 1, modules='\"'\"'math'\"'\"')(2) == 3\nprint('\"'\"'PASS: source SymPy set operations and generated numeric function'\"'\"')\n'",
+          "exit_code": 0,
+          "name": "api",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "PYTHONHASHSEED=0 python -B bin/test --no-colors --verbose --no-subprocess --seed=0 sympy/core/tests/test_sympify.py -k test_sympify3",
+          "exit_code": 0,
+          "name": "public_tests",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "PYTHONHASHSEED=0 python -B -c 'import importlib\nfrom pathlib import Path\npath = next(path for path in ('\"'\"'sympy/testing/runtests.py'\"'\"', '\"'\"'sympy/utilities/runtests.py'\"'\"')\n            if Path('\"'\"'/testbed'\"'\"', path).is_file())\nrunner = importlib.import_module(path[:-3].replace('\"'\"'/'\"'\"', '\"'\"'.'\"'\"'))\nreporter = runner.PyTestReporter(verbose=True, colors=False)\ntests = runner.SymPyTests(reporter, kw=('\"'\"'test_workspace_assertion_control'\"'\"',), seed=0)\ntests._testfiles.append('\"'\"'/workspace/test_workspace_assertion_control.py'\"'\"')\nraise SystemExit(0 if tests.test(sort=True) else 1)\n'",
+          "exit_code": 1,
+          "name": "assertion_control",
+          "output_truncated": false,
+          "passed": true
+        }
+      ],
+      "image_id": "sha256:3696601f9ada5905f3ea490181f6f83058e4d89e7e546500fd078c101e55d64e",
+      "instance_id": "sympy__sympy-22080",
+      "mode": "preparation",
+      "passed": true,
+      "pristine_sha256": "7d937095bfe681f49b7c516bbf0b064c13a1a15c79367e3351f1d7053d436be3",
+      "repo": "sympy/sympy"
+    },
+    {
+      "checks": [
+        {
+          "command": "python -B -c 'from pathlib import Path\nPath('\"'\"'/workspace/test_workspace_assertion_control.py'\"'\"').write_text(\"def test_workspace_assertion_control():\\n    assert 6 * 7 == 43, '\"'\"'WORKSPACE_ASSERTION_CONTROL'\"'\"'\\n\")\nimport sympy\nfrom sympy import FiniteSet, symbols, lambdify\nassert sympy.__file__.startswith('\"'\"'/testbed/'\"'\"')\nassert FiniteSet(1).is_subset(FiniteSet(1, 2)) is True\nx = symbols('\"'\"'x'\"'\"')\nassert lambdify(x, x + 1, modules='\"'\"'math'\"'\"')(2) == 3\nprint('\"'\"'PASS: source SymPy set operations and generated numeric function'\"'\"')\n'",
+          "exit_code": 0,
+          "name": "api",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "PYTHONHASHSEED=0 python -B bin/test --no-colors --verbose --no-subprocess --seed=0 sympy/core/tests/test_sympify.py -k test_sympify3",
+          "exit_code": 0,
+          "name": "public_tests",
+          "output_truncated": false,
+          "passed": true
+        },
+        {
+          "command": "PYTHONHASHSEED=0 python -B -c 'import importlib\nfrom pathlib import Path\npath = next(path for path in ('\"'\"'sympy/testing/runtests.py'\"'\"', '\"'\"'sympy/utilities/runtests.py'\"'\"')\n            if Path('\"'\"'/testbed'\"'\"', path).is_file())\nrunner = importlib.import_module(path[:-3].replace('\"'\"'/'\"'\"', '\"'\"'.'\"'\"'))\nreporter = runner.PyTestReporter(verbose=True, colors=False)\ntests = runner.SymPyTests(reporter, kw=('\"'\"'test_workspace_assertion_control'\"'\"',), seed=0)\ntests._testfiles.append('\"'\"'/workspace/test_workspace_assertion_control.py'\"'\"')\nraise SystemExit(0 if tests.test(sort=True) else 1)\n'",
+          "exit_code": 1,
+          "name": "assertion_control",
+          "output_truncated": false,
+          "passed": true
+        }
+      ],
+      "image_id": "sha256:3696601f9ada5905f3ea490181f6f83058e4d89e7e546500fd078c101e55d64e",
+      "instance_id": "sympy__sympy-22080",
+      "mode": "repair",
+      "passed": true,
+      "pristine_sha256": "7d937095bfe681f49b7c516bbf0b064c13a1a15c79367e3351f1d7053d436be3",
+      "repo": "sympy/sympy"
+    }
+  ],
+  "cohort": "original",
+  "cohort_sha256": "41d4f6cecdfc37fc8869ac8fb6823109ffdabf905e5a0ff863cfd99a293ac6f7",
+  "completed": true,
+  "elapsed_seconds": 340.1599884699681,
+  "model_generations": 0,
+  "owned_containers_remaining": 0,
+  "owned_volumes_remaining": 0,
+  "protocol_sha256": "6557eac41a1a68e1b2778927b9fa2ba20b344597a98159517fabe6370e32b399",
+  "purpose": "model_workspace_admission_not_benchmark_scoring",
+  "qualification_script_sha256": "476155af981fe388cc81ad05369395a903f94b9dda6868f45551139dbe92486e",
+  "reference_material_used": false,
+  "runner_sha256": "343919597f79218aa18ada1dda6fe6f60837512d6eb5e2f29908ed6fb86b68fb",
+  "source_identities": [
+    {
+      "archive_sha256": "c76a5d5c9f2c6700649815d36808a7adc66810c9d2708cc060bf0c8976e6179d",
+      "base_commit": "a85a0747c54bac75e9c3b2fe436b105ea029d6cf",
+      "baseline_commit": "dfd0c6f8e4a6a5b70dde788deb0af250313e970e",
+      "image_id": "sha256:0ebf92dd3a0a2e4512bb24bacb3d0910c0aa365dd87c35fda16c7c784b17de28",
+      "instance_id": "astropy__astropy-8707",
+      "materialized_tree": "c8dbd4e62bcbd0072613c78ff85582b4b01aa8d1",
+      "pristine_sha256": "9deb1cfe09739c783228442aab667bfdadd3b0f215354f123c3216abf5d56b5d",
+      "runtime_artifacts": [
+        {
+          "bytes": 4757,
+          "path": "astropy.egg-info/PKG-INFO",
+          "sha256": "2936328d5186910a8e3537bed1c668351be757b816bf0fda4b994984c12992e5"
+        },
+        {
+          "bytes": 64513,
+          "path": "astropy.egg-info/SOURCES.txt",
+          "sha256": "55a1c076ad2063ba67c6cfc2ea45da240a5367e46c9a4b1b22e874ffa0dc3360"
+        },
+        {
+          "bytes": 1,
+          "path": "astropy.egg-info/dependency_links.txt",
+          "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+        },
+        {
+          "bytes": 596,
+          "path": "astropy.egg-info/entry_points.txt",
+          "sha256": "116d3249b7bbfea8ab0c2c9f85e6fc06f06777b96d6d305a371c9db99c86efef"
+        },
+        {
+          "bytes": 1,
+          "path": "astropy.egg-info/not-zip-safe",
+          "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+        },
+        {
+          "bytes": 292,
+          "path": "astropy.egg-info/requires.txt",
+          "sha256": "d7d40d14ffdcade978af6bf2caf105ad142f635421c65ae9815cc25717ec0e7b"
+        },
+        {
+          "bytes": 8,
+          "path": "astropy.egg-info/top_level.txt",
+          "sha256": "d71d5340103f71d66ddf84d8a687d9cafb6089a306540637b814bed8f057193b"
+        },
+        {
+          "bytes": 613017,
+          "path": "astropy/_erfa/core.py",
+          "sha256": "4f395acf9bb4adf9780e061610f5c27c4ec2647018fcf59abfd6df7d896c752f"
+        },
+        {
+          "bytes": 603224,
+          "path": "astropy/_erfa/ufunc.cpython-39-x86_64-linux-gnu.so",
+          "sha256": "611a6abc595f9bdd16ea6b0732bfd68c0a8feeb5e799c5b170f886a624739d9d"
+        },
+        {
+          "bytes": 15640,
+          "path": "astropy/compiler_version.cpython-39-x86_64-linux-gnu.so",
+          "sha256": "60fb89e8251fa15c971e400a6892b6b1fd9e5f762400dac4bab52a49b8f9b34f"
+        },
+        {
+          "bytes": 20120,
+          "path": "astropy/convolution/_convolve.cpython-39-x86_64-linux-gnu.so",
+          "sha256": "ec4d259e4ac83adb8b3ebbd891702c394dc698c51647456776c2a726cdfe88b0"
+        },
+        {
+          "bytes": 130832,
+          "path": "astropy/cosmology/scalar_inv_efuncs.cpython-39-x86_64-linux-gnu.so",
+          "sha256": "47f75b8138ffa904f93fa9e41b27a8da0066a907ee85c50b9db49a4c13e9cff8"
+        },
+        {
+          "bytes": 57,
+          "path": "astropy/cython_version.py",
+          "sha256": "973b96d2a45a3648eb7d4eab1217d0aa119f3b38dc5aba63ef09d3e453136c72"
+        },
+        {
+          "bytes": 369856,
+          "path": "astropy/io/ascii/cparser.cpython-39-x86_64-linux-gnu.so",
+          "sha256": "9f8054ddb028c4fc59dafc2ab22d992091921380079fd418e3e26d1e46c61869"
+        },
+        {
+          "bytes": 60312,
+          "path": "astropy/io/fits/_utils.cpython-39-x86_64-linux-gnu.so",
+          "sha256": "7c2294869e269f6d02972e063efa1d9efcf5f099faf039e979546203a2ac2cee"
+        },
+        {
+          "bytes": 1430496,
+          "path": "astropy/io/fits/compression.cpython-39-x86_64-linux-gnu.so",
+          "sha256": "72514408451f474768f6b15a4e16ba46d3da5e6f9b93cc75066d31a4ec7f899c"
+        },
+        {
+          "bytes": 17288,
+          "path": "astropy/io/votable/tablewriter.cpython-39-x86_64-linux-gnu.so",
+          "sha256": "740098bf10d65aa39d3df145c000c3a5000f211487cdec2b56dfc1ab07c9c25a"
+        },
+        {
+          "bytes": 170128,
+          "path": "astropy/modeling/_projections.cpython-39-x86_64-linux-gnu.so",
+          "sha256": "c2c7d6fbe93872de6cacdf4246d3e48e8887435b63e1863b8a97eb9bc0eac56d"
+        },
+        {
+          "bytes": 901,
+          "path": "astropy/modeling/src/wcsconfig.h",
+          "sha256": "39b2dcc3ab62c78e4c7cec953c8908662fc0817a441c8f87e8a95843cd2ab647"
+        },
+        {
+          "bytes": 232416,
+          "path": "astropy/stats/_stats.cpython-39-x86_64-linux-gnu.so",
+          "sha256": "69a32bbd824dc620cda2798eac48da975f38b3400fd8ebbdf7f948685b92246b"
+        },
+        {
+          "bytes": 90752,
+          "path": "astropy/table/_column_mixins.cpython-39-x86_64-linux-gnu.so",
+          "sha256": "4c8e5011e4aee0f7b1ad266715620041603c432c65617299e810a80e83cc27b3"
+        },
+        {
+          "bytes": 90848,
+          "path": "astropy/table/_np_utils.cpython-39-x86_64-linux-gnu.so",
+          "sha256": "a7f85e1cdfe3fd513324a7825feb8e30518bdafe11abfefaca9c3f6f7751d7c0"
+        },
+        {
+          "bytes": 91296,
+          "path": "astropy/timeseries/periodograms/bls/_impl.cpython-39-x86_64-linux-gnu.so",
+          "sha256": "c0dbf2975136716074987dacdd1813fc5357e0a1a30afe14e1899a4be4637a67"
+        },
+        {
+          "bytes": 209216,
+          "path": "astropy/timeseries/periodograms/lombscargle/implementations/cython_impl.cpython-39-x86_64-linux-gnu.so",
+          "sha256": "b1244eb027402a6112c1dad37e40b64bb7f9a83094bbc92e7bcff33ced9066c7"
+        },
+        {
+          "bytes": 15632,
+          "path": "astropy/utils/_compiler.cpython-39-x86_64-linux-gnu.so",
+          "sha256": "fa4cf3f3fdd238e104902cfcd07c9efa6216115b20b6b3140e186a6c8b87a075"
+        },
+        {
+          "bytes": 215144,
+          "path": "astropy/utils/xml/_iterparser.cpython-39-x86_64-linux-gnu.so",
+          "sha256": "7fb2c4d97d39f1c797542a84155f2f63a0aa210f7d61c2be54cda9c0766ea496"
+        },
+        {
+          "bytes": 7203,
+          "path": "astropy/version.py",
+          "sha256": "23d151f3c663a133366a535e47015e8cd8b9c5c847d61f473045f8b3a825d3d2"
+        },
+        {
+          "bytes": 1553680,
+          "path": "astropy/wcs/_wcs.cpython-39-x86_64-linux-gnu.so",
+          "sha256": "19c80438276253ac3adfc68fd590aef6fd37f69968e02f3f63639d869813aaf9"
+        },
+        {
+          "bytes": 5161,
+          "path": "astropy/wcs/include/astropy_wcs/docstrings.h",
+          "sha256": "d0a50de654ea6c8edfc3b6522ad2812880253ed1fd0f6d03dec8f4103e43f94b"
+        },
+        {
+          "bytes": 901,
+          "path": "astropy/wcs/include/astropy_wcs/wcsconfig.h",
+          "sha256": "39b2dcc3ab62c78e4c7cec953c8908662fc0817a441c8f87e8a95843cd2ab647"
+        },
+        {
+          "bytes": 901,
+          "path": "astropy/wcs/include/wcsconfig.h",
+          "sha256": "39b2dcc3ab62c78e4c7cec953c8908662fc0817a441c8f87e8a95843cd2ab647"
+        },
+        {
+          "bytes": 18497,
+          "path": "astropy/wcs/include/wcslib/cel.h",
+          "sha256": "93f5bb1056828835cee2d3c7193035f00d1238fd17b343c08c9a9b2ec88ef9d2"
+        },
+        {
+          "bytes": 28006,
+          "path": "astropy/wcs/include/wcslib/lin.h",
+          "sha256": "f584f1cf17c1c6fef24858f351e9bf61a4a6f41e9d099ba4c817ae8085eff0d5"
+        },
+        {
+          "bytes": 31507,
+          "path": "astropy/wcs/include/wcslib/prj.h",
+          "sha256": "a85c6ff47855fdf937da71db5e89c479f46c1c13943e6aa97eaed274baa8e8c8"
+        },
+        {
+          "bytes": 39428,
+          "path": "astropy/wcs/include/wcslib/spc.h",
+          "sha256": "aa29514d416830ff1206b0421f3fdd0f48dde48595735fa0263c616c813b2056"
+        },
+        {
+          "bytes": 22694,
+          "path": "astropy/wcs/include/wcslib/spx.h",
+          "sha256": "127182632892964d5343bfdacd2dab49ff1723a50b29fab8c951cbc4f810b998"
+        },
+        {
+          "bytes": 25581,
+          "path": "astropy/wcs/include/wcslib/tab.h",
+          "sha256": "554c808c9388276daf363c962e3bd7aac92b0712487ee4cd709cc5853280358f"
+        },
+        {
+          "bytes": 79948,
+          "path": "astropy/wcs/include/wcslib/wcs.h",
+          "sha256": "d7abd06badcd5520acd80f6e1156a12645e32d427e9e552e6af49bbbce947f9c"
+        },
+        {
+          "bytes": 9118,
+          "path": "astropy/wcs/include/wcslib/wcserr.h",
+          "sha256": "af2c1243e80fc825bd791801e533a34079ff8ec1add386182c2dbc3dab33d8d7"
+        },
+        {
+          "bytes": 2041,
+          "path": "astropy/wcs/include/wcslib/wcsmath.h",
+          "sha256": "bd1c4d3c9e8921ca5cf4f61f01c7db39247d9a3c34858d340e560846b4baf0fc"
+        },
+        {
+          "bytes": 6099,
+          "path": "astropy/wcs/include/wcslib/wcsprintf.h",
+          "sha256": "2887062f1948788a2208e2ba316e4f77ca5ead4bb5d8d7b488709d826fcea287"
+        },
+        {
+          "bytes": 2328,
+          "path": "astropy_helpers/astropy_helpers.egg-info/PKG-INFO",
+          "sha256": "df2003ed7fa2d9a3a4e1ed593608f91c6eaa5b7e464cba89312f9a7baebeb995"
+        },
+        {
+          "bytes": 875,
+          "path": "astropy_helpers/astropy_helpers.egg-info/SOURCES.txt",
+          "sha256": "0b209d6309f9812fc500eec1634ca4aa2309f903cdd130a5fa303066592b1684"
+        },
+        {
+          "bytes": 1,
+          "path": "astropy_helpers/astropy_helpers.egg-info/dependency_links.txt",
+          "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+        },
+        {
+          "bytes": 1,
+          "path": "astropy_helpers/astropy_helpers.egg-info/not-zip-safe",
+          "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+        },
+        {
+          "bytes": 23,
+          "path": "astropy_helpers/astropy_helpers.egg-info/requires.txt",
+          "sha256": "8bc6ced2b02449c00ca3d3fc08f3e9c263dfef79c2cb8f06d93608d0b87145bc"
+        },
+        {
+          "bytes": 16,
+          "path": "astropy_helpers/astropy_helpers.egg-info/top_level.txt",
+          "sha256": "07c8bf01ae1f800bf9bf1b6533c6304aa80c7b31b2e29f4be863a8b5c74a16cc"
+        },
+        {
+          "bytes": 415,
+          "path": "astropy_helpers/astropy_helpers/version.py",
+          "sha256": "adea63b2dab5ba0ff8a15d2ca86b60efd4ef4cf6e593f6a79d184c3dad0dc1db"
+        }
+      ],
+      "runtime_source_tree_verified": true,
+      "submodules": [
+        {
+          "archive_sha256": "4f6253436409da00672bf62804e54a66a3e564a4d013df8e50dc20bd5b2852ce",
+          "baseline_commit": "6bedbf4aeefabddf8e9c1f05ff8c835d1334771d",
+          "commit": "32b440b52f4c60592148b3254c7ddbf14df3c6e0",
+          "materialized_tree": "ef4aaee68761fa0e4f5100415943bb4f080db7d0",
+          "path": "astropy_helpers",
+          "runtime_source_tree_verified": true,
+          "tree": "ef4aaee68761fa0e4f5100415943bb4f080db7d0"
+        }
+      ],
+      "tree": "a1021067d1cbeaf94a58f631a49807d7bdd479dd"
+    },
+    {
+      "archive_sha256": "379bfbb6019057b6abd0eef50e9c0a8eeb39384384554631613118f388de8eb4",
+      "base_commit": "c84b91b7603e488f7171fdff8f08368ef3d6b856",
+      "baseline_commit": "081d0bb590c4d4dabd06cb667b1da21c7d541159",
+      "image_id": "sha256:811f9bf0ca067b334b574cd3589cdc989b350b2a24b68e1ddcd288fbb97d61f4",
+      "instance_id": "django__django-11138",
+      "materialized_tree": "7bb2d0d7f047e267e0146c34f89fab4cdaffaf53",
+      "pristine_sha256": "cfd2a973fea4c6cb0479ed549664684459d048ed8b28e3b42577b9d4179680b9",
+      "runtime_artifacts": [],
+      "runtime_source_tree_verified": false,
+      "submodules": [],
+      "tree": "7bb2d0d7f047e267e0146c34f89fab4cdaffaf53"
+    },
+    {
+      "archive_sha256": "ac6e6b60320c2d050cd99629a21fb5efe6a9ec1673c6c5bdb840949f890ecdae",
+      "base_commit": "999891bd80b3d02dd916731a7a239e1036174885",
+      "baseline_commit": "2ae10fae01de1a7d62b8afa0de4aa0680125588e",
+      "image_id": "sha256:5ddbc111ccc7ed091855034eacff1c58347df158d6acd0c015feab17587d36a2",
+      "instance_id": "django__django-11734",
+      "materialized_tree": "5bc06ca2beefc0a3dd022d170b4074514c729be2",
+      "pristine_sha256": "a59a72d7a190de2934b6df799abe10733a4a5846ec7ced433e2178e9da869116",
+      "runtime_artifacts": [],
+      "runtime_source_tree_verified": false,
+      "submodules": [],
+      "tree": "5bc06ca2beefc0a3dd022d170b4074514c729be2"
+    },
+    {
+      "archive_sha256": "efdbe22ab3554600439d99f23dbfe58b4f2c6660d5d82596ba4ee13332f1c545",
+      "base_commit": "335c9c94acf263901fb023404408880245b0c4b4",
+      "baseline_commit": "657029c997f51e209dac2486a007cf4fa7306916",
+      "image_id": "sha256:02ec0a94d6eab4aa692f0a416af266132edd6d5264f184813f95bbb818d81914",
+      "instance_id": "django__django-12406",
+      "materialized_tree": "691e9683de6c9840cd0a9a097d020c499ea735db",
+      "pristine_sha256": "59dfae7a492d65cade0bc02b068ab58d7986862b4895bd1bb41db31b29f34a55",
+      "runtime_artifacts": [],
+      "runtime_source_tree_verified": false,
+      "submodules": [],
+      "tree": "691e9683de6c9840cd0a9a097d020c499ea735db"
+    },
+    {
+      "archive_sha256": "404a919741a38d81826ebf56371f1846ce15a0b41fd76ebee6705b31da7df109",
+      "base_commit": "156a2138db20abc89933121e4ff2ee2ce56a173a",
+      "baseline_commit": "e6fc502efd68dc114f3caace2baca5a2657d5d34",
+      "image_id": "sha256:18befd1acb588516d019e63b99f00126f44323a4aa23e4a493ef3eebb4610b03",
+      "instance_id": "django__django-13195",
+      "materialized_tree": "294047367a3c1d87d69b0cacac3504ffc892faa3",
+      "pristine_sha256": "6a3a04ec466914dcf5ce92fbfb691de93ceaba9706740631915cc09e7cb716fc",
+      "runtime_artifacts": [],
+      "runtime_source_tree_verified": false,
+      "submodules": [],
+      "tree": "294047367a3c1d87d69b0cacac3504ffc892faa3"
+    },
+    {
+      "archive_sha256": "7b6a5c075a4c121b822f4f9524ab31e5bc86b0c00d6b0808c578c2cb0b92154e",
+      "base_commit": "6efc35b4fe3009666e56a60af0675d7d532bf4ff",
+      "baseline_commit": "97ad8e4d8318881187055c3ae62fbe87b95fb019",
+      "image_id": "sha256:d10fbbbb16acdfa184b9e4c8292ca40becd40099afba97a19665384d4ea5d751",
+      "instance_id": "django__django-14170",
+      "materialized_tree": "73a67559d15944bfd52d74a5750559c5d7645c4a",
+      "pristine_sha256": "671e3f302274222a7b0d1ecc2d3564e83c9fd161becf1f3dd994685f85297073",
+      "runtime_artifacts": [],
+      "runtime_source_tree_verified": false,
+      "submodules": [],
+      "tree": "73a67559d15944bfd52d74a5750559c5d7645c4a"
+    },
+    {
+      "archive_sha256": "395809e3fa0ad2da86fd60ecc0b116fffdfbfe0cbe4ef90239b7b42e7c5b367f",
+      "base_commit": "84400d2e9db7c51fee4e9bb04c028f665b8e7624",
+      "baseline_commit": "fefd41de8eccade599b21fbeb8c8c89fa5850cfc",
+      "image_id": "sha256:5f67eee68cd7e4eb00d1642840df30774b1fd42b0f8bfd9f08851df5bd6079ba",
+      "instance_id": "django__django-14631",
+      "materialized_tree": "467414be65e1641a02dbcafa575acfff3b09c2b2",
+      "pristine_sha256": "1e6b24645f6f5d3b769c7d93076fd8307bc55bd058fb28f06071b3777cdcd135",
+      "runtime_artifacts": [],
+      "runtime_source_tree_verified": false,
+      "submodules": [],
+      "tree": "467414be65e1641a02dbcafa575acfff3b09c2b2"
+    },
+    {
+      "archive_sha256": "0a608c0c0c1179a83d14e82bc76c44e39b020b3523752cf561cbd7dbc72a89a1",
+      "base_commit": "9ffd4eae2ce7a7100c98f681e2b6ab818df384a4",
+      "baseline_commit": "2092ae19a22dc01ed2d595b04c51f2d9ad01e315",
+      "image_id": "sha256:94186b4d24bc8f1da5f54488e4367dd466aba0ceb6fc29f0057479e30275445e",
+      "instance_id": "django__django-15563",
+      "materialized_tree": "2cc678b6feff9f187517439bf2856a8702c1f356",
+      "pristine_sha256": "d33ae6ec1e4e6e6c6b6b5980bf40ef5453a578fd11c9bb83e5455d2b73ec6f34",
+      "runtime_artifacts": [],
+      "runtime_source_tree_verified": false,
+      "submodules": [],
+      "tree": "2cc678b6feff9f187517439bf2856a8702c1f356"
+    },
+    {
+      "archive_sha256": "626dd0e539d6e70463e88b380585c78c81b957de76a5829c53528653ccffdcf1",
+      "base_commit": "9b224579875e30203d079cc2fee83b116d98eb78",
+      "baseline_commit": "1fea731866bf7d63b061c1cc44df2810f83e54ad",
+      "image_id": "sha256:73106409d800e32a921110d86ba25e1ac6764b76dc5b6bddeca8b8e4439f0a20",
+      "instance_id": "django__django-16631",
+      "materialized_tree": "2c94f6eb06a4ebe53e5ec3321456e3e6b9e00873",
+      "pristine_sha256": "f7bbc8bdd2b0700d0f594d07196390b523e7db91a7e5e0cc920ee46cb99a2f21",
+      "runtime_artifacts": [],
+      "runtime_source_tree_verified": false,
+      "submodules": [],
+      "tree": "2c94f6eb06a4ebe53e5ec3321456e3e6b9e00873"
+    },
+    {
+      "archive_sha256": "5b4897a3a20f294d1cf34a49cc005a8ad5e93d4c2baa51792a8b102e9c7ea7d2",
+      "base_commit": "d65c9ca20ddf81ef91199e6d819f9d3506ef477c",
+      "baseline_commit": "c42ea0f5eafde6ceb0240dd3d87a15dd1512233a",
+      "image_id": "sha256:52cdd8ac0f4a8b05f40507d500680ec613092186310cbaf7895d1554e9d654dc",
+      "instance_id": "matplotlib__matplotlib-14623",
+      "materialized_tree": "191a666ebb854f74f7227c97f888e3616fd9804e",
+      "pristine_sha256": "d0c541bf913b4d0ecf5733a3cd3856c14eb0564904ca48feba832861ab0f7633",
+      "runtime_artifacts": [
+        {
+          "bytes": 1421,
+          "path": "lib/matplotlib.egg-info/PKG-INFO",
+          "sha256": "629269f0e8c1b3beb9dc8fd8a585410ce685e009a9ebeb922d98681cb4cb4570"
+        },
+        {
+          "bytes": 254042,
+          "path": "lib/matplotlib.egg-info/SOURCES.txt",
+          "sha256": "58adfdeae8c48b72967cf2b304df8def6335e031e3b975389c7c657c51c41e82"
+        },
+        {
+          "bytes": 1,
+          "path": "lib/matplotlib.egg-info/dependency_links.txt",
+          "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+        },
+        {
+          "bytes": 13,
+          "path": "lib/matplotlib.egg-info/namespace_packages.txt",
+          "sha256": "0363c7160f4d298394e29110d61f7b53441dfab07eeb95b7e17a82fb9e9937d8"
+        },
+        {
+          "bytes": 1,
+          "path": "lib/matplotlib.egg-info/not-zip-safe",
+          "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+        },
+        {
+          "bytes": 105,
+          "path": "lib/matplotlib.egg-info/requires.txt",
+          "sha256": "012e546973e158507027b2056ef6489323ef092c3ae2507973a9214df42f7371"
+        },
+        {
+          "bytes": 31,
+          "path": "lib/matplotlib.egg-info/top_level.txt",
+          "sha256": "e599164a8384e5d73bca457a9b9d6f4e838693e938e8a702a9d8960124460cf5"
+        },
+        {
+          "bytes": 633488,
+          "path": "lib/matplotlib/_contour.cpython-38-x86_64-linux-gnu.so",
+          "sha256": "2ca9cfba279c379448ae15c4d3cc24079a300f14861e71692bef518c87654992"
+        },
+        {
+          "bytes": 2580520,
+          "path": "lib/matplotlib/_image.cpython-38-x86_64-linux-gnu.so",
+          "sha256": "516d27177ced847c5e5f082c5fa455d3038a9b27defbbe5828d61e0c8aabd4e8"
+        },
+        {
+          "bytes": 1667640,
+          "path": "lib/matplotlib/_path.cpython-38-x86_64-linux-gnu.so",
+          "sha256": "862e37b0925896d52b48a49eb83c68a2e490e548bd38cbd391f63b824180c6af"
+        },
+        {
+          "bytes": 217656,
+          "path": "lib/matplotlib/_png.cpython-38-x86_64-linux-gnu.so",
+          "sha256": "6fba797e036198a046cf39b943d10d9490465090ed166b12449e859d9ffe4992"
+        },
+        {
+          "bytes": 1088896,
+          "path": "lib/matplotlib/_qhull.cpython-38-x86_64-linux-gnu.so",
+          "sha256": "5f4d164bae656d476be1e249f5ef0a4d757558b4be39b89eef7504eed8d77f4b"
+        },
+        {
+          "bytes": 1274792,
+          "path": "lib/matplotlib/_tri.cpython-38-x86_64-linux-gnu.so",
+          "sha256": "f6d02b18b6654b19101b1fb4e744f8dd07a27a60ef6a3cb5be3424a57736ec38"
+        },
+        {
+          "bytes": 3161520,
+          "path": "lib/matplotlib/backends/_backend_agg.cpython-38-x86_64-linux-gnu.so",
+          "sha256": "f363e35ee09127cf4ed811600b61adb9e6fd1c454270ed0cbc338089e469dd13"
+        },
+        {
+          "bytes": 245584,
+          "path": "lib/matplotlib/backends/_tkagg.cpython-38-x86_64-linux-gnu.so",
+          "sha256": "40bfaf3567c117a947fba1e004eb5218c0ea4c0b6f2c9ac13a56ceaa3d580501"
+        },
+        {
+          "bytes": 12660,
+          "path": "lib/matplotlib/backends/web_backend/jquery-ui-1.12.1/AUTHORS.txt",
+          "sha256": "5b62e1d666c6a373b0734a175fd535f9315549961a0bbd8abd246bad1a775082"
+        },
+        {
+          "bytes": 1817,
+          "path": "lib/matplotlib/backends/web_backend/jquery-ui-1.12.1/LICENSE.txt",
+          "sha256": "de33fb695880d0b07615d4b86f78cd43796906959ade5fdfef70968827a0db78"
+        },
+        {
+          "bytes": 293430,
+          "path": "lib/matplotlib/backends/web_backend/jquery-ui-1.12.1/external/jquery/jquery.js",
+          "sha256": "430f36f9b5f21aae8cc9dca6a81c4d3d84da5175eaedcf2fdc2c226302cb3575"
+        },
+        {
+          "bytes": 7006,
+          "path": "lib/matplotlib/backends/web_backend/jquery-ui-1.12.1/images/ui-icons_444444_256x240.png",
+          "sha256": "eaf7c7ee2747275dda6c53e731a10db1a7b15f4fbb46e1b69d6bb2056bc9fd81"
+        },
+        {
+          "bytes": 7074,
+          "path": "lib/matplotlib/backends/web_backend/jquery-ui-1.12.1/images/ui-icons_555555_256x240.png",
+          "sha256": "5d04051dfd9d2d740355404f98a683d1ec0feb2fca7d76e533c1a6e5ce92dd2e"
+        },
+        {
+          "bytes": 4676,
+          "path": "lib/matplotlib/backends/web_backend/jquery-ui-1.12.1/images/ui-icons_777620_256x240.png",
+          "sha256": "9dbe4a0d03feed6f65eb2560a0a8b4ba4264545ee8fd31c1763a3b219d0328d6"
+        },
+        {
+          "bytes": 7013,
+          "path": "lib/matplotlib/backends/web_backend/jquery-ui-1.12.1/images/ui-icons_777777_256x240.png",
+          "sha256": "e75b27211e16fcf94715168001bb7055ca376d46f928110ba3d0825232452e5a"
+        },
+        {
+          "bytes": 4632,
+          "path": "lib/matplotlib/backends/web_backend/jquery-ui-1.12.1/images/ui-icons_cc0000_256x240.png",
+          "sha256": "02891575d4358e9edde3e42d94057f8e9f82a9d64376f71ee86cef149d30537e"
+        },
+        {
+          "bytes": 6313,
+          "path": "lib/matplotlib/backends/web_backend/jquery-ui-1.12.1/images/ui-icons_ffffff_256x240.png",
+          "sha256": "b6b06deef2b924cc3835d63f4883d47882734a33e71b212d917a68cede3b8e9d"
+        },
+        {
+          "bytes": 32588,
+          "path": "lib/matplotlib/backends/web_backend/jquery-ui-1.12.1/index.html",
+          "sha256": "e60eff30b665921f7615758e474ab4d8ccbc927b2c5eadb40d7cfe06489888fe"
+        },
+        {
+          "bytes": 37326,
+          "path": "lib/matplotlib/backends/web_backend/jquery-ui-1.12.1/jquery-ui.css",
+          "sha256": "a7ac54f58ba507b13621ceb6fcf5fe879f5ac9bdcf049d16153110c6ad048c7c"
+        },
+        {
+          "bytes": 520714,
+          "path": "lib/matplotlib/backends/web_backend/jquery-ui-1.12.1/jquery-ui.js",
+          "sha256": "4f455eb2ddf2094ee969f470f6bfac7adb4c057e8990a374e9da819e943c777d"
+        },
+        {
+          "bytes": 32076,
+          "path": "lib/matplotlib/backends/web_backend/jquery-ui-1.12.1/jquery-ui.min.css",
+          "sha256": "ac1c8f94750b39b12327a5d0c56fdf946dabfb6d91e5d2a202879ff9a5d67e29"
+        },
+        {
+          "bytes": 253669,
+          "path": "lib/matplotlib/backends/web_backend/jquery-ui-1.12.1/jquery-ui.min.js",
+          "sha256": "28ce75d953678c4942df47a11707a15e3c756021cf89090e3e6aa7ad6b6971c3"
+        },
+        {
+          "bytes": 18705,
+          "path": "lib/matplotlib/backends/web_backend/jquery-ui-1.12.1/jquery-ui.structure.css",
+          "sha256": "135baa57e778d769db488fa8a8330842c4d2b6d3fe152ec1c7073b99075060ea"
+        },
+        {
+          "bytes": 15548,
+          "path": "lib/matplotlib/backends/web_backend/jquery-ui-1.12.1/jquery-ui.structure.min.css",
+          "sha256": "af16a2b37eda9ca527a4be50cd262d7be26722c9a41a62c6f9984a4a4664c153"
+        },
+        {
+          "bytes": 18671,
+          "path": "lib/matplotlib/backends/web_backend/jquery-ui-1.12.1/jquery-ui.theme.css",
+          "sha256": "984303df44d383ebc81065261c781c8123a09b41417cb8a9c90f7b26bd134c7f"
+        },
+        {
+          "bytes": 13849,
+          "path": "lib/matplotlib/backends/web_backend/jquery-ui-1.12.1/jquery-ui.theme.min.css",
+          "sha256": "023ca8c9a46d9c6553cb0287fc8b31c6ee4f5c8d2ce02704d01ccf017f373e97"
+        },
+        {
+          "bytes": 1847,
+          "path": "lib/matplotlib/backends/web_backend/jquery-ui-1.12.1/package.json",
+          "sha256": "923116f31318baa452c04139f0aa930cd2e0931ffa60beed6f533dbe530af7cc"
+        },
+        {
+          "bytes": 643160,
+          "path": "lib/matplotlib/ft2font.cpython-38-x86_64-linux-gnu.so",
+          "sha256": "e8947b766cad7efad8bfe13d04fcb9300896fef9b72a742d75bbd80df3869b16"
+        },
+        {
+          "bytes": 33492,
+          "path": "lib/matplotlib/mpl-data/matplotlibrc",
+          "sha256": "fddcebdc33cf5cd194c85a02e14e3443eb8fc17663072f514cce70963dabc7c7"
+        },
+        {
+          "bytes": 486848,
+          "path": "lib/matplotlib/ttconv.cpython-38-x86_64-linux-gnu.so",
+          "sha256": "c39ef71716d8c886b0750faa0250e3c1e051543c8ab5e062d5f4ae4b368ac05f"
+        }
+      ],
+      "runtime_source_tree_verified": true,
+      "submodules": [],
+      "tree": "191a666ebb854f74f7227c97f888e3616fd9804e"
+    },
+    {
+      "archive_sha256": "b76fb825d5a88f864a4c4994d7774b7a88aebd9cdbfaf1a4dcb5ceea140a4b56",
+      "base_commit": "1757dffac2fa493d7b9a074b84cf8c830a706688",
+      "baseline_commit": "790e7b81f05b42c4de8d2ff8c76fc9963d1efbe1",
+      "image_id": "sha256:fb721923cba0d05faafdafb2fb76e6caa3adc22fd4fdcbf2de45741312f91c74",
+      "instance_id": "pydata__xarray-3095",
+      "materialized_tree": "365476022a400612fa9da253ba6f8d0bfe41baef",
+      "pristine_sha256": "7ae7fcab941c04aa6d5249ef65293ac34e9aa6a958948864574304efb13d2078",
+      "runtime_artifacts": [],
+      "runtime_source_tree_verified": false,
+      "submodules": [],
+      "tree": "365476022a400612fa9da253ba6f8d0bfe41baef"
+    },
+    {
+      "archive_sha256": "76174dfceb8830a711a299aa31a2cccf18850c4da28aa9973091858465f7070e",
+      "base_commit": "69c7e01e5167a3137c285cb50d1978252bb8bcbf",
+      "baseline_commit": "6026fb5fb8177785d512d12eafa60180ede0fbe6",
+      "image_id": "sha256:0e234daddf9a42b85a77ba0436f3fcbad90759921c978b127dff90d55cba0f89",
+      "instance_id": "pydata__xarray-3305",
+      "materialized_tree": "f0cc03a70ee44542b9f21046fbb5fe3305e36c77",
+      "pristine_sha256": "8849fbe88f68a4c3c7878d9b0fae3d3d1495bfcc6bc9031ea27f5296f2eeefd9",
+      "runtime_artifacts": [],
+      "runtime_source_tree_verified": false,
+      "submodules": [],
+      "tree": "f0cc03a70ee44542b9f21046fbb5fe3305e36c77"
+    },
+    {
+      "archive_sha256": "fb6990bee9448abfe8ef1b16c8e8b8abd40b59f3074c6d76c71e0883791c3f3c",
+      "base_commit": "45c0a114e2b7b27b83c9618bc05b36afac82183c",
+      "baseline_commit": "42fb8429e135d8a56a290e5a2e5e1619e1c16a3a",
+      "image_id": "sha256:2811e30973fd2cca1ccad4858a4e1a51cc615f2590ebfc8df44baeecf3596221",
+      "instance_id": "pydata__xarray-6992",
+      "materialized_tree": "7ac08be3eedce4cec37be5e6bec7835654ec3815",
+      "pristine_sha256": "d370336c407772d6e1224c222fc255c11947f01e29c059fac4d1aac3ec935f3d",
+      "runtime_artifacts": [],
+      "runtime_source_tree_verified": false,
+      "submodules": [],
+      "tree": "7ac08be3eedce4cec37be5e6bec7835654ec3815"
+    },
+    {
+      "archive_sha256": "8c8f43eba3b7bf623b1fe7f9cd99ec6351b5a59662bd808f0982ee168c5e2e97",
+      "base_commit": "754b487f4d892e3d4872b6fc7468a71db4e31c13",
+      "baseline_commit": "ebec0aeafaf2ebd13872d8032ac3e2aeb83315be",
+      "image_id": "sha256:83f7a8849f90aff7654ca4a8dfa61b33d67312710bb7be8c2f15533581cd3821",
+      "instance_id": "pylint-dev__pylint-6386",
+      "materialized_tree": "91f4e7c8112da38aa6b6b012149f867d2b54e58f",
+      "pristine_sha256": "03299619c0e5a3fc5b3bd549289e7aa533b5b6179c8fd31889421a4b1734d016",
+      "runtime_artifacts": [],
+      "runtime_source_tree_verified": false,
+      "submodules": [],
+      "tree": "91f4e7c8112da38aa6b6b012149f867d2b54e58f"
+    },
+    {
+      "archive_sha256": "3c7cfc8c4de3d30034123ee4f52ca9b8a69cbf57825a097d21a39fbcee8d6b0e",
+      "base_commit": "1f8c4d9eb185c16a2c1d881c054f015e1c2eb334",
+      "baseline_commit": "835ec883f4b3e62d1ceba34da70cc686e6f3d875",
+      "image_id": "sha256:6a3950d518eac34eff08f89136006c94526afc1cdf2b34d1a4d8f598faa4eaea",
+      "instance_id": "pylint-dev__pylint-8898",
+      "materialized_tree": "ddc0b886ddafd87fdc3d3d0b0fbc77fe012d7df3",
+      "pristine_sha256": "41277ccf9e3a391018ddeafa469713488a3a9174ee3ee197814e76b085ba35e2",
+      "runtime_artifacts": [],
+      "runtime_source_tree_verified": false,
+      "submodules": [],
+      "tree": "ddc0b886ddafd87fdc3d3d0b0fbc77fe012d7df3"
+    },
+    {
+      "archive_sha256": "23255e6a66c9995e9901e790ae17c247d8baf683ec519f7a2e4ea1ba2aa0ccfe",
+      "base_commit": "57ed10c68057c96491acbd3e62254ccfaf9e3861",
+      "baseline_commit": "fff387479d256dffe3fb3cc3fba4929b7746ccfe",
+      "image_id": "sha256:0cee9556d1dab507161552be8bd82757ee1a835fe660a832a6df023bcb60b67d",
+      "instance_id": "sphinx-doc__sphinx-8551",
+      "materialized_tree": "613e1ebc64a732dceed6feaf040172d7e102ec88",
+      "pristine_sha256": "94a09d9e0b494e52d9d714f1f961dd09be43c31b5cfbd5d54447cf1afe7ee583",
+      "runtime_artifacts": [],
+      "runtime_source_tree_verified": false,
+      "submodules": [],
+      "tree": "613e1ebc64a732dceed6feaf040172d7e102ec88"
+    },
+    {
+      "archive_sha256": "fa5cd56226f28bb3470baeb640ee9d3c2b51049a0a3ea3898066fb77331f50ab",
+      "base_commit": "939c7bb7ff7c53a4d27df067cea637540f0e1dad",
+      "baseline_commit": "c75d0c035395dcaf1ab1f815916a8dc7682596f6",
+      "image_id": "sha256:7002375c0d6c01c893097a1214c94186f573b15d71d3ead09f50e0d5002deee0",
+      "instance_id": "sphinx-doc__sphinx-9461",
+      "materialized_tree": "91864e513235b324c3d57c8999b03df84fdeed5a",
+      "pristine_sha256": "e379d426c70fe76fba13ea8d9e949d66f201bcae1f075e32339351839fca2ea2",
+      "runtime_artifacts": [],
+      "runtime_source_tree_verified": false,
+      "submodules": [],
+      "tree": "91864e513235b324c3d57c8999b03df84fdeed5a"
+    },
+    {
+      "archive_sha256": "8fbd6b08918f4d6417cabbd5696bca4ca8777326e2a75f4a7ecd0d120e92f0a8",
+      "base_commit": "6fd65310fa3167b9626c38a5487e171ca407d988",
+      "baseline_commit": "e170ebc01d47863f0384a30ba69f9d58c502e9b1",
+      "image_id": "sha256:166853c298d0dc29ad6cb0468b996714d2682dae62fc7103fcc7bd85bdbc1916",
+      "instance_id": "sympy__sympy-16597",
+      "materialized_tree": "85cc9629e6e8c5d93514c1881671445ffacc184c",
+      "pristine_sha256": "5f917435a856c106f58086030596ff1a7cd8671110fc1e4063d5b627f28a4aba",
+      "runtime_artifacts": [],
+      "runtime_source_tree_verified": false,
+      "submodules": [],
+      "tree": "85cc9629e6e8c5d93514c1881671445ffacc184c"
+    },
+    {
+      "archive_sha256": "239e33c4182f84568c43e842a020b1bd0a8f6ce0629ca33baa3025ef361ffb90",
+      "base_commit": "33b47e4bd60e2302e42616141e76285038b724d6",
+      "baseline_commit": "02b2d91c056ac68399423c5b9882a5a480737587",
+      "image_id": "sha256:cb6d4d5d94b5ef2dbf611a8caf1a82b52b88564c286767cd460c33cad9965ae0",
+      "instance_id": "sympy__sympy-20438",
+      "materialized_tree": "4d2f564d97bb14700b3df7ed5d390a7a9d1a8a3c",
+      "pristine_sha256": "2e7f9ba3a965d83306e0c984da37ba9da6ec025b6a94d00e666d590b0690ebd4",
+      "runtime_artifacts": [],
+      "runtime_source_tree_verified": false,
+      "submodules": [],
+      "tree": "4d2f564d97bb14700b3df7ed5d390a7a9d1a8a3c"
+    },
+    {
+      "archive_sha256": "90b5c66cf2b809b0b1ab3e78e419db9943115d3f3b6af3b78a9b14c0243917a9",
+      "base_commit": "3f8c8c2377cb8e0daaf8073e8d03ac7d87580813",
+      "baseline_commit": "94d9d5bb4cefe348b3e300983fe5d3ac5aed3fc7",
+      "image_id": "sha256:3696601f9ada5905f3ea490181f6f83058e4d89e7e546500fd078c101e55d64e",
+      "instance_id": "sympy__sympy-22080",
+      "materialized_tree": "ff3be61097784673ae14e58b1d2cc230070de8fb",
+      "pristine_sha256": "7d937095bfe681f49b7c516bbf0b064c13a1a15c79367e3351f1d7053d436be3",
+      "runtime_artifacts": [],
+      "runtime_source_tree_verified": false,
+      "submodules": [],
+      "tree": "ff3be61097784673ae14e58b1d2cc230070de8fb"
+    }
+  ],
+  "source_protocol_sha256": "3e5e16370aaaf382c574e758131314dff70f8038d7e123239a569976929b5927"
+}

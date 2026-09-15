@@ -1,0 +1,92 @@
+{
+  "purpose": "separately_pinned_shared_workspace_and_evaluator_environment",
+  "instance_id": "astropy__astropy-8707",
+  "base_commit": "a85a0747c54bac75e9c3b2fe436b105ea029d6cf",
+  "base_image": "swebench/sweb.eval.x86_64.astropy_1776_astropy-8707@sha256:c6531e6e77ca7f257057f793cf38fc84427cd36fd93d136c21aef2a6e0e8df6d",
+  "image": "ai-scientist/astropy-8707-workspace@sha256:0ebf92dd3a0a2e4512bb24bacb3d0910c0aa365dd87c35fda16c7c784b17de28",
+  "image_id": "sha256:0ebf92dd3a0a2e4512bb24bacb3d0910c0aa365dd87c35fda16c7c784b17de28",
+  "image_size_bytes": 1210954030,
+  "distribution": "local native NVIDIA-Workbench Docker daemon; not published to a registry",
+  "dependency_change": {
+    "package": "numpy",
+    "from": "1.25.2",
+    "to": "1.23.5",
+    "reason": "Pinned Astropy uses numpy.int, removed by NumPy 1.24.",
+    "wheel_source": "https://files.pythonhosted.org/packages/4c/b9/038abd6fbd67b05b03cb1af590cfc02b7f1e5a37af7ac6a868f5093c29f5/numpy-1.23.5-cp39-cp39-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
+  },
+  "inputs": {
+    "Dockerfile": {
+      "bytes": 737,
+      "sha256": "4ed97ee2df4dacecc4027e64d1d3090b7beee2e67d24d757fe6567def8fd2086"
+    },
+    "requirements.txt": {
+      "bytes": 93,
+      "sha256": "1277e2388c2cbe36cb8077f48a4c2216c231cc073793ae97ddfde088988c27e4"
+    },
+    "numpy-1.23.5-cp39-cp39-manylinux_2_17_x86_64.manylinux2014_x86_64.whl": {
+      "bytes": 17083286,
+      "sha256": "33161613d2269025873025b33e879825ec7b1d831317e68f4f2f0f84ed14c719"
+    }
+  },
+  "build": {
+    "docker_host": "unix:///run/docker.sock",
+    "network": "none",
+    "pull": false,
+    "pip_require_hashes": true,
+    "pip_no_index": true,
+    "pip_no_deps": true,
+    "pip_check": "No broken requirements found.",
+    "tag": "ai-scientist/astropy-8707-workspace:numpy-1.23.5",
+    "rebuild_policy": "Rebuilding may produce a different digest; inspect, repin and requalify rather than assuming the observed image ID."
+  },
+  "source_protocol_sha256": "3e5e16370aaaf382c574e758131314dff70f8038d7e123239a569976929b5927",
+  "official_evaluator_controls": [
+    {
+      "control": "negative",
+      "resolved": false,
+      "infra_failure": false,
+      "tests": {
+        "FAIL_TO_FAIL": {
+          "failure": 0,
+          "success": 0
+        },
+        "FAIL_TO_PASS": {
+          "failure": 1,
+          "success": 0
+        },
+        "PASS_TO_FAIL": {
+          "failure": 0,
+          "success": 0
+        },
+        "PASS_TO_PASS": {
+          "failure": 0,
+          "success": 11
+        }
+      }
+    },
+    {
+      "control": "reference",
+      "resolved": true,
+      "infra_failure": false,
+      "tests": {
+        "FAIL_TO_FAIL": {
+          "failure": 0,
+          "success": 0
+        },
+        "FAIL_TO_PASS": {
+          "failure": 0,
+          "success": 1
+        },
+        "PASS_TO_FAIL": {
+          "failure": 0,
+          "success": 0
+        },
+        "PASS_TO_PASS": {
+          "failure": 0,
+          "success": 11
+        }
+      }
+    }
+  ],
+  "model_generations": 0
+}

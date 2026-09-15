@@ -184,8 +184,12 @@ def validate_results(results, protocol, digest, execution_id):
     _require(isinstance(runtime.get("runner_sha256"), str) and
              re.fullmatch(r"[0-9a-f]{64}", runtime["runner_sha256"]) is not None,
              "missing native source identity.")
-    budget_keys = ("direct", "preparation", "repair", "handoff_tokens", "handoff_output_reserve",
-                   "tool_timeout_seconds", "tool_output_tokens", "evaluation_timeout_seconds")
+    # Historical publications retain their original field name verbatim; live
+    # runs use the new contract. Never reinterpret an archived allowance.
+    reserve_keys = {"terminal_output_reserve", "handoff_output_reserve"} & protocol["budgets"].keys()
+    _require(len(reserve_keys) == 1, "ambiguous or missing frozen terminal allowance.")
+    budget_keys = ("direct", "preparation", "repair", "handoff_tokens",
+                   "tool_timeout_seconds", "tool_output_tokens", "evaluation_timeout_seconds", *sorted(reserve_keys))
     resource_keys = ("container_cpus", "container_memory_bytes", "container_pids",
                      "minimum_free_bytes", "study_image_budget_bytes", "evaluator_writable_limits_bytes",
                      "evaluator_read_only_root", "evaluator_cap_sys_admin", "evaluator_command_output_bytes")
@@ -205,6 +209,13 @@ def validate_results(results, protocol, digest, execution_id):
         if key in runtime:
             _require(isinstance(runtime[key], str), "invalid runtime provenance.")
             safe_runtime[key] = runtime[key]
+    qualification = runtime.get("workspace_qualification")
+    if "terminal_output_reserve" in reserve_keys or qualification is not None:
+        _require(isinstance(qualification, dict) and set(qualification) == {"passed", "sha256"}
+                 and qualification["passed"] is True and isinstance(qualification["sha256"], str)
+                 and re.fullmatch(r"[0-9a-f]{64}", qualification["sha256"]) is not None,
+                 "model workspaces were not qualified before execution.")
+        safe_runtime["workspace_qualification"] = dict(qualification)
     continuation = protocol.get("continuation")
     lineage = runtime.get("continuation")
     if "continuation" not in protocol:

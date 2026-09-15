@@ -1,0 +1,60 @@
+{
+  "checks": [
+    {
+      "control": "negative",
+      "expected_resolved": false,
+      "official_report_sha256": "e3ad87c38b3904eeca5f6ffb57a58108363b98bf8faf7752a7a5697a91b53b23",
+      "patch_sha256": "4da65486bd4b8fc04b8c97161f336dbb69ba78e6553109b4952e8ab05f8f4772",
+      "result": {
+        "resolved": false,
+        "status": "unresolved"
+      },
+      "sandbox": {
+        "container_id": "6e178d6a6cbf03662a13ff0f1a611e765c5f4891d771e45505439c338758f91f",
+        "image_id": "sha256:0ebf92dd3a0a2e4512bb24bacb3d0910c0aa365dd87c35fda16c7c784b17de28",
+        "network": "none",
+        "read_only_root": true,
+        "scratch_bytes": 536870912,
+        "source_origin": "pinned_official_image_including_setup_commits",
+        "writable_bytes": {
+          "/opt/miniconda3/envs/testbed": 2147483648,
+          "/root": 536870912,
+          "/testbed": 2147483648
+        }
+      }
+    },
+    {
+      "control": "reference",
+      "expected_resolved": true,
+      "official_report_sha256": "e130fe7ba3784adb5f41e815802a23f8b1dba53e9500fe8e0f31120b73f8dc96",
+      "patch_sha256": "f993c1ada6f19bcdfa8989e0c1c61151cd881a81d549f2789663270537c093f2",
+      "result": {
+        "resolved": true,
+        "status": "resolved"
+      },
+      "sandbox": {
+        "container_id": "2351d36b86513b8be581116d4cab480cbae4a259c04a80c865bd9911b8c45721",
+        "image_id": "sha256:0ebf92dd3a0a2e4512bb24bacb3d0910c0aa365dd87c35fda16c7c784b17de28",
+        "network": "none",
+        "read_only_root": true,
+        "scratch_bytes": 536870912,
+        "source_origin": "pinned_official_image_including_setup_commits",
+        "writable_bytes": {
+          "/opt/miniconda3/envs/testbed": 2147483648,
+          "/root": 536870912,
+          "/testbed": 2147483648
+        }
+      }
+    }
+  ],
+  "model_generations": 0,
+  "owned_containers_remaining": 0,
+  "owned_volumes_remaining": 0,
+  "passed": true,
+  "protocol_sha256": "6557eac41a1a68e1b2778927b9fa2ba20b344597a98159517fabe6370e32b399",
+  "purpose": "trusted_official_evaluator_environment_controls",
+  "reference_material_scope": "trusted evaluator only; no model workspace",
+  "reference_material_used": true,
+  "runner_sha256": "343919597f79218aa18ada1dda6fe6f60837512d6eb5e2f29908ed6fb86b68fb",
+  "script_sha256": "4887ba182a1c94566e10f6afd7ec058803f72604afdb0fa816127217a19ff1ba"
+}

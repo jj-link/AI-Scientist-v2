@@ -63,7 +63,7 @@ def predecessor(monkeypatch):
         save_json(source / "frozen-protocol.json", protocol)
         execution = {"execution_id": source.name,
                      "protocol_sha256": study.file_digest(source / "frozen-protocol.json"),
-                     "runner_sha256": study.digest(b"original native runner")}
+                     "runner_sha256": study.file_digest(study.__file__)}
         save_json(source / "execution.json", execution)
         save_json(source / "owner.json", {"pid": 12345, "pgid": 12345, "start": "old-start"})
         schedule = [(row, arm) for index, row in enumerate(cohort)
@@ -165,6 +165,14 @@ def test_inherits_rotated_prefix_without_rewriting_lineage_or_copying_workspaces
 
 def test_changed_phase_budget_cannot_inherit_previous_results(predecessor):
     predecessor.protocol["budgets"]["preparation"]["output_tokens"] += 1
+    reject_without_copying(predecessor)
+
+
+def test_changed_runner_cannot_inherit_previous_workspace_policy(predecessor, monkeypatch):
+    original_digest = study.file_digest
+    monkeypatch.setattr(study, "file_digest",
+                        lambda path: study.digest(b"different workspace policy")
+                        if Path(path) == Path(study.__file__) else original_digest(path))
     reject_without_copying(predecessor)
 
 

@@ -1,0 +1,40 @@
+{
+  "checks": [
+    {
+      "changed_files": 2,
+      "endpoint_calls": 0,
+      "evaluation_started": false,
+      "fault_rejected_at": "workspace_api_admission",
+      "fault_status": "infrastructure_failure",
+      "instance_id": "astropy__astropy-8707",
+      "missing_artifact": "astropy/utils/_compiler.cpython-39-x86_64-linux-gnu.so",
+      "output_tokens": 0,
+      "resolved": null,
+      "runtime_artifacts_preserved": 48,
+      "runtime_tampering_rejected": true,
+      "source_patch_applied": true
+    },
+    {
+      "changed_files": 2,
+      "endpoint_calls": 0,
+      "evaluation_started": false,
+      "fault_rejected_at": "workspace_api_admission",
+      "fault_status": "infrastructure_failure",
+      "instance_id": "matplotlib__matplotlib-14623",
+      "missing_artifact": "lib/matplotlib/ft2font.cpython-38-x86_64-linux-gnu.so",
+      "output_tokens": 0,
+      "resolved": null,
+      "runtime_artifacts_preserved": 37,
+      "runtime_tampering_rejected": true,
+      "source_patch_applied": true
+    }
+  ],
+  "model_generations": 0,
+  "owned_containers_remaining": 0,
+  "owned_volumes_remaining": 0,
+  "passed": true,
+  "purpose": "workspace_fault_injection_and_source_patch_capture",
+  "reference_material_used": false,
+  "runner_sha256": "343919597f79218aa18ada1dda6fe6f60837512d6eb5e2f29908ed6fb86b68fb",
+  "script_sha256": "b415c1b11b545a7c2a0e01aa931c4576e63454f50bc6c95001c524ffb48bf8e5"
+}

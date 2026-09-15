@@ -1,0 +1,146 @@
+{
+  "purpose": "workspace_environment_correction_verification_not_model_study",
+  "passed": true,
+  "runner_sha256": "343919597f79218aa18ada1dda6fe6f60837512d6eb5e2f29908ed6fb86b68fb",
+  "model_generations": 0,
+  "source_environment": {
+    "issues": 20,
+    "repository_families": 7,
+    "workspace_modes": 40,
+    "checks": 120,
+    "all_passed": true,
+    "changed_image_pins": [
+      "astropy__astropy-8707"
+    ],
+    "base_commits_unchanged": true
+  },
+  "fault_injection": [
+    {
+      "changed_files": 2,
+      "endpoint_calls": 0,
+      "evaluation_started": false,
+      "fault_rejected_at": "workspace_api_admission",
+      "fault_status": "infrastructure_failure",
+      "instance_id": "astropy__astropy-8707",
+      "missing_artifact": "astropy/utils/_compiler.cpython-39-x86_64-linux-gnu.so",
+      "output_tokens": 0,
+      "resolved": null,
+      "runtime_artifacts_preserved": 48,
+      "runtime_tampering_rejected": true,
+      "source_patch_applied": true
+    },
+    {
+      "changed_files": 2,
+      "endpoint_calls": 0,
+      "evaluation_started": false,
+      "fault_rejected_at": "workspace_api_admission",
+      "fault_status": "infrastructure_failure",
+      "instance_id": "matplotlib__matplotlib-14623",
+      "missing_artifact": "lib/matplotlib/ft2font.cpython-38-x86_64-linux-gnu.so",
+      "output_tokens": 0,
+      "resolved": null,
+      "runtime_artifacts_preserved": 37,
+      "runtime_tampering_rejected": true,
+      "source_patch_applied": true
+    }
+  ],
+  "evaluator": {
+    "harness_version": "5.0.2",
+    "controls": [
+      {
+        "control": "negative",
+        "resolved": false,
+        "infra_failure": false,
+        "tests": {
+          "FAIL_TO_FAIL": {
+            "failure": 0,
+            "success": 0
+          },
+          "FAIL_TO_PASS": {
+            "failure": 1,
+            "success": 0
+          },
+          "PASS_TO_FAIL": {
+            "failure": 0,
+            "success": 0
+          },
+          "PASS_TO_PASS": {
+            "failure": 0,
+            "success": 11
+          }
+        }
+      },
+      {
+        "control": "reference",
+        "resolved": true,
+        "infra_failure": false,
+        "tests": {
+          "FAIL_TO_FAIL": {
+            "failure": 0,
+            "success": 0
+          },
+          "FAIL_TO_PASS": {
+            "failure": 0,
+            "success": 1
+          },
+          "PASS_TO_FAIL": {
+            "failure": 0,
+            "success": 0
+          },
+          "PASS_TO_PASS": {
+            "failure": 0,
+            "success": 11
+          }
+        }
+      }
+    ],
+    "reference_material_scope": "trusted evaluator only; never a model workspace"
+  },
+  "regression_tests": {
+    "command": ".venv/Scripts/python.exe -m pytest -q -p no:cacheprovider tests/test_fixed_study_budget.py tests/test_study_continuation.py tests/test_study_workspaces.py",
+    "passed": 67,
+    "failed": 0
+  },
+  "archived_import": {
+    "archived_import_passed": true,
+    "trials": 80,
+    "source_protocol_sha256": "3e5e16370aaaf382c574e758131314dff70f8038d7e123239a569976929b5927",
+    "source_results_sha256": "178e8fdadcedb4f3f0e3487cb106246149f32f7603d35d6753f609b59b55d9b2",
+    "historical_budget_preserved": true
+  },
+  "evidence_sha256": {
+    "source-qualification.json": "392c5a34e048410ea38422300338ea0d46a1fd6f21e429a3930439d72fc6dcc4",
+    "boundary-verification.json": "34e8845c112786c87eaad731b323f2823c145f3973f00bd00fce5b6b79bb71a1",
+    "evaluator-verification.json": "4c4cf23e05fa990b5fc0cbcd0f369265110d5144b3585f3613d8de78e9e17f02",
+    "qualification-protocol.json": "6557eac41a1a68e1b2778927b9fa2ba20b344597a98159517fabe6370e32b399",
+    "astropy-image/image-manifest.json": "f5253ac406040779a3c4a12dcbd4ad80b5afd5f2af7ff401bef9627929a37ada"
+  },
+  "native_evidence": {
+    "qualification": "evidence/workspace-repair-corrected-v3",
+    "boundary": "evidence/workspace-boundaries-corrected-v2",
+    "evaluator": "runs/workspace-environment-evaluator-v3"
+  },
+  "cleanup": {
+    "removed_failed_test_fixtures": [
+      "C:\\Users\\josep\\Projects\\personal\\AI-Scientist-v2\\tests\\workspace_checks_17186226e5344930bf0ae53be49c6d56",
+      "C:\\Users\\josep\\Projects\\personal\\AI-Scientist-v2\\tests\\workspace_checks_90e13c7c5d494566a52ad3e6e735bddd",
+      "C:\\Users\\josep\\Projects\\personal\\AI-Scientist-v2\\tests\\workspace_checks_da15cb5d16c8413a95967e469ee5d4fd",
+      "C:\\Users\\josep\\Projects\\personal\\AI-Scientist-v2\\tests\\workspace_checks_e045e1e3abd14ef1a1bba1d163a2ce8f"
+    ],
+    "removed_diagnostic_scripts": [
+      "experiments/workspace-environment-repair/build_probe.py",
+      "experiments/workspace-environment-repair/diagnose_astropy.py"
+    ],
+    "qualified_owned_containers_remaining": 0,
+    "qualified_owned_volumes_remaining": 0,
+    "boundary_owned_containers_remaining": 0,
+    "boundary_owned_volumes_remaining": 0,
+    "evaluator_owned_containers_remaining": 0,
+    "evaluator_owned_volumes_remaining": 0
+  },
+  "interpretation": [
+    "Original 80-trial study and results remain archived without rewriting; this correction does not retroactively repair its evidence.",
+    "The replacement Astropy image is local to native NVIDIA-Workbench Docker and has not been pushed to a registry.",
+    "No Gemma or Qwen experiment was launched. A future study needs a separately frozen qualified protocol."
+  ]
+}

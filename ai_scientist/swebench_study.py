@@ -42,6 +42,148 @@ DOCKER_API_TIMEOUT_SECONDS = 60
 SAFE_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,119}\Z")
 HEX = re.compile(r"[0-9a-f]{64}\Z")
 VALID = {"resolved", "unresolved", "empty_patch", "budget_exhausted"}
+SMOKES = {
+    'sympy/sympy': '''import sympy
+from sympy import FiniteSet, symbols, lambdify
+assert sympy.__file__.startswith('/testbed/')
+assert FiniteSet(1).is_subset(FiniteSet(1, 2)) is True
+x = symbols('x')
+assert lambdify(x, x + 1, modules='math')(2) == 3
+print('PASS: source SymPy set operations and generated numeric function')
+''',
+    'django/django': '''import django
+from django.conf import settings
+assert django.__file__.startswith('/testbed/')
+settings.configure(DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}}, INSTALLED_APPS=[])
+django.setup()
+from django.db import connection
+with connection.cursor() as cursor:
+    cursor.execute('SELECT 6 * 7')
+    assert cursor.fetchone() == (42,)
+connection.close()
+print('PASS: source Django configuration and SQLite execution')
+''',
+    'pylint-dev/pylint': '''import json, pathlib, subprocess, sys, pylint
+assert pylint.__file__.startswith('/testbed/')
+source = pathlib.Path('/workspace/qualification.py')
+source.write_text('print(missing_name)\\n')
+result = subprocess.run([sys.executable, '-m', 'pylint', '--rcfile=/dev/null', '--persistent=n', '--disable=all', '--enable=E0602', '--output-format=json', str(source)], capture_output=True, text=True, timeout=30)
+assert result.returncode == 2, (result.returncode, result.stdout, result.stderr)
+messages = json.loads(result.stdout)
+assert [(item['message-id'], item['line']) for item in messages] == [('E0602', 1)], messages
+print('PASS: source Pylint detects the deliberately undefined variable')
+''',
+    'sphinx-doc/sphinx': '''from pathlib import Path
+import sphinx
+from sphinx.application import Sphinx
+assert sphinx.__file__.startswith('/testbed/')
+root = Path('/workspace/qualification-docs')
+source = root / 'source'
+source.mkdir(parents=True)
+(source / 'conf.py').write_text("project = 'Qualification'\\nmaster_doc = 'index'\\n")
+(source / 'index.rst').write_text('Qualification\\n=============\\n\\nVerified public documentation build.\\n')
+app = Sphinx(str(source), str(source), str(root / 'html'), str(root / 'doctrees'), 'html')
+app.build(force_all=True)
+assert app.statuscode == 0
+assert 'Verified public documentation build.' in (root / 'html/index.html').read_text()
+print('PASS: source Sphinx builds actual HTML documentation')
+''',
+    'pydata/xarray': '''import numpy as np
+import xarray as xr
+assert xr.__file__.startswith('/testbed/')
+original = xr.DataArray(np.array([1, 2]), dims='x')
+copied = original.copy(deep=True)
+copied.values[0] = 7
+assert original.values.tolist() == [1, 2]
+assert copied.values.tolist() == [7, 2]
+print('PASS: source Xarray deep copy preserves independent data')
+''',
+    'matplotlib/matplotlib': '''from pathlib import Path
+import matplotlib
+assert matplotlib.__file__.startswith('/testbed/')
+matplotlib.use('Agg')
+from matplotlib.figure import Figure
+figure = Figure()
+axes = figure.subplots()
+axes.plot([0, 1], [0, 1])
+output = Path('/workspace/qualified-plot.png')
+figure.savefig(str(output))
+assert output.read_bytes().startswith(b'\\x89PNG\\r\\n\\x1a\\n')
+print('PASS: source Matplotlib renders a real PNG through Agg')
+''',
+    'astropy/astropy': '''import astropy
+from astropy.io import ascii
+assert astropy.__file__.startswith('/testbed/')
+table = ascii.read('value\\n1\\n2\\n', format='basic', guess=False)
+assert list(table['value']) == [1, 2]
+print('PASS: source Astropy parses an ASCII table')
+''',
+}
+
+
+# Only runtime outputs are overlaid; tracked source is always exported from Git.
+# Shared-library suffixes vary with the pinned interpreter, not model selection.
+WORKSPACE_RUNTIME_FILES = {
+    "matplotlib/matplotlib": [
+        *["lib/matplotlib/" + name + ".cpython-*.so" for name in
+          ("_contour", "_image", "_path", "_png", "_qhull", "_tri", "ft2font", "ttconv",
+           "backends/_backend_agg", "backends/_tkagg")],
+        "lib/matplotlib/mpl-data/matplotlibrc",
+        *["lib/matplotlib.egg-info/" + name for name in
+          ("PKG-INFO", "SOURCES.txt", "dependency_links.txt", "namespace_packages.txt",
+           "not-zip-safe", "requires.txt", "top_level.txt")],
+        *["lib/matplotlib/backends/web_backend/jquery-ui-1.12.1/" + name for name in
+          ("AUTHORS.txt", "LICENSE.txt", "external/jquery/jquery.js", "index.html", "package.json",
+           "jquery-ui.css", "jquery-ui.js", "jquery-ui.min.css", "jquery-ui.min.js",
+           "jquery-ui.structure.css", "jquery-ui.structure.min.css",
+           "jquery-ui.theme.css", "jquery-ui.theme.min.css")],
+        *["lib/matplotlib/backends/web_backend/jquery-ui-1.12.1/images/ui-icons_" + color + "_256x240.png"
+          for color in ("444444", "555555", "777620", "777777", "cc0000", "ffffff")],
+    ],
+    "astropy/astropy": [
+        *["astropy/" + name + ".cpython-*.so" for name in
+          ("_erfa/ufunc", "compiler_version", "convolution/_convolve", "cosmology/scalar_inv_efuncs",
+           "io/ascii/cparser", "io/fits/_utils", "io/fits/compression", "io/votable/tablewriter",
+           "modeling/_projections", "stats/_stats", "table/_column_mixins", "table/_np_utils",
+           "timeseries/periodograms/bls/_impl",
+           "timeseries/periodograms/lombscargle/implementations/cython_impl",
+           "utils/_compiler", "utils/xml/_iterparser", "wcs/_wcs")],
+        "astropy/_erfa/core.py", "astropy/version.py", "astropy/cython_version.py",
+        *["astropy.egg-info/" + name for name in
+          ("PKG-INFO", "SOURCES.txt", "dependency_links.txt", "entry_points.txt",
+           "not-zip-safe", "requires.txt", "top_level.txt")],
+        "astropy/modeling/src/wcsconfig.h", "astropy/wcs/include/astropy_wcs/docstrings.h",
+        "astropy/wcs/include/astropy_wcs/wcsconfig.h", "astropy/wcs/include/wcsconfig.h",
+        *["astropy/wcs/include/wcslib/" + name + ".h" for name in
+          ("cel", "lin", "prj", "spc", "spx", "tab", "wcs", "wcserr", "wcsmath", "wcsprintf")],
+        "astropy_helpers/astropy_helpers/version.py",
+        *["astropy_helpers/astropy_helpers.egg-info/" + name for name in
+          ("PKG-INFO", "SOURCES.txt", "dependency_links.txt", "not-zip-safe", "requires.txt", "top_level.txt")],
+    ],
+}
+
+
+# Public baseline tests, deliberately unrelated to hidden grading targets.
+WORKSPACE_TESTS = {
+    "pylint-dev/pylint": (("pyproject.toml", "setup.cfg"), ["tests/checkers/unittest_misc.py::TestFixme::test_fixme_with_message"]),
+    "sphinx-doc/sphinx": (("setup.cfg",), ["tests/test_build_text.py::test_lineblock"]),
+    "pydata/xarray": (("setup.cfg",), ["xarray/tests/test_dataarray.py::TestDataArray::test_get_index"]),
+    "matplotlib/matplotlib": (("pytest.ini",), [
+        "lib/matplotlib/tests/test_agg.py::test_repeated_save_with_alpha",
+        "lib/matplotlib/tests/test_png.py::test_imread_png_uint16",
+        "lib/matplotlib/tests/test_font_manager.py::test_font_priority"]),
+    "astropy/astropy": (("setup.cfg",), ["astropy/io/ascii/tests/test_read.py::test_from_string[force]"]),
+}
+ASSERTION_CONTROL = "WORKSPACE_ASSERTION_CONTROL"
+DJANGO_PUBLIC_TEST = "basic.tests.ModelInstanceCreationTests.test_object_is_not_written_to_database_until_save_was_called"
+JUNIT_PROBE = """import json, xml.etree.ElementTree as ET
+cases = ET.parse('/workspace/public-tests.xml').getroot().findall('.//testcase')
+print('WORKSPACE_JUNIT=' + json.dumps([
+    {'name': case.get('name'), 'skipped': case.find('skipped') is not None,
+     'errors': [node.text or '' for node in case.findall('error')],
+     'failures': [node.text or '' for node in case.findall('failure')]}
+    for case in cases]))
+"""
 
 
 class InfrastructureError(RuntimeError):
@@ -196,7 +338,7 @@ ruleset = Ruleset(rights)
 fd = checked(libc.syscall(444, ctypes.byref(ruleset), ctypes.sizeof(ruleset), 0))
 read_dir = (1 << 0) | (1 << 2) | (1 << 3)
 read_file = (1 << 0) | (1 << 2)
-for path in ["/usr", "/bin", "/sbin", "/lib", "/lib64", "/opt/conda", "/opt/miniconda3", "/testbed", "/workspace", "/dev/shm", "/dev/null", "/dev/urandom", "/dev/random", "/dev/zero", "/etc/ld.so.cache", "/etc/ld.so.conf", "/etc/alternatives", "/etc/localtime", "/etc/passwd", "/etc/group", "/etc/fonts", "/etc/os-release", "/proc/cpuinfo", "/proc/meminfo", "/proc/stat", "/proc/uptime"]:
+for path in ["/usr", "/bin", "/sbin", "/lib", "/lib64", "/opt/conda", "/opt/miniconda3", "/testbed", "/workspace", "/dev/shm", "/dev/null", "/dev/urandom", "/dev/random", "/dev/zero", "/etc/ld.so.cache", "/etc/ld.so.conf", "/etc/alternatives", "/etc/localtime", "/etc/passwd", "/etc/group", "/etc/fonts", "/etc/mime.types", "/etc/hosts", "/etc/nsswitch.conf", "/etc/os-release", "/proc/cpuinfo", "/proc/meminfo", "/proc/stat", "/proc/uptime"]:
     if not os.path.exists(path):
         continue
     allowed = read_dir if os.path.isdir(path) else read_file
@@ -554,7 +696,7 @@ def checked_command(control, argv, deadline, **kwargs):
     return out
 
 
-def _export_source_tree(source, image_path, commit, base, directory, control, deadline, env, exports):
+def _export_source_tree(source, image_path, commit, base, directory, control, deadline, env, exports, verify_runtime):
     """Verify each original Git tree before flattening its pinned submodules."""
     number = len(exports)
     record = {"path": str(PurePosixPath(image_path).relative_to("/testbed")), "commit": commit}
@@ -563,6 +705,20 @@ def _export_source_tree(source, image_path, commit, base, directory, control, de
     require(code == 0 and not cut and root.decode().strip() == image_path, "Pinned source repository is not initialized")
     code, tree, _, cut = docker_command(control, source, ["git", "-C", image_path, "rev-parse", commit + "^{tree}"], deadline)
     require(code == 0 and not cut and re.fullmatch(rb"[0-9a-f]{40}\n", tree), "Image does not contain exact source commit")
+    if verify_runtime:
+        # Check the image before neutralizing export attributes: eol=crlf test
+        # fixtures are clean checkouts, not edits to their canonical Git blobs.
+        prefix = ["git", "-C", image_path]
+        code, image_tree, _, cut = docker_command(control, source, prefix + ["rev-parse", "HEAD^{tree}"], deadline)
+        require(code == 0 and not cut and image_tree == tree,
+                "Runtime artifact image source differs from pinned source")
+        for extra in ([], ["--cached"]):
+            code, out, err, cut = docker_command(control, source,
+                prefix + ["diff", "--exit-code", "--no-ext-diff", "--no-textconv",
+                          "--ignore-submodules=none", *extra, commit, "--"], deadline)
+            require(code == 0 and not cut, "Runtime artifact image has modified tracked source at "
+                    + image_path + ": " + (out + err).decode(errors="replace")[:2000])
+        record["runtime_source_tree_verified"] = True
     code, listing, _, cut = docker_command(control, source, ["git", "-C", image_path, "ls-tree", "-r", "-z", commit], deadline)
     require(code == 0 and not cut, "Cannot enumerate pinned source tree")
     links = []
@@ -600,7 +756,7 @@ def _export_source_tree(source, image_path, commit, base, directory, control, de
         if child.exists():
             require(child.is_dir() and not child.is_symlink(), "Gitlink export is not an empty directory")
             child.rmdir()
-        _export_source_tree(source, image_path + "/" + path, child_commit, child, directory, control, deadline, env, exports)
+        _export_source_tree(source, image_path + "/" + path, child_commit, child, directory, control, deadline, env, exports, verify_runtime)
         shutil.rmtree(child / ".git")
         checked_command(control, ["git", "-C", str(base), "update-index", "--force-remove", "--", path], deadline, env=env)
         checked_command(control, ["git", "-C", str(base), "add", "--force", "--all", "--", path], deadline, env=env)
@@ -613,7 +769,87 @@ def _export_source_tree(source, image_path, commit, base, directory, control, de
     return record
 
 
+def _artifact_path(root, name):
+    path = PurePosixPath(name)
+    require(path.parts and str(path) == name and not path.is_absolute()
+            and ".." not in path.parts and ".git" not in path.parts, "Unsafe runtime artifact path")
+    target = root.joinpath(*path.parts)
+    require(not target.is_symlink() and all(not parent.is_symlink() for parent in target.parents),
+            "Symlink runtime artifact path")
+    return target
+
+
+def _restore_runtime_files(source, base, patterns, directory, control, deadline):
+    """Reuse only declared build outputs from an image with identical tracked inputs."""
+    if not patterns:
+        return []
+    discover = """import json, pathlib, sys
+root = pathlib.Path('/testbed')
+names = set()
+for pattern in json.loads(sys.argv[1]):
+    matches = [path for path in root.glob(pattern) if path.is_file()]
+    if len(matches) != 1:
+        raise RuntimeError('Missing or ambiguous declared runtime artifact: ' + pattern)
+    names.add(str(matches[0].relative_to(root)))
+print(json.dumps(sorted(names)))
+"""
+    code, raw, _, cut = docker_command(control, source,
+        ["/opt/miniconda3/bin/python", "-I", "-c", discover, json.dumps(patterns)], deadline)
+    require(code == 0 and not cut, "Cannot enumerate declared runtime artifacts")
+    names = []
+    for name in json.loads(raw):
+        target = _artifact_path(base, name)
+        # Canonical source always wins; runtime provisioning never overwrites it.
+        if not target.exists():
+            names.append(name)
+    if not names:
+        return []
+    export = """import json, pathlib, sys, tarfile
+root = pathlib.Path('/testbed')
+with tarfile.open(fileobj=sys.stdout.buffer, mode='w|') as archive:
+    for name in json.loads(sys.argv[1]):
+        path = root / name
+        if path.is_symlink() or any(parent.is_symlink() for parent in path.parents):
+            raise RuntimeError('Symlink runtime artifact')
+        info = archive.gettarinfo(str(path), arcname=name)
+        if not info.isfile():
+            raise RuntimeError('Non-file runtime artifact')
+        with path.open('rb') as stream:
+            archive.addfile(info, stream)
+"""
+    archive = directory / "runtime-artifacts.tar"
+    code, _, _, cut = docker_command(control, source,
+        ["/opt/miniconda3/bin/python", "-I", "-c", export, json.dumps(names)],
+        deadline, output_path=archive, limit=MAX_ARCHIVE)
+    require(code == 0 and not cut, "Runtime artifact export failed")
+    extracted = directory / "runtime-artifacts"
+    extract_archive(archive, extracted)
+    artifacts = []
+    for name in names:
+        artifact = _artifact_path(extracted, name)
+        require(artifact.is_file(), "Missing declared runtime artifact")
+        target = _artifact_path(base, name)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(artifact, target)
+        artifacts.append({"path": name, "sha256": file_digest(target), "bytes": target.stat().st_size})
+    return artifacts
+
+
+def _strip_runtime_files(source, artifacts):
+    """Reject altered build outputs; never submit environment binaries as repairs."""
+    paths = []
+    for artifact in artifacts:
+        path = _artifact_path(source, artifact["path"])
+        require(path.is_file() and path.stat().st_size == artifact["bytes"]
+                and file_digest(path) == artifact["sha256"],
+                "Model workspace altered a pinned runtime artifact: " + artifact["path"])
+        paths.append(path)
+    for path in paths:
+        path.unlink()
+
+
 def snapshot(protocol, row, directory, control):
+    require(row["repo"] in SMOKES, "No public workspace qualification exists for " + row["repo"])
     image_check(control.client, row)
     source = control.client.containers.create(row["image_id"], read_only=False, **container_options(protocol, control.execution_id))
     control.containers.add(source.id)
@@ -623,11 +859,9 @@ def snapshot(protocol, row, directory, control):
         base = directory / "base"
         env = dict(os.environ, GIT_CONFIG_NOSYSTEM="1", GIT_CONFIG_GLOBAL="/dev/null", GIT_AUTHOR_NAME="Frozen baseline", GIT_AUTHOR_EMAIL="baseline@invalid", GIT_COMMITTER_NAME="Frozen baseline", GIT_COMMITTER_EMAIL="baseline@invalid", GIT_AUTHOR_DATE="2000-01-01T00:00:00Z", GIT_COMMITTER_DATE="2000-01-01T00:00:00Z")
         exports = []
-        root = _export_source_tree(source, "/testbed", row["base_commit"], base, directory, control, deadline, env, exports)
-        save(directory / "source-identity.json", {"instance_id": row["instance_id"], "base_commit": row["base_commit"],
-             "tree": root["tree"], "materialized_tree": root["materialized_tree"],
-             "baseline_commit": root["baseline_commit"], "image_id": row["image_id"],
-             "archive_sha256": root["archive_sha256"], "submodules": exports[1:]})
+        patterns = WORKSPACE_RUNTIME_FILES.get(row["repo"], [])
+        root = _export_source_tree(source, "/testbed", row["base_commit"], base, directory, control, deadline, env, exports, bool(patterns))
+        artifacts = _restore_runtime_files(source, base, patterns, directory, control, deadline)
         upload = directory / "pristine.tar"
         with tarfile.open(upload, "w|", dereference=False) as tar:
             def ownership(info):
@@ -636,22 +870,119 @@ def snapshot(protocol, row, directory, control):
                 return info
             tar.add(base, arcname=".", filter=ownership)
         require(upload.stat().st_size <= MAX_ARCHIVE, "Pristine source exceeds storage bound")
+        save(directory / "source-identity.json", {"instance_id": row["instance_id"], "base_commit": row["base_commit"],
+             "tree": root["tree"], "materialized_tree": root["materialized_tree"],
+             "baseline_commit": root["baseline_commit"], "image_id": row["image_id"],
+             "archive_sha256": root["archive_sha256"], "submodules": exports[1:],
+             "runtime_source_tree_verified": root.get("runtime_source_tree_verified", False),
+             "runtime_artifacts": artifacts, "pristine_sha256": file_digest(upload)})
         return base, upload
     finally:
         control.remove(source)
 
 
+def _workspace_test_command(repo, negative):
+    if repo == "sympy/sympy":
+        if not negative:
+            return ("PYTHONHASHSEED=0 python -B bin/test --no-colors --verbose --no-subprocess "
+                    "--seed=0 sympy/core/tests/test_sympify.py -k test_sympify3")
+        probe = """import importlib
+from pathlib import Path
+path = next(path for path in ('sympy/testing/runtests.py', 'sympy/utilities/runtests.py')
+            if Path('/testbed', path).is_file())
+runner = importlib.import_module(path[:-3].replace('/', '.'))
+reporter = runner.PyTestReporter(verbose=True, colors=False)
+tests = runner.SymPyTests(reporter, kw=('test_workspace_assertion_control',), seed=0)
+tests._testfiles.append('/workspace/test_workspace_assertion_control.py')
+raise SystemExit(0 if tests.test(sort=True) else 1)
+"""
+        return "PYTHONHASHSEED=0 python -B -c " + shlex.quote(probe)
+    if repo == "django/django":
+        tests = [DJANGO_PUBLIC_TEST]
+        if negative:
+            tests.append("test_workspace_assertion_control.WorkspaceAssertionControl.test_assertion_control")
+        return ("PYTHONPATH=/testbed:/workspace python -B tests/runtests.py --settings=test_sqlite "
+                "--parallel=1 --noinput --verbosity=2 " + shlex.join(tests))
+    configs, tests = WORKSPACE_TESTS[repo]
+    paths = list(tests)
+    if negative:
+        paths.append("/workspace/test_workspace_assertion_control.py::test_workspace_assertion_control")
+    source = "/testbed/lib" if repo == "matplotlib/matplotlib" else "/testbed"
+    # Repository versions move their pytest configuration. Select only a
+    # declared existing configuration, never silently run without one.
+    select = ("config=; for path in " + shlex.join(["/testbed/" + name for name in configs])
+              + '; do if test -f "$path"; then config="$path"; break; fi; done; '
+              + 'test -n "$config" || exit 2; ')
+    command = select + "PYTHONPATH=" + source + ' MPLCONFIGDIR=/workspace/matplotlib python -B -m pytest -c "$config" ' + shlex.join([
+        "--rootdir=/testbed",
+        "-q", "-rA", "-p", "no:cacheprovider", "--basetemp=/workspace/public-test-work",
+        "--junitxml=/workspace/public-tests.xml", *paths])
+    return command + "; status=$?; python -c " + shlex.quote(JUNIT_PROBE) + '; exit "$status"'
+
+
+def _workspace_test_passed(repo, negative, code, stdout, stderr, truncated):
+    if truncated or code != int(negative):
+        return False
+    text = (stdout + stderr).decode(errors="replace")
+    if repo == "sympy/sympy":
+        summary = "0 passed, 1 failed" if negative else "1 passed"
+        name = "test_workspace_assertion_control" if negative else "test_sympify3"
+        return (name in text and re.search(r"tests finished: " + summary + r", in ", text) is not None
+                and (not negative or ASSERTION_CONTROL in text))
+    if repo == "django/django":
+        count = "2 tests" if negative else "1 test"
+        summary = "\nFAILED (failures=1)\n" if negative else "\nOK\n"
+        return (re.search(r"Ran " + count + r" in [\d.]+s", text) is not None and summary in text
+                and (not negative or (ASSERTION_CONTROL in text and "FAIL: test_assertion_control " in text)))
+    lines = [line.removeprefix("WORKSPACE_JUNIT=") for line in text.splitlines()
+             if line.startswith("WORKSPACE_JUNIT=")]
+    if len(lines) != 1:
+        return False
+    try:
+        cases = json.loads(lines[0])
+        expected = [path.rsplit("::", 1)[-1] for path in WORKSPACE_TESTS[repo][1]]
+        if negative:
+            expected.append("test_workspace_assertion_control")
+        if sorted(case["name"] for case in cases) != sorted(expected):
+            return False
+        for case in cases:
+            if case["skipped"] or case["errors"]:
+                return False
+            if negative and case["name"] == "test_workspace_assertion_control":
+                if len(case["failures"]) != 1 or ASSERTION_CONTROL not in case["failures"][0]:
+                    return False
+            elif case["failures"]:
+                return False
+        return True
+    except (ValueError, TypeError, KeyError):
+        return False
+
+
 class Workspace:
     def __init__(self, protocol, row, upload, directory, mode, control):
-        from docker.types import Mount
         self.control = control
         self.mode = mode
-        self.container = None
+        self.container = self.staging = self.volume = None
+        self.closed = False
+        self.source_identity = load(upload.parent / "source-identity.json")
+        require(mode in {"preparation", "repair"}, "Unknown workspace mode")
+        require(all(self.source_identity[key] == row[key] for key in ("instance_id", "base_commit", "image_id")),
+                "Workspace source/image identity mismatch")
+        require(file_digest(upload) == self.source_identity["pristine_sha256"], "Prepared workspace archive changed")
+        try:
+            image_check(control.client, row)
+            self._start(protocol, row, upload, directory, mode, control)
+            self._qualify(row, directory)
+        except BaseException:
+            self.close()
+            raise
+
+    def _start(self, protocol, row, upload, directory, mode, control):
+        from docker.types import Mount
         self.volume = control.client.volumes.create(driver="local",
             driver_opts={"type": "tmpfs", "device": "tmpfs", "o": f"size={MAX_ARCHIVE},uid=1000,gid=1000"},
             labels={LABEL: control.execution_id})
-        self.closed = False
-        image_check(control.client, row)
+        self.qualification = None
         options = container_options(protocol, control.execution_id)
         # Populate an owned volume with only the verified export, never a host bind.
         self.staging = control.client.containers.create(row["image_id"], read_only=True,
@@ -681,7 +1012,7 @@ class Workspace:
         require(code == 0 and not cut, "No trusted image Python interpreter")
         self.python = python.decode()
         code, head, err, cut = self.execute("git rev-parse HEAD", time.monotonic() + 30)
-        expected = load(directory / "source-identity.json")["baseline_commit"]
+        expected = self.source_identity["baseline_commit"]
         require(code == 0 and not cut and head.decode().strip() == expected,
                 "Model workspace does not contain the exact fresh baseline: " + err.decode(errors="replace")[:1000])
         # access(2) does not enforce Landlock: exercise actual opens instead.
@@ -709,6 +1040,54 @@ else:
         require(code == 0 and not cut, "Landlock/read-only sandbox probe failed: " + err.decode(errors="replace")[:1000])
         save(directory / (mode + "-sandbox.json"), {"container_id": self.container.id, "image_id": row["image_id"], "volume": self.volume.name, "read_only_source": mode == "preparation", "kernel": os.uname().release, "probe_exit_code": code})
 
+    def _qualify(self, row, directory):
+        repo = row["repo"]
+        report = {"instance_id": row["instance_id"], "repo": repo, "mode": self.mode,
+                  "image_id": row["image_id"], "pristine_sha256": self.source_identity["pristine_sha256"],
+                  "passed": False, "checks": []}
+        report_path = directory / (self.mode + "-qualification.json")
+        fixture = ("from django.test import SimpleTestCase\n"
+                   "class WorkspaceAssertionControl(SimpleTestCase):\n"
+                   "    def test_assertion_control(self):\n"
+                   "        self.assertEqual(6 * 7, 43, 'WORKSPACE_ASSERTION_CONTROL')\n"
+                   if repo == "django/django" else
+                   "def test_workspace_assertion_control():\n"
+                   "    assert 6 * 7 == 43, 'WORKSPACE_ASSERTION_CONTROL'\n")
+        api = ("from pathlib import Path\n"
+               "Path('/workspace/test_workspace_assertion_control.py').write_text(" + repr(fixture) + ")\n" + SMOKES[repo])
+        commands = [("api", "python -B -c " + shlex.quote(api)),
+                    ("public_tests", _workspace_test_command(repo, False)),
+                    ("assertion_control", _workspace_test_command(repo, True))]
+        for name, command in commands:
+            code, out, err, cut = self.execute(command, time.monotonic() + 180)
+            prefix = self.mode + "-qualification-" + name
+            atomic(directory / (prefix + "-stdout.txt"), out)
+            atomic(directory / (prefix + "-stderr.txt"), err)
+            passed = (code == 0 and not cut) if name == "api" else _workspace_test_passed(
+                repo, name == "assertion_control", code, out, err, cut)
+            report["checks"].append({"name": name, "command": command, "exit_code": code,
+                                     "output_truncated": cut, "passed": passed})
+            receipt = directory / (prefix + ".json")
+            save(receipt, report)
+            require(passed, f"Workspace qualification failed for {row['instance_id']} ({self.mode}/{name}); see {receipt}")
+        # Public checks must not change source, and their scratch evidence must
+        # not be handed to any arm. Every actual model workspace starts clean.
+        code, out, err, cut = self.execute("git status --porcelain --untracked-files=all", time.monotonic() + 30)
+        require(code == 0 and not cut and not out.strip(), "Workspace qualification modified the source tree")
+        cleanup = """from pathlib import Path
+import shutil
+for path in Path('/workspace').iterdir():
+    if path.is_dir() and not path.is_symlink():
+        shutil.rmtree(path)
+    else:
+        path.unlink()
+"""
+        code, _, err, cut = self.execute("python -B -c " + shlex.quote(cleanup), time.monotonic() + 30)
+        require(code == 0 and not cut, "Workspace qualification scratch cleanup failed")
+        report["passed"] = True
+        save(report_path, report)
+        self.qualification = report
+
     def execute(self, command, deadline):
         try:
             return docker_command(self.control, self.container, [self.python, "-I", "-c", SANDBOX, self.mode, command], deadline, limit=262144)
@@ -728,9 +1107,11 @@ else:
         self.closed = True
         if self.container:
             self.control.remove(self.container)
-        self.control.remove(self.staging)
-        with contextlib.suppress(Exception):
-            self.volume.remove(force=True)
+        if self.staging:
+            self.control.remove(self.staging)
+        if self.volume:
+            with contextlib.suppress(Exception):
+                self.volume.remove(force=True)
 
     def freeze(self, directory, base):
         # Never trust the model's git config, index, hooks, attributes or history.
@@ -751,6 +1132,7 @@ else:
             os.fsync(output.fileno())
         source = directory / "repair-source"
         extract_archive(archive, source, prefix="testbed", skip_git=True)
+        _strip_runtime_files(source, self.source_identity["runtime_artifacts"])
         # Reconstruct using a trusted, pristine git database and no model hooks.
         shutil.copytree(base / ".git", source / ".git", symlinks=False)
         deadline = time.monotonic() + 60
@@ -761,6 +1143,36 @@ else:
         atomic(directory / "patch.diff", patch.encode())
         save(directory / "patch-identity.json", {"sha256": digest(patch.encode()), "changed_files": len([name for name in names.split(b"\0") if name])})
         return patch, len([name for name in names.split(b"\0") if name])
+
+
+def prepare_workspaces(protocol, directory, control):
+    """Admit the entire cohort before any runtime/model request is reachable."""
+    root = directory / "workspaces"
+    root.mkdir()
+    report = {"passed": False, "runner_sha256": file_digest(__file__), "checks": []}
+    prepared = {}
+    try:
+        for row in protocol["cohort"]:
+            control.check()
+            require(file_digest(__file__) == report["runner_sha256"], "Runner changed during workspace qualification")
+            require(shutil.disk_usage(root).free >= protocol["resources"]["minimum_free_bytes"] + 4 * MAX_ARCHIVE,
+                    "Insufficient space for workspace qualification")
+            case = root / row["instance_id"]
+            case.mkdir()
+            progress("workspace_qualification_started", instance_id=row["instance_id"])
+            base, upload = snapshot(protocol, row, case, control)
+            for mode in ("preparation", "repair"):
+                workspace = Workspace(protocol, row, upload, case, mode, control)
+                try:
+                    report["checks"].append(workspace.qualification)
+                finally:
+                    workspace.close()
+            prepared[row["instance_id"]] = (base, upload)
+            progress("workspace_qualified", instance_id=row["instance_id"])
+        report["passed"] = True
+        return prepared
+    finally:
+        save(root / "qualification.json", report)
 
 
 def tools_for(arm, preparation):
@@ -1303,7 +1715,7 @@ def evaluate_child(protocol_path, trial_path):
     save(Path(trial_path) / "evaluation-result.json", {"status": "resolved" if observation["resolved"] else "unresolved", "resolved": observation["resolved"]})
 
 
-def run_trial(protocol, protocol_path, protocol_sha, execution_id, row, issue, arm, directory, endpoint, control):
+def run_trial(protocol, protocol_path, protocol_sha, execution_id, row, issue, arm, directory, endpoint, control, prepared_source):
     identity = {"schema_version": 1, "protocol_sha256": protocol_sha, "runner_sha256": file_digest(__file__), "execution_id": execution_id, "instance_id": row["instance_id"], "repo": row["repo"], "base_commit": row["base_commit"], "image": row["image"], "image_id": row["image_id"], "arm": arm, "repetition": 0, "evaluation_id": digest((execution_id + "/" + row["instance_id"] + "/" + arm).encode())[:32]}
     require(file_digest(protocol_path) == protocol_sha, "Frozen protocol changed during execution")
     require(min(shutil.disk_usage(directory.parent).free, shutil.disk_usage("/mnt/c").free)
@@ -1329,7 +1741,8 @@ def run_trial(protocol, protocol_path, protocol_sha, execution_id, row, issue, a
     status = "infrastructure_failure"
     resolved = None
     try:
-        base, upload = snapshot(protocol, row, directory, control)
+        base, upload = prepared_source
+        save(directory / "source-identity.json", load(upload.parent / "source-identity.json"))
         if arm != "direct":
             workspace = Workspace(protocol, row, upload, directory, "preparation", control)
             reason, handoff = phase(protocol, arm, "preparation", issue, "", base, workspace, directory, endpoint, values)
@@ -1401,6 +1814,8 @@ def inherit_continuation(protocol, directory):
     require(all(isinstance(pins[key], str) and HEX.fullmatch(pins[key])
                 for key in ("safe_results_sha256", "protocol_sha256", "runner_sha256")),
             "Invalid continuation digest")
+    require(pins["runner_sha256"] == file_digest(__file__),
+            "Continuation runner changed; a new study is required instead of mixing workspace policies")
     root = Path(protocol["native"]["run_root"]).resolve()
     native_root = Path(protocol["native"]["root"]).resolve()
     directory = Path(directory).resolve()
@@ -1675,6 +2090,7 @@ def main():
             require(record["repo"] == row["repo"] and record["base_commit"] == row["base_commit"], "Cohort/export mismatch")
             issues[row["instance_id"]] = {key: record[key] for key in ("instance_id", "repo", "base_commit", "problem_statement")}
         del records, by_id
+        prepared = prepare_workspaces(protocol, directory, control)
         runtime_check(protocol, endpoint, directory)
         slot = 0
         for index, row in enumerate(protocol["cohort"]):
@@ -1686,7 +2102,7 @@ def main():
                 require(file_digest(__file__) == identity["runner_sha256"], "Runner source changed during execution")
                 progress("trial_started", instance_id=row["instance_id"], arm=arm, repetition=0)
                 trial_dir = directory / "trials" / (row["instance_id"] + "--" + arm)
-                result = run_trial(protocol, protocol_path, protocol_sha, args.execution_id, row, issues[row["instance_id"]], arm, trial_dir, endpoint, control)
+                result = run_trial(protocol, protocol_path, protocol_sha, args.execution_id, row, issues[row["instance_id"]], arm, trial_dir, endpoint, control, prepared[row["instance_id"]])
                 results.append(result)
                 progress("trial_finished", instance_id=row["instance_id"], arm=arm, status=result["status"])
                 if result["status"] not in VALID:
@@ -1712,6 +2128,10 @@ def main():
                         "dataset": {key: protocol["dataset"][key] for key in ("name", "revision")},
                         "purpose": protocol["purpose"], "images": [{key: row[key] for key in
                             ("instance_id", "image", "image_id")} for row in protocol["cohort"]]}, "notes": notes}
+    qualification = directory / "workspaces/qualification.json"
+    if qualification.exists():
+        safe["runtime"]["workspace_qualification"] = {
+            "passed": load(qualification)["passed"], "sha256": file_digest(qualification)}
     if continuation is not None:
         safe["runtime"]["continuation"] = continuation
     save(directory / "safe_results.json", safe)
