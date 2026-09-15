@@ -1,0 +1,91 @@
+{
+  "schema_version": 1,
+  "kind": "completed_shared_gemma_study",
+  "recorded_at": "2026-09-15T01:09:37.908Z",
+  "source_evidence": {
+    "execution_id": "ui_bf0b79f0-080b-427f-a0e6-5597c8aa00ae",
+    "safe_results_sha256": "178e8fdadcedb4f3f0e3487cb106246149f32f7603d35d6753f609b59b55d9b2"
+  },
+  "protocol_sha256": "3e5e16370aaaf382c574e758131314dff70f8038d7e123239a569976929b5927",
+  "runner_sha256": "97c67e11d7d18daa8a21c2380e45c98e07f968333aa73797ccdc9ec6b3266272",
+  "artifact_sha256": {
+    "source-native-results.json": "178e8fdadcedb4f3f0e3487cb106246149f32f7603d35d6753f609b59b55d9b2",
+    "source-frozen-protocol.json": "3e5e16370aaaf382c574e758131314dff70f8038d7e123239a569976929b5927",
+    "source-trusted-summary.json": "8f66f789ee43d9b92e02d9bd85eeeb446bc75f4ce72ae9cc44ad1e114a826ecc"
+  },
+  "native_audit": {
+    "identity": {
+      "execution_id": "ui_bf0b79f0-080b-427f-a0e6-5597c8aa00ae",
+      "protocol_sha256": "3e5e16370aaaf382c574e758131314dff70f8038d7e123239a569976929b5927",
+      "runner_sha256": "97c67e11d7d18daa8a21c2380e45c98e07f968333aa73797ccdc9ec6b3266272"
+    },
+    "native_safe_results_sha256": "178e8fdadcedb4f3f0e3487cb106246149f32f7603d35d6753f609b59b55d9b2",
+    "completed_trials": 80,
+    "inherited_trials_verified_byte_for_byte": 24,
+    "new_trials": 56,
+    "model_generations_repeated": 0,
+    "statuses": {
+      "empty_patch": 30,
+      "budget_exhausted": 41,
+      "unresolved": 9
+    },
+    "owned_containers_remaining": 0,
+    "owned_volumes_remaining": 0
+  },
+  "bridge_audit": {
+    "verified": true,
+    "trial_count": 80,
+    "safe_results_sha256": "5433952eef495227506ffa2102d2205cf9bae22de1210e1f17c621be31efa3df",
+    "source_evidence": {
+      "execution_id": "ui_bf0b79f0-080b-427f-a0e6-5597c8aa00ae",
+      "safe_results_sha256": "178e8fdadcedb4f3f0e3487cb106246149f32f7603d35d6753f609b59b55d9b2"
+    }
+  },
+  "inherited_artifact_audit": {
+    "inherited_artifact_allowlist_verified": 24,
+    "inherited_request_artifacts_created": 0
+  },
+  "saved_idea": {
+    "id": "d995c813-19f5-4369-8150-878fed49f7ab",
+    "revision": 7,
+    "only_execution_source_evidence_added": true
+  },
+  "outcomes": {
+    "direct": {
+      "resolved": 0,
+      "denominator": 20,
+      "statuses": {
+        "budget_exhausted": 14,
+        "empty_patch": 4,
+        "unresolved": 2
+      }
+    },
+    "diagnosis": {
+      "resolved": 0,
+      "denominator": 20,
+      "statuses": {
+        "budget_exhausted": 8,
+        "empty_patch": 7,
+        "unresolved": 5
+      }
+    },
+    "notes": {
+      "resolved": 0,
+      "denominator": 20,
+      "statuses": {
+        "budget_exhausted": 10,
+        "empty_patch": 10
+      }
+    },
+    "locations": {
+      "resolved": 0,
+      "denominator": 20,
+      "statuses": {
+        "budget_exhausted": 9,
+        "empty_patch": 9,
+        "unresolved": 2
+      }
+    }
+  },
+  "interpretation": "All four arms resolved 0/20 on the frozen cohort. This is not evidence of equivalence or population-wide inability. GLM and Qwen reuse this evidence; they do not rerun Gemma repairs."
+}

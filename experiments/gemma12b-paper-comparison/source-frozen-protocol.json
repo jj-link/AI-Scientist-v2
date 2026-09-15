@@ -1,0 +1,386 @@
+{
+  "schema_version": 1,
+  "kind": "fixed_swebench_repair",
+  "purpose": "comparative_study",
+  "protocol_id": "gemma12b-diagnosis-swebench-verified-v4",
+  "dataset": {
+    "name": "SWE-bench/SWE-bench_Verified",
+    "revision": "78f471bf655a3137b2e8a75af1501690ec009ec3",
+    "records_path": "/home/workbench/Projects/personal/AI-Scientist-v2-study-runtime/protocol/evaluator-records.json",
+    "records_sha256": "8287ded883c2f09d187ab0c24ba8ab34fbf48d49da91c4320e227ce645fec17a"
+  },
+  "native": {
+    "distro": "NVIDIA-Workbench",
+    "user": "workbench",
+    "python": "/home/workbench/Projects/personal/AI-Scientist-v2-study-runtime/harness/venv/bin/python",
+    "root": "/home/workbench/Projects/personal/AI-Scientist-v2-study-runtime",
+    "run_root": "/home/workbench/Projects/personal/AI-Scientist-v2-study-runtime/runs",
+    "protocol_path": "/home/workbench/Projects/personal/AI-Scientist-v2-study-runtime/protocol/frozen-study.json"
+  },
+  "target": {
+    "base_url": "http://127.0.0.1:8787",
+    "model": "unsloth/gemma-4-12B-it-qat-GGUF:UD-Q4_K_XL",
+    "system_fingerprint": "b1-5266f24",
+    "context_tokens": 262144,
+    "temperature": 0,
+    "seed": 7,
+    "thinking": true,
+    "mtp": {
+      "type": "draft-mtp",
+      "max_draft_tokens": 4
+    },
+    "cache_k": "q8_0",
+    "cache_v": "q8_0"
+  },
+  "cohort": [
+    {
+      "instance_id": "sphinx-doc__sphinx-8551",
+      "repo": "sphinx-doc/sphinx",
+      "base_commit": "57ed10c68057c96491acbd3e62254ccfaf9e3861",
+      "image": "swebench/sweb.eval.x86_64.sphinx-doc_1776_sphinx-8551@sha256:0cee9556d1dab507161552be8bd82757ee1a835fe660a832a6df023bcb60b67d",
+      "image_id": "sha256:0cee9556d1dab507161552be8bd82757ee1a835fe660a832a6df023bcb60b67d"
+    },
+    {
+      "instance_id": "astropy__astropy-8707",
+      "repo": "astropy/astropy",
+      "base_commit": "a85a0747c54bac75e9c3b2fe436b105ea029d6cf",
+      "image": "swebench/sweb.eval.x86_64.astropy_1776_astropy-8707@sha256:c6531e6e77ca7f257057f793cf38fc84427cd36fd93d136c21aef2a6e0e8df6d",
+      "image_id": "sha256:c6531e6e77ca7f257057f793cf38fc84427cd36fd93d136c21aef2a6e0e8df6d"
+    },
+    {
+      "instance_id": "matplotlib__matplotlib-14623",
+      "repo": "matplotlib/matplotlib",
+      "base_commit": "d65c9ca20ddf81ef91199e6d819f9d3506ef477c",
+      "image": "swebench/sweb.eval.x86_64.matplotlib_1776_matplotlib-14623@sha256:52cdd8ac0f4a8b05f40507d500680ec613092186310cbaf7895d1554e9d654dc",
+      "image_id": "sha256:52cdd8ac0f4a8b05f40507d500680ec613092186310cbaf7895d1554e9d654dc"
+    },
+    {
+      "instance_id": "pylint-dev__pylint-8898",
+      "repo": "pylint-dev/pylint",
+      "base_commit": "1f8c4d9eb185c16a2c1d881c054f015e1c2eb334",
+      "image": "swebench/sweb.eval.x86_64.pylint-dev_1776_pylint-8898@sha256:6a3950d518eac34eff08f89136006c94526afc1cdf2b34d1a4d8f598faa4eaea",
+      "image_id": "sha256:6a3950d518eac34eff08f89136006c94526afc1cdf2b34d1a4d8f598faa4eaea"
+    },
+    {
+      "instance_id": "sympy__sympy-22080",
+      "repo": "sympy/sympy",
+      "base_commit": "3f8c8c2377cb8e0daaf8073e8d03ac7d87580813",
+      "image": "swebench/sweb.eval.x86_64.sympy_1776_sympy-22080@sha256:3696601f9ada5905f3ea490181f6f83058e4d89e7e546500fd078c101e55d64e",
+      "image_id": "sha256:3696601f9ada5905f3ea490181f6f83058e4d89e7e546500fd078c101e55d64e"
+    },
+    {
+      "instance_id": "pydata__xarray-6992",
+      "repo": "pydata/xarray",
+      "base_commit": "45c0a114e2b7b27b83c9618bc05b36afac82183c",
+      "image": "swebench/sweb.eval.x86_64.pydata_1776_xarray-6992@sha256:2811e30973fd2cca1ccad4858a4e1a51cc615f2590ebfc8df44baeecf3596221",
+      "image_id": "sha256:2811e30973fd2cca1ccad4858a4e1a51cc615f2590ebfc8df44baeecf3596221"
+    },
+    {
+      "instance_id": "django__django-13195",
+      "repo": "django/django",
+      "base_commit": "156a2138db20abc89933121e4ff2ee2ce56a173a",
+      "image": "swebench/sweb.eval.x86_64.django_1776_django-13195@sha256:18befd1acb588516d019e63b99f00126f44323a4aa23e4a493ef3eebb4610b03",
+      "image_id": "sha256:18befd1acb588516d019e63b99f00126f44323a4aa23e4a493ef3eebb4610b03"
+    },
+    {
+      "instance_id": "sphinx-doc__sphinx-9461",
+      "repo": "sphinx-doc/sphinx",
+      "base_commit": "939c7bb7ff7c53a4d27df067cea637540f0e1dad",
+      "image": "swebench/sweb.eval.x86_64.sphinx-doc_1776_sphinx-9461@sha256:7002375c0d6c01c893097a1214c94186f573b15d71d3ead09f50e0d5002deee0",
+      "image_id": "sha256:7002375c0d6c01c893097a1214c94186f573b15d71d3ead09f50e0d5002deee0"
+    },
+    {
+      "instance_id": "pylint-dev__pylint-6386",
+      "repo": "pylint-dev/pylint",
+      "base_commit": "754b487f4d892e3d4872b6fc7468a71db4e31c13",
+      "image": "swebench/sweb.eval.x86_64.pylint-dev_1776_pylint-6386@sha256:83f7a8849f90aff7654ca4a8dfa61b33d67312710bb7be8c2f15533581cd3821",
+      "image_id": "sha256:83f7a8849f90aff7654ca4a8dfa61b33d67312710bb7be8c2f15533581cd3821"
+    },
+    {
+      "instance_id": "sympy__sympy-20438",
+      "repo": "sympy/sympy",
+      "base_commit": "33b47e4bd60e2302e42616141e76285038b724d6",
+      "image": "swebench/sweb.eval.x86_64.sympy_1776_sympy-20438@sha256:cb6d4d5d94b5ef2dbf611a8caf1a82b52b88564c286767cd460c33cad9965ae0",
+      "image_id": "sha256:cb6d4d5d94b5ef2dbf611a8caf1a82b52b88564c286767cd460c33cad9965ae0"
+    },
+    {
+      "instance_id": "pydata__xarray-3305",
+      "repo": "pydata/xarray",
+      "base_commit": "69c7e01e5167a3137c285cb50d1978252bb8bcbf",
+      "image": "swebench/sweb.eval.x86_64.pydata_1776_xarray-3305@sha256:0e234daddf9a42b85a77ba0436f3fcbad90759921c978b127dff90d55cba0f89",
+      "image_id": "sha256:0e234daddf9a42b85a77ba0436f3fcbad90759921c978b127dff90d55cba0f89"
+    },
+    {
+      "instance_id": "django__django-11734",
+      "repo": "django/django",
+      "base_commit": "999891bd80b3d02dd916731a7a239e1036174885",
+      "image": "swebench/sweb.eval.x86_64.django_1776_django-11734@sha256:5ddbc111ccc7ed091855034eacff1c58347df158d6acd0c015feab17587d36a2",
+      "image_id": "sha256:5ddbc111ccc7ed091855034eacff1c58347df158d6acd0c015feab17587d36a2"
+    },
+    {
+      "instance_id": "sympy__sympy-16597",
+      "repo": "sympy/sympy",
+      "base_commit": "6fd65310fa3167b9626c38a5487e171ca407d988",
+      "image": "swebench/sweb.eval.x86_64.sympy_1776_sympy-16597@sha256:166853c298d0dc29ad6cb0468b996714d2682dae62fc7103fcc7bd85bdbc1916",
+      "image_id": "sha256:166853c298d0dc29ad6cb0468b996714d2682dae62fc7103fcc7bd85bdbc1916"
+    },
+    {
+      "instance_id": "pydata__xarray-3095",
+      "repo": "pydata/xarray",
+      "base_commit": "1757dffac2fa493d7b9a074b84cf8c830a706688",
+      "image": "swebench/sweb.eval.x86_64.pydata_1776_xarray-3095@sha256:fb721923cba0d05faafdafb2fb76e6caa3adc22fd4fdcbf2de45741312f91c74",
+      "image_id": "sha256:fb721923cba0d05faafdafb2fb76e6caa3adc22fd4fdcbf2de45741312f91c74"
+    },
+    {
+      "instance_id": "django__django-11138",
+      "repo": "django/django",
+      "base_commit": "c84b91b7603e488f7171fdff8f08368ef3d6b856",
+      "image": "swebench/sweb.eval.x86_64.django_1776_django-11138@sha256:811f9bf0ca067b334b574cd3589cdc989b350b2a24b68e1ddcd288fbb97d61f4",
+      "image_id": "sha256:811f9bf0ca067b334b574cd3589cdc989b350b2a24b68e1ddcd288fbb97d61f4"
+    },
+    {
+      "instance_id": "django__django-15563",
+      "repo": "django/django",
+      "base_commit": "9ffd4eae2ce7a7100c98f681e2b6ab818df384a4",
+      "image": "swebench/sweb.eval.x86_64.django_1776_django-15563@sha256:94186b4d24bc8f1da5f54488e4367dd466aba0ceb6fc29f0057479e30275445e",
+      "image_id": "sha256:94186b4d24bc8f1da5f54488e4367dd466aba0ceb6fc29f0057479e30275445e"
+    },
+    {
+      "instance_id": "django__django-14631",
+      "repo": "django/django",
+      "base_commit": "84400d2e9db7c51fee4e9bb04c028f665b8e7624",
+      "image": "swebench/sweb.eval.x86_64.django_1776_django-14631@sha256:5f67eee68cd7e4eb00d1642840df30774b1fd42b0f8bfd9f08851df5bd6079ba",
+      "image_id": "sha256:5f67eee68cd7e4eb00d1642840df30774b1fd42b0f8bfd9f08851df5bd6079ba"
+    },
+    {
+      "instance_id": "django__django-12406",
+      "repo": "django/django",
+      "base_commit": "335c9c94acf263901fb023404408880245b0c4b4",
+      "image": "swebench/sweb.eval.x86_64.django_1776_django-12406@sha256:02ec0a94d6eab4aa692f0a416af266132edd6d5264f184813f95bbb818d81914",
+      "image_id": "sha256:02ec0a94d6eab4aa692f0a416af266132edd6d5264f184813f95bbb818d81914"
+    },
+    {
+      "instance_id": "django__django-16631",
+      "repo": "django/django",
+      "base_commit": "9b224579875e30203d079cc2fee83b116d98eb78",
+      "image": "swebench/sweb.eval.x86_64.django_1776_django-16631@sha256:73106409d800e32a921110d86ba25e1ac6764b76dc5b6bddeca8b8e4439f0a20",
+      "image_id": "sha256:73106409d800e32a921110d86ba25e1ac6764b76dc5b6bddeca8b8e4439f0a20"
+    },
+    {
+      "instance_id": "django__django-14170",
+      "repo": "django/django",
+      "base_commit": "6efc35b4fe3009666e56a60af0675d7d532bf4ff",
+      "image": "swebench/sweb.eval.x86_64.django_1776_django-14170@sha256:d10fbbbb16acdfa184b9e4c8292ca40becd40099afba97a19665384d4ea5d751",
+      "image_id": "sha256:d10fbbbb16acdfa184b9e4c8292ca40becd40099afba97a19665384d4ea5d751"
+    }
+  ],
+  "arms": [
+    "direct",
+    "diagnosis",
+    "notes",
+    "locations"
+  ],
+  "repetitions": 1,
+  "budgets": {
+    "direct": {
+      "output_tokens": 12288,
+      "input_tokens": 786432,
+      "tool_calls": 36,
+      "seconds": 900
+    },
+    "preparation": {
+      "output_tokens": 4096,
+      "input_tokens": 262144,
+      "tool_calls": 12,
+      "seconds": 300
+    },
+    "repair": {
+      "output_tokens": 8192,
+      "input_tokens": 524288,
+      "tool_calls": 24,
+      "seconds": 600
+    },
+    "handoff_tokens": 1024,
+    "tool_timeout_seconds": 60,
+    "tool_output_tokens": 2048,
+    "evaluation_timeout_seconds": 1800,
+    "handoff_output_reserve": 1024
+  },
+  "resources": {
+    "docker_host": "unix:///run/docker.sock",
+    "container_cpus": 4,
+    "container_memory_bytes": 8589934592,
+    "container_pids": 256,
+    "minimum_free_bytes": 103079215104,
+    "study_image_budget_bytes": 68719476736,
+    "evaluator_writable_limits_bytes": {
+      "/testbed": 2147483648,
+      "/opt/miniconda3/envs/testbed": 2147483648,
+      "/root": 536870912,
+      "/workspace": 536870912
+    },
+    "evaluator_read_only_root": true,
+    "evaluator_cap_sys_admin": false,
+    "evaluator_command_output_bytes": 16777216
+  },
+  "prompts": {
+    "direct": "You are repairing a real Python repository issue. The issue object is the complete task input. /testbed is an exact base-commit source snapshot with a fresh single-commit Git history, not the original repository history. The testbed Python environment is already installed and selected on PATH. Use only the supplied tools, exactly one tool call per response. execute runs in /testbed; HOME and TMPDIR are /workspace. Network access is unavailable. Do not download data, inspect hidden evaluator material, start background processes, or change the environment. Tool output is explicitly bounded to 2048 tokens and commands to 60 seconds. Reasoning and tool arguments count toward the output allowance. Investigate the actual code rather than assuming a solution from the issue wording. You have at most 12288 output tokens, 786432 cumulative input tokens, 36 execute calls, and 900 seconds. Investigate, implement a correct repair, and run focused checks where useful. Leave only intended repository changes. When done, call finish with an empty object. The current patch is the deliverable; do not substitute a prose answer for the finish call.",
+    "diagnosis": "You are repairing a real Python repository issue. The issue object is the complete task input. /testbed is an exact base-commit source snapshot with a fresh single-commit Git history, not the original repository history. The testbed Python environment is already installed and selected on PATH. Use only the supplied tools, exactly one tool call per response. execute runs in /testbed; HOME and TMPDIR are /workspace. Network access is unavailable. Do not download data, inspect hidden evaluator material, start background processes, or change the environment. Tool output is explicitly bounded to 2048 tokens and commands to 60 seconds. Reasoning and tool arguments count toward the output allowance. Investigate the actual code rather than assuming a solution from the issue wording. This is a READ-ONLY preparation phase: you cannot edit repository files. You have at most 4096 output tokens, 262144 cumulative input tokens, 12 execute calls, and 300 seconds. Inspect the repository to diagnose the issue. A fresh repair agent will receive only the original issue and your visible handoff, not this conversation, reasoning, tool transcript, or /workspace files. Finish by calling handoff with root_cause, evidence, cross_file_coordination, intended_behavior, and uncertainties. Explain the causal failure, cite concrete inspected paths/symbols and supporting observations, and identify cross-file coordination when the evidence supports it. Distinguish evidence from uncertainty; do not invent a coordination requirement. Keep the complete handoff within 1024 tokens. It must contain no patch, code block, or replacement code. The controller reserves 1024 of the 4096 output tokens for one explicit final handoff request; inspection output can consume at most 3072 tokens. Complete the handoff when the controller ends investigation, even if the evidence remains incomplete. No additional investigation commands are then allowed.",
+    "notes": "You are repairing a real Python repository issue. The issue object is the complete task input. /testbed is an exact base-commit source snapshot with a fresh single-commit Git history, not the original repository history. The testbed Python environment is already installed and selected on PATH. Use only the supplied tools, exactly one tool call per response. execute runs in /testbed; HOME and TMPDIR are /workspace. Network access is unavailable. Do not download data, inspect hidden evaluator material, start background processes, or change the environment. Tool output is explicitly bounded to 2048 tokens and commands to 60 seconds. Reasoning and tool arguments count toward the output allowance. Investigate the actual code rather than assuming a solution from the issue wording. This is a READ-ONLY preparation phase: you cannot edit repository files. You have at most 4096 output tokens, 262144 cumulative input tokens, 12 execute calls, and 300 seconds. Inspect the repository and collect useful general working notes for a fresh repair agent. No root-cause diagnosis or causal-report structure is required; include whatever observations seem useful. The agent receives only the original issue and these visible notes, not this conversation, reasoning, tool transcript, or /workspace files. Finish by calling handoff with a notes string. Keep the complete handoff within 1024 tokens. It must contain no patch, code block, or replacement code. The controller reserves 1024 of the 4096 output tokens for one explicit final handoff request; inspection output can consume at most 3072 tokens. Complete the handoff when the controller ends investigation, even if the evidence remains incomplete. No additional investigation commands are then allowed.",
+    "locations": "You are repairing a real Python repository issue. The issue object is the complete task input. /testbed is an exact base-commit source snapshot with a fresh single-commit Git history, not the original repository history. The testbed Python environment is already installed and selected on PATH. Use only the supplied tools, exactly one tool call per response. execute runs in /testbed; HOME and TMPDIR are /workspace. Network access is unavailable. Do not download data, inspect hidden evaluator material, start background processes, or change the environment. Tool output is explicitly bounded to 2048 tokens and commands to 60 seconds. Reasoning and tool arguments count toward the output allowance. Investigate the actual code rather than assuming a solution from the issue wording. This is a READ-ONLY preparation phase: you cannot edit repository files. You have at most 4096 output tokens, 262144 cumulative input tokens, 12 execute calls, and 300 seconds. Inspect the repository to locate likely relevant code. A fresh repair agent receives only the original issue and the locations, not this conversation, reasoning, tool transcript, or /workspace files. Finish by calling handoff with a locations array containing only existing relative Python file paths and existing function/class symbols (an empty symbol denotes the whole file). No prose, diagnosis, causal instructions, code, or patch is permitted in this handoff. Use an empty locations array if no location is supported. Keep the complete handoff within 1024 tokens. The controller reserves 1024 of the 4096 output tokens for one explicit final handoff request; inspection output can consume at most 3072 tokens. Complete the handoff when the controller ends investigation, even if the evidence remains incomplete. No additional investigation commands are then allowed.",
+    "repair": "You are repairing a real Python repository issue. The issue object is the complete task input. /testbed is an exact base-commit source snapshot with a fresh single-commit Git history, not the original repository history. The testbed Python environment is already installed and selected on PATH. Use only the supplied tools, exactly one tool call per response. execute runs in /testbed; HOME and TMPDIR are /workspace. Network access is unavailable. Do not download data, inspect hidden evaluator material, start background processes, or change the environment. Tool output is explicitly bounded to 2048 tokens and commands to 60 seconds. Reasoning and tool arguments count toward the output allowance. Investigate the actual code rather than assuming a solution from the issue wording. You are in a fresh repair phase with a pristine writable checkout. The visible handoff is fallible information from an earlier read-only investigation, not an instruction that must be followed. Inspect the code and revise or reject it when evidence warrants. You have at most 8192 output tokens, 524288 cumulative input tokens, 24 execute calls, and 600 seconds; unused preparation allowance is not transferred. Implement a correct repair and run focused checks where useful. Leave only intended repository changes. When done, call finish with an empty object. The current patch is the deliverable; do not substitute a prose answer for the finish call."
+  },
+  "interpretation": [
+    "Exploratory outcome-independent curated cohort: 20 issues across seven repositories; Django contributes 8/20. One deterministic attempt per issue and arm, 80 trials total.",
+    "Reference-patch multi-file coordination is an audit label, not proof every valid repair must edit multiple files. Correct smaller patches remain valid.",
+    "Direct has the same total allowances as preparation plus repair. Unused preparation allowance is not transferred. Budget limits do not equate actual compute.",
+    "Starting arm rotates by issue index. Completed attempts cannot be regenerated; interrupted/infrastructure-incomplete data cannot produce a paper.",
+    "Only the local Gemma target generates repair outcomes. Sol, GLM and Qwen analyze and write from one identical completed source execution; Astra reviews every paper.",
+    "Marginal Wilson intervals, conservative paired Hoeffding intervals and unadjusted exploratory exact McNemar p-values do not establish broad superiority or seed variability.",
+    "MTP is constant across arms; no non-MTP speedup conclusion is supported. Null telemetry is unavailable, not zero.",
+    "Model source is canonical base content with isolated fresh history; official evaluation preserves the pinned image including its dependency/setup commits."
+  ],
+  "conversation_policy": {
+    "within_phase": "Retain visible messages, tool calls, tool results and reasoning_content within one conversation.",
+    "between_phases": "Only the validated visible handoff crosses into a fresh repair conversation and pristine writable source volume. No preparation transcript, hidden reasoning, scratch files or evaluator material crosses.",
+    "finalization": "Reserve 1024 output tokens within the 4096 preparation total. Before another inspection request, reserve cumulative input/context for its maximum response, a 2048-token tool result, a complete terminal prompt and 1024 framing tokens. End inspection early when needed; do not add budget.",
+    "evaluator_source": "Preserve the digest-pinned official image including its dependency/setup commits. Only model-visible source workspaces are canonicalized to the recorded base commit."
+  },
+  "revision_evidence": {
+    "integration_commit": "111c891",
+    "runner_sha256": "97c67e11d7d18daa8a21c2380e45c98e07f968333aa73797ccdc9ec6b3266272",
+    "cohort_selection_sha256": "b1ef16c4835bff16c8c44b76490b3dbb530bf60870c2a3c7661fdedcef6f409b",
+    "image_pins_sha256": "10065c30257f958668a05bd6602f071c1df0fe115a11c17606d1e453d360a468",
+    "bounded_control_pairs": 21,
+    "bounded_controls_sha256": "ed17903ada659b70e12edf7690211ed4ba9924c7339c152d265698966afd25fc",
+    "native_smoke_execution": "runtime-smoke-v5",
+    "native_smoke_safe_results_sha256": "f438e1697841e7b5f626d93eb187d64188d8412f5ebcff48884b218553e9e866",
+    "source_evidence_reuse_proof": "ui_data/verification/fixed-study-bridge-proof-v5.json",
+    "cancellation_proof": "evidence/cancellation-proof-v1.json",
+    "comparative_outcomes_generated_before_freeze": 49,
+    "source_export_fix_commit": "4f0011f",
+    "source_controls_sha256": "88d10ab74d181b7786f5c0908c27925265448f3ad6da610a3f6825acff88dabe",
+    "source_controls_path": "evidence/source-preflight-v8/source-controls.json",
+    "source_controls_images": 21,
+    "source_preflight_script_sha256": "160b87b546ac6df4c8645ea0b283f4ca420c66fce49a4b17f385a72bc6957410",
+    "source_correction_receipt": "ui_data/verification/fixed-study-source-proof-v8.json",
+    "comparative_outcomes_generated_before_original_freeze": 0,
+    "infrastructure_amendment": {
+      "changes": [
+        "Offline recursive export of exact Gitlink commits from the pinned image, with original and materialized tree identities.",
+        "Neutralize Git archive byte conversions: the Astropy fixture had 149 unintended CRLF conversions.",
+        "Disable automatic Git maintenance before snapshotting to prevent background packing from removing files during capture."
+      ],
+      "scientific_fields_unchanged": [
+        "dataset",
+        "target",
+        "cohort",
+        "arms",
+        "repetitions",
+        "budgets",
+        "resources",
+        "prompts",
+        "interpretation",
+        "conversation_policy"
+      ],
+      "predecessor": {
+        "execution_id": "ui_901f7a17-d317-4b1d-93d6-8697b7e7d669",
+        "protocol_sha256": "6c28bf8020c15ef40a350be5640a20d5d4880e0f25c49e0da5fe8cef686e161e",
+        "safe_results_sha256": "46bf2b933345c5441bc2abd0135325df1c15a9ff54f16c2e651364d72be8a884",
+        "completed_trials": 4,
+        "infrastructure_failures": 1,
+        "policy": "Retain the entire aborted execution as excluded infrastructure evidence. Start a complete new 80-trial execution without changing cohort, model, prompts, budgets or analysis design. Do not pool or select earlier outcomes."
+      }
+    },
+    "scoring_advisory_fix_commit": "9b7154d",
+    "scoring_advisory_amendment": {
+      "change": "Honor the official completed resolved/unresolved verdict. SWE-bench 5.0.2 explicitly defines its infrastructure classification as advisory and denominator-preserving. Keep the unmodified official report. Native controller and evaluator exceptions still abort.",
+      "scientific_fields_unchanged": [
+        "dataset",
+        "target",
+        "cohort",
+        "arms",
+        "repetitions",
+        "budgets",
+        "resources",
+        "prompts",
+        "interpretation",
+        "conversation_policy"
+      ],
+      "regression_proof": {
+        "path": "runs/evaluator-advisory-proof-v1/proof.json",
+        "sha256": "7eb5adf4cbcd53b4804933730b7f3fa731493bbf902c899efc0c65f4a62e53ea",
+        "patch_sha256": "e90eeb7f59e773f298f8f7bac2ef0a3dbb451794c5e3cc8987adee763f93e1f4",
+        "model_generations": 0,
+        "official_resolved": false,
+        "official_advisory_retained": "network_unreachable",
+        "corrected_status": "unresolved",
+        "owned_containers_remaining": 0,
+        "owned_volumes_remaining": 0
+      },
+      "predecessor": {
+        "execution_id": "ui_6aec3d6d-30f5-4b61-8a7b-4b9ef23dc9ee",
+        "protocol_sha256": "7e29b3fa8fa37b03fc897ce62b17f341f0006078f5b210aa997f66ced34c1e19",
+        "safe_results_sha256": "11e0cbaf5fe00ba70ac81b4cd2e9fb5e7b687761cc70be7b3143f2176d1ef6f9",
+        "completed_trials": 20,
+        "wrapper_failure_trials": 1,
+        "additional_official_outcomes_observed": 1,
+        "policy": "Retain and exclude this entire aborted execution. Its 20 completed outcomes and one official negative verdict were observed before this amendment, as were four completed v1 outcomes. No cohort, target, prompts, budgets, resource quotas or analysis fields change. Start a complete new 80-trial execution; do not pool, cherry-pick or silently resume earlier outcomes."
+      }
+    },
+    "continuation_amendment": {
+      "reason": "Docker container creation exceeded the five-second SDK transport timeout before the next trial started a model phase. Its durable evidence contains no model request, phase trace, handoff, patch or model/tool usage.",
+      "policy": "Preserve the entire 24-trial completed v3 prefix under its original immutable identities. Continue only the 56 not-yet-generated slots in the original rotated schedule. Do not pool v1/v2 outcomes, select a subset, rewrite identities or retry a model request.",
+      "docker_api_timeout_seconds": 60,
+      "cancellation_docker_api_timeout_seconds": 2,
+      "scientific_fields_unchanged": [
+        "kind",
+        "purpose",
+        "dataset",
+        "target",
+        "cohort",
+        "arms",
+        "repetitions",
+        "budgets",
+        "resources",
+        "prompts",
+        "interpretation",
+        "conversation_policy"
+      ],
+      "inherited_trials": 24,
+      "not_yet_generated_trials": 56,
+      "earlier_excluded_outcomes": 25,
+      "source": {
+        "execution_id": "ui_635faeab-6edc-460e-a45b-b909bad4a002",
+        "safe_results_sha256": "0745c4d27fd18bcdd5e21e4b05fa427ca8ea12496ef76ed310213e5bf0a84b22",
+        "protocol_sha256": "623065b16f816da46089a1bc901889aa5a11b511f3389389ef723e248a0312bb",
+        "runner_sha256": "601882cf7b1da846e8ed03dcd18344e9514b181d2d7d3714c75b29ab8bbbb3ce"
+      },
+      "proof": {
+        "path": "runs/continuation-proof-v1/proof.json",
+        "sha256": "45863679317aed274313aea61e15bdcda4e5bc7d041bba63e92d4a597fdcd4bd",
+        "model_generations": 0,
+        "generation_component_sha256": {
+          "Endpoint": "6eed0660098b2a422f941e1d7cf8fcd33549a174ce79e1ee7610ef7ceac04588",
+          "Workspace": "5565d3f5b12064dd9b32391db3c3de7539e4db77ebdbd3aca5cb4e14ba5963a4",
+          "_export_source_tree": "2772a5b860cd3e60852f30e3c5de5fe4005b7abf154cbf6b98bf7913785bdec1",
+          "phase": "aae858eeccd9936fe2f92e46c98b9daf9e741929ec6552729dc123bbd1e8fc23",
+          "run_trial": "39efde8e0b0b34e14ca8451cca794a17091df9c81940323c2610d9f48d511650",
+          "snapshot": "1bb590cef1fecbd649b6faad2f6a6b531404bbb8c3cb0150d1999f615f2aa836"
+        }
+      },
+      "bridge_proof": {
+        "path": "ui_data/verification/fixed-study-continuation-bridge-proof.json",
+        "sha256": "b627496386abde99291134e275c8c5fffccf34d155ca3022ec6d5b5b3cd654bd"
+      },
+      "targeted_tests_passed": 25
+    },
+    "continuation_fix_commit": "5d02f1a"
+  },
+  "continuation": {
+    "execution_id": "ui_635faeab-6edc-460e-a45b-b909bad4a002",
+    "safe_results_sha256": "0745c4d27fd18bcdd5e21e4b05fa427ca8ea12496ef76ed310213e5bf0a84b22",
+    "protocol_sha256": "623065b16f816da46089a1bc901889aa5a11b511f3389389ef723e248a0312bb",
+    "runner_sha256": "601882cf7b1da846e8ed03dcd18344e9514b181d2d7d3714c75b29ab8bbbb3ce"
+  }
+}
