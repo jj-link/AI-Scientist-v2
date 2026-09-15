@@ -304,6 +304,30 @@ inside `frontend/`. Open **http://127.0.0.1:5173**. Vite binds only to loopback,
 proxies `/api` to port 8765, and that one development Origin is explicitly
 allowed. Use the normal production launch without `--development` otherwise.
 
+### Native repair-study controller
+
+`ai_scientist/swebench_study.py` is separate from the paper-generation workers.
+New execution protocols require a positive `budgets.terminal_output_reserve`,
+smaller than every phase's output allowance. It reserves finalization capacity
+for direct repair, preparation, and post-handoff repair. Terminal responses may
+use the remaining phase output; `handoff_tokens` independently limits the visible
+material transferred. Complete terminal prompts are included in input/context
+reservation, and incomplete tool actions are never executed or retried.
+
+`finish` accepts exactly `{}`. Location handoffs may honestly contain an empty
+list; nonempty entries require existing canonical relative paths and either an
+empty symbol for a file or an exact qualified name such as `Class.method`.
+Notes and diagnoses are code-free, including copied source and fenced
+reproductions. These restrictions are stated in the model-visible tool schemas.
+
+Archived Gemma protocols and results retain their original
+`handoff_output_reserve` and execution identities. Do not rewrite them to use the
+new controller semantics. Their evidence-only importer remains unchanged.
+The native runner still validates the pinned Gemma/llama.cpp runtime; selecting
+another Studio model does not make it compatible with SGLang. A different target
+requires live runtime, token-accounting, tool-call, and source-environment
+qualification before a separately frozen study can run.
+
 ### Supported Models and API Keys
 
 #### OpenAI Models

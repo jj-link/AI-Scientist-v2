@@ -460,13 +460,14 @@ def validate_protocol(protocol, raw):
     for field in ("output_tokens", "input_tokens", "tool_calls", "seconds"):
         require(all(isinstance(b[phase][field], int) and b[phase][field] > 0 for phase in ("direct", "preparation", "repair")), "Invalid phase budget")
         require(b["direct"][field] == b["preparation"][field] + b["repair"][field], "Direct budget must equal split total")
-    require(all(isinstance(b[key], int) and b[key] > 0 for key in ("handoff_tokens", "handoff_output_reserve", "tool_timeout_seconds", "tool_output_tokens", "evaluation_timeout_seconds")), "Invalid fixed cap")
-    require(b["handoff_output_reserve"] < b["preparation"]["output_tokens"], "Handoff reserve consumes the investigation allowance")
+    require(all(type(b.get(key)) is int and b[key] > 0 for key in ("handoff_tokens", "terminal_output_reserve", "tool_timeout_seconds", "tool_output_tokens", "evaluation_timeout_seconds")), "Invalid fixed cap")
+    require("handoff_output_reserve" not in b, "New executions require terminal_output_reserve; archived handoff-only budgets cannot be reinterpreted")
+    require(all(b["terminal_output_reserve"] < b[name]["output_tokens"] for name in ("direct", "preparation", "repair")), "Terminal reserve consumes a phase's action allowance")
     if protocol["purpose"] == "comparative_study":
         require(b["direct"] == dict(output_tokens=12288, input_tokens=786432, tool_calls=36, seconds=900), "Comparative direct budget differs from frozen design")
         require(b["preparation"] == dict(output_tokens=4096, input_tokens=262144, tool_calls=12, seconds=300), "Comparative preparation budget differs")
         require(b["repair"] == dict(output_tokens=8192, input_tokens=524288, tool_calls=24, seconds=600), "Comparative repair budget differs")
-        require(b["handoff_tokens"] == 1024 and b["handoff_output_reserve"] == 1024 and b["tool_output_tokens"] == 2048, "Comparative token caps differ")
+        require(b["handoff_tokens"] == 1024 and b["terminal_output_reserve"] == 1024 and b["tool_output_tokens"] == 2048, "Comparative token caps differ")
     target = protocol["target"]
     require(target["model"] == "unsloth/gemma-4-12B-it-qat-GGUF:UD-Q4_K_XL" and target["system_fingerprint"] == "b1-5266f24", "Unexpected tested runtime")
     require(target["context_tokens"] == 262144 and target["temperature"] == 0 and target["seed"] == 7 and target["thinking"] is True, "Sampling/context mismatch")
@@ -766,23 +767,23 @@ def tools_for(arm, preparation):
     execute = {"type": "function", "function": {"name": "execute", "description": "Run one bounded shell command with cwd /testbed. Source is read-only during preparation and writable during repair. HOME and TMPDIR are /workspace, the only persistent scratch directory within this phase; it is discarded between phases. No network, host filesystem, original git history or evaluator access.", "parameters": {"type": "object", "properties": {"command": {"type": "string"}}, "required": ["command"], "additionalProperties": False}}}
     if not preparation:
         parameters = {"type": "object", "properties": {}, "additionalProperties": False}
-        name, description = "finish", "Freeze the current filesystem patch. No further edits or turns."
+        name, description = "finish", "Freeze the current filesystem patch. Call with exactly {}: no description, summary or other arguments. No further edits or turns."
     elif arm == "locations":
-        parameters = {"type": "object", "properties": {"locations": {"type": "array", "minItems": 1, "maxItems": 64, "items": {"type": "object", "properties": {"path": {"type": "string"}, "symbol": {"type": "string"}}, "required": ["path", "symbol"], "additionalProperties": False}}}, "required": ["locations"], "additionalProperties": False}
-        name, description = "handoff", "Transfer only existing relative source paths and optional Python function/class names. Empty symbol means file location. No prose."
+        parameters = {"type": "object", "properties": {"locations": {"type": "array", "minItems": 0, "maxItems": 64, "items": {"type": "object", "properties": {"path": {"type": "string"}, "symbol": {"type": "string"}}, "required": ["path", "symbol"], "additionalProperties": False}}}, "required": ["locations"], "additionalProperties": False}
+        name, description = "handoff", 'Transfer only existing relative source paths and exact Python qualified function/class names. Methods require dotted Class.method names (including enclosing scopes), not bare method names. Use symbol "" for a file-only location, or locations [] if no location is established. No prose, patches, implementation or copied source code, transcripts, or fenced code/reproductions.'
     elif arm == "diagnosis":
         keys = ["root_cause", "evidence", "cross_file_coordination", "intended_behavior", "uncertainties"]
         parameters = {"type": "object", "properties": {key: {"type": "string"} for key in keys}, "required": keys, "additionalProperties": False}
-        name, description = "handoff", "Transfer a code-free diagnosis covering all five fields. Do not include patches, implementation code, transcripts or hidden reasoning."
+        name, description = "handoff", "Transfer a code-free diagnosis covering all five fields. Do not include patches, implementation or copied source code, transcripts, hidden reasoning, or fenced code/reproductions. Describe evidence and reproduction observations in prose only."
     else:
         parameters = {"type": "object", "properties": {"notes": {"type": "string"}}, "required": ["notes"], "additionalProperties": False}
-        name, description = "handoff", "Transfer concise visible investigation notes without patch code. Diagnosis is optional, not required."
+        name, description = "handoff", "Transfer concise code-free visible investigation notes. No patches, implementation or copied source code, transcripts, hidden reasoning, or fenced code/reproductions; describe observations in prose only. Diagnosis is optional, not required."
     return [execute, {"type": "function", "function": {"name": name, "description": description, "parameters": parameters}}]
 
 
 def valid_handoff(arm, value, base):
     if arm == "locations":
-        if not isinstance(value, dict) or set(value) != {"locations"} or not isinstance(value["locations"], list) or not 1 <= len(value["locations"]) <= 64:
+        if not isinstance(value, dict) or set(value) != {"locations"} or not isinstance(value["locations"], list) or len(value["locations"]) > 64:
             return None
         output = []
         for item in value["locations"]:
@@ -823,7 +824,7 @@ def valid_handoff(arm, value, base):
     text = json.dumps(value, ensure_ascii=False, sort_keys=True)
     # A structured, code-free handoff is the only cross-phase channel. Reject
     # recognizable patch/program syntax rather than silently editing its content.
-    if re.search(r"```|~~~|diff --git|@@|(?:^|\\n)\s*(?:[+-]{3}|def |class |import |from \S+ import |return |if .*:|for .*:)", text):
+    if any(re.search(r"```|~~~|diff --git|@@|(?:^|\n)\s*(?:[+-]{3}|def |class |import |from \S+ import |return |if .*:|for .*:)", field) for field in value.values()):
         return None
     return text
 
@@ -885,46 +886,61 @@ def phase(protocol, arm, name, issue, handoff, base, workspace, directory, endpo
     trace = open(directory / (name + "-trace.jsonl"), "x", encoding="utf-8")
     request_number = 0
     pending_generation = False
-    reserve = protocol["budgets"]["handoff_output_reserve"] if preparation else 0
+    reserve = protocol["budgets"]["terminal_output_reserve"]
     finalizing = False
     finalization_reason = ""
+    terminal = "handoff" if preparation else "finish"
+    terminal_tools = [item for item in tools if item["function"]["name"] == terminal]
+    terminal_choice = {"type": "function", "function": {"name": terminal}}
+
+    def terminal_notice(remaining, reason):
+        instruction = ("Use existing observations; state uncertainty rather than inventing evidence."
+                       if preparation else "Use exactly {} as arguments; the current filesystem patch will be frozen.")
+        return (f"\nController budget: {remaining} total output tokens remain. {reason} "
+                f"No further repository commands are permitted. Call {terminal} now. {instruction}")
+
     try:
         while True:
             endpoint.control.check(deadline)
             remaining = budget["output_tokens"] - spent["output_tokens"]
             if remaining <= 0:
                 break
-            if spent["tool_calls"] >= budget["tool_calls"] or (preparation and remaining <= reserve):
+            if spent["tool_calls"] >= budget["tool_calls"] or remaining <= reserve:
                 finalizing = True
-                finalization_reason = "Investigation allowance reached."
-            terminal = "handoff" if preparation else "finish"
-            active_tools = [item for item in tools if item["function"]["name"] == terminal] if finalizing else tools
-            allowance = min(remaining, reserve) if preparation and finalizing else remaining - reserve
-            notice = (f"\nController budget: {remaining} total output tokens and "
-                      f"{budget['tool_calls'] - spent['tool_calls']} execute calls remain.")
-            if finalizing:
-                notice += f" {finalization_reason} No further repository commands are permitted. Call {terminal} now using existing observations; state uncertainty rather than inventing evidence."
-            elif preparation:
-                notice += f" At most {allowance} investigation-output tokens remain; {reserve} output tokens are reserved for the final handoff."
+                finalization_reason = "Action allowance reached."
+            active_tools = terminal_tools if finalizing else tools
+            allowance = remaining if finalizing else remaining - reserve
+            notice = (terminal_notice(remaining, finalization_reason) if finalizing else
+                      f"\nController budget: {remaining} total output tokens and "
+                      f"{budget['tool_calls'] - spent['tool_calls']} execute calls remain. "
+                      f"At most {allowance} action-output tokens remain; {reserve} output tokens "
+                      f"are reserved for the final {terminal}.")
             messages[0]["content"] = prompt + notice
             body = {"model": protocol["target"]["model"], "messages": messages, "tools": active_tools,
-                    "tool_choice": {"type": "function", "function": {"name": terminal}} if finalizing else "auto",
+                    "tool_choice": terminal_choice if finalizing else "auto",
                     "parallel_tool_calls": False,
                     "temperature": protocol["target"]["temperature"], "seed": protocol["target"]["seed"],
                     "max_tokens": allowance,
                     "stream": True, "stream_options": {"include_usage": True},
                     "cache_prompt": False, "return_tokens": True,
-                    "chat_template_kwargs": {"enable_thinking": True}}
+                    "chat_template_kwargs": {"enable_thinking": protocol["target"]["thinking"]}}
             count = endpoint.prompt_count(body, deadline)
-            if preparation and not finalizing:
-                # The pinned Gemma template renders strings without JSON escaping.
-                # Reserve the next complete prompt, worst-case new output/tool
-                # result, and 1024 tokens of terminal/schema/message framing.
-                terminal_bound = count + allowance + protocol["budgets"]["tool_output_tokens"] + 1024
+            if not finalizing:
+                # Count the complete terminal prompt, including its own schema
+                # and controller notice, before allowing history to grow.
+                terminal_body = dict(body, tools=terminal_tools, tool_choice=terminal_choice, max_tokens=remaining)
+                terminal_body["messages"] = [
+                    {"role": "system", "content": prompt + terminal_notice(
+                        remaining, "Remaining input/context capacity is reserved for finalization.")}
+                ] + messages[1:]
+                terminal_count = endpoint.prompt_count(terminal_body, deadline)
+                # Bound the next assistant/tool turn plus template framing.
+                # Output not spent on that turn remains available at finalization.
+                terminal_bound = terminal_count + allowance + protocol["budgets"]["tool_output_tokens"] + 1024
                 if (spent["input_tokens"] + count + terminal_bound > budget["input_tokens"]
                         or terminal_bound + reserve > protocol["target"]["context_tokens"]):
                     finalizing = True
-                    finalization_reason = "Remaining input/context capacity is reserved for the handoff."
+                    finalization_reason = "Remaining input/context capacity is reserved for finalization."
                     continue
             if count + spent["input_tokens"] > budget["input_tokens"]:
                 break
@@ -983,13 +999,13 @@ def phase(protocol, arm, name, issue, handoff, base, workspace, directory, endpo
                 except (ValueError, TypeError):
                     invalid = "invalid_tool_arguments"
             if invalid:
-                if preparation and not finalizing:
-                    # A bounded investigation is followed by one explicit handoff
-                    # request, not a retry of its incomplete/invalid tool action.
+                if not finalizing:
+                    # Follow an incomplete action with one explicit terminal
+                    # request, never a retry or execution of the partial action.
                     messages.append({key: value for key, value in message.items()
                                      if key in {"role", "content", "reasoning_content"}})
                     finalizing = True
-                    finalization_reason = f"Investigation ended with {invalid}; no incomplete tool action was executed."
+                    finalization_reason = f"Action ended with {invalid}; no incomplete tool action was executed."
                     continue
                 result = "budget_exhausted" if generated == body["max_tokens"] else invalid
                 break
@@ -1027,7 +1043,7 @@ def phase(protocol, arm, name, issue, handoff, base, workspace, directory, endpo
             bounded = endpoint.bounded(text, protocol["budgets"]["tool_output_tokens"], deadline, truncated)
             trace.write(json.dumps({"tool": function, "exit_code": code, "stdout": out.decode(errors="replace"), "stderr": err.decode(errors="replace"), "byte_truncated": truncated, "delivered": bounded}) + "\n")
             trace.flush()
-            # Gemma renders reasoning within the current tool conversation.
+            # Preserve the current tool conversation, including visible reasoning.
             # A new phase creates new messages; only its visible handoff crosses.
             messages.append({key: value for key, value in message.items()
                              if key in {"role", "content", "reasoning_content", "tool_calls"}})
