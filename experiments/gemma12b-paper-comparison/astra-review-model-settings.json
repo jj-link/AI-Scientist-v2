@@ -1,0 +1,119 @@
+{
+  "endpoints": {
+    "codex": {
+      "api_key_env": null,
+      "base_url": null,
+      "provider": "openai-codex",
+      "provides": [
+        "text",
+        "vision",
+        "function_calling"
+      ],
+      "requires_user_message": false,
+      "timeout": null
+    },
+    "local": {
+      "api_key_env": "LOCAL_MODEL_API_KEY",
+      "base_url": "http://localhost:8000/v1",
+      "provider": "openai",
+      "provides": [
+        "text",
+        "function_calling",
+        "vision"
+      ],
+      "requires_user_message": true,
+      "timeout": null
+    },
+    "spark": {
+      "api_key_env": "SPARK_MODEL_API_KEY",
+      "base_url": "http://100.92.139.82:8888/v1",
+      "provider": "openai",
+      "provides": [
+        "text",
+        "vision",
+        "function_calling"
+      ],
+      "requires_user_message": false,
+      "timeout": null
+    },
+    "spark1": {
+      "api_key_env": null,
+      "base_url": "http://100.86.3.45:8000/v1",
+      "provider": "openai",
+      "provides": [
+        "text",
+        "vision",
+        "function_calling"
+      ],
+      "requires_user_message": false,
+      "timeout": null
+    }
+  },
+  "experiment_execution": {
+    "cuda_device": 0
+  },
+  "roles": {
+    "citation": {
+      "endpoint": "codex",
+      "model": "gpt-5.6-sol",
+      "requires": []
+    },
+    "experiment_code": {
+      "endpoint": "codex",
+      "model": "gpt-5.6-sol",
+      "requires": [
+        "function_calling"
+      ]
+    },
+    "experiment_feedback": {
+      "endpoint": "codex",
+      "model": "gpt-5.6-sol",
+      "requires": []
+    },
+    "findings_synthesis": {
+      "endpoint": "codex",
+      "model": "gpt-5.6-sol",
+      "requires": []
+    },
+    "ideation": {
+      "endpoint": "codex",
+      "model": "gpt-5.6-sol",
+      "requires": []
+    },
+    "plot_generation": {
+      "endpoint": "codex",
+      "model": "gpt-5.6-sol",
+      "requires": []
+    },
+    "review": {
+      "endpoint": "codex",
+      "model": "gpt-6-astra",
+      "requires": [],
+      "timeout": 1800
+    },
+    "tree_scoring": {
+      "endpoint": "codex",
+      "model": "gpt-5.6-sol",
+      "requires": [
+        "function_calling"
+      ]
+    },
+    "visual_feedback": {
+      "endpoint": "codex",
+      "model": "gpt-5.6-sol",
+      "requires": [
+        "vision"
+      ]
+    },
+    "writeup": {
+      "endpoint": "codex",
+      "model": "gpt-5.6-sol",
+      "requires": []
+    },
+    "writeup_small": {
+      "endpoint": "codex",
+      "model": "gpt-5.6-sol",
+      "requires": []
+    }
+  }
+}

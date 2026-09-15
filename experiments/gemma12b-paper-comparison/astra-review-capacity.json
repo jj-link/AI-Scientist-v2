@@ -1,0 +1,53 @@
+{
+  "observed_at": "2026-09-15T03:55:55.782Z",
+  "catalog": {
+    "slug": "gpt-6-astra",
+    "capacity_metadata": {
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "context_window": 272000,
+      "max_context_window": 872000,
+      "supports_experimental_context": false
+    }
+  },
+  "source_sizing": {
+    "files": {
+      "review-contract.json": {
+        "original_bytes": 3570,
+        "compact_bytes": 3193,
+        "o200k_token_estimate": 834
+      },
+      "astra-review-instructions.json": {
+        "original_bytes": 5481,
+        "compact_bytes": 4627,
+        "o200k_token_estimate": 896
+      },
+      "source-native-results.json": {
+        "original_bytes": 829632,
+        "compact_bytes": 807089,
+        "o200k_token_estimate": 272492
+      },
+      "source-frozen-protocol.json": {
+        "original_bytes": 28242,
+        "compact_bytes": 25510,
+        "o200k_token_estimate": 7716
+      },
+      "source-trusted-summary.json": {
+        "original_bytes": 64929,
+        "compact_bytes": 64929,
+        "o200k_token_estimate": 19702
+      },
+      "source-evidence-receipt.json": {
+        "original_bytes": 3069,
+        "compact_bytes": 2499,
+        "o200k_token_estimate": 921
+      }
+    },
+    "total_source_token_estimate": 302561
+  },
+  "capacity_semantics_source": "https://github.com/openai/codex/blob/main/codex-rs/protocol/src/openai_models.rs",
+  "capacity_status_at_preparation": "Source evidence alone exceeds the advertised default context window but is below the advertised maximum context window for overrides. The full comparative request has not yet exercised that extended capacity; acceptance must be verified from the actual review response.",
+  "note": "Token counts are o200k estimates, not provider-attested counts. All source JSON values are retained; compact serialization only removes formatting whitespace. Final manuscript text, page images, and response space are additional."
+}
