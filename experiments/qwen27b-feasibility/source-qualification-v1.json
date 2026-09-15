@@ -1,0 +1,197 @@
+{
+  "purpose": "model_workspace_public_api_smoke_not_benchmark_scoring",
+  "runner_sha256": "510291eac5e1ac308ba60c261c7fe54f2c10bc066f2196c1c78010dd43f7d07b",
+  "cohort_sha256": "314db47ec45ebe5fe380743c9db2e3e5141612d384791987159836f173fab784",
+  "resource_policy_source_sha256": "3e5e16370aaaf382c574e758131314dff70f8038d7e123239a569976929b5927",
+  "model_generations": 0,
+  "reference_material_used": false,
+  "checks": [
+    {
+      "instance_id": "sympy__sympy-20438",
+      "repo": "sympy/sympy",
+      "passed": true,
+      "exit_code": 0,
+      "output_truncated": false,
+      "source_identity": {
+        "archive_sha256": "239e33c4182f84568c43e842a020b1bd0a8f6ce0629ca33baa3025ef361ffb90",
+        "base_commit": "33b47e4bd60e2302e42616141e76285038b724d6",
+        "baseline_commit": "02b2d91c056ac68399423c5b9882a5a480737587",
+        "image_id": "sha256:cb6d4d5d94b5ef2dbf611a8caf1a82b52b88564c286767cd460c33cad9965ae0",
+        "instance_id": "sympy__sympy-20438",
+        "materialized_tree": "4d2f564d97bb14700b3df7ed5d390a7a9d1a8a3c",
+        "submodules": [],
+        "tree": "4d2f564d97bb14700b3df7ed5d390a7a9d1a8a3c"
+      },
+      "stdout": "PASS: source SymPy set operations and generated numeric function\n",
+      "stderr": "",
+      "elapsed_seconds": 5.411303248023614,
+      "owned_containers_remaining": 0,
+      "owned_volumes_remaining": 0
+    },
+    {
+      "instance_id": "sympy__sympy-22080",
+      "repo": "sympy/sympy",
+      "passed": true,
+      "exit_code": 0,
+      "output_truncated": false,
+      "source_identity": {
+        "archive_sha256": "90b5c66cf2b809b0b1ab3e78e419db9943115d3f3b6af3b78a9b14c0243917a9",
+        "base_commit": "3f8c8c2377cb8e0daaf8073e8d03ac7d87580813",
+        "baseline_commit": "94d9d5bb4cefe348b3e300983fe5d3ac5aed3fc7",
+        "image_id": "sha256:3696601f9ada5905f3ea490181f6f83058e4d89e7e546500fd078c101e55d64e",
+        "instance_id": "sympy__sympy-22080",
+        "materialized_tree": "ff3be61097784673ae14e58b1d2cc230070de8fb",
+        "submodules": [],
+        "tree": "ff3be61097784673ae14e58b1d2cc230070de8fb"
+      },
+      "stdout": "PASS: source SymPy set operations and generated numeric function\n",
+      "stderr": "",
+      "elapsed_seconds": 5.04231556103332,
+      "owned_containers_remaining": 0,
+      "owned_volumes_remaining": 0
+    },
+    {
+      "instance_id": "django__django-11138",
+      "repo": "django/django",
+      "passed": true,
+      "exit_code": 0,
+      "output_truncated": false,
+      "source_identity": {
+        "archive_sha256": "379bfbb6019057b6abd0eef50e9c0a8eeb39384384554631613118f388de8eb4",
+        "base_commit": "c84b91b7603e488f7171fdff8f08368ef3d6b856",
+        "baseline_commit": "081d0bb590c4d4dabd06cb667b1da21c7d541159",
+        "image_id": "sha256:811f9bf0ca067b334b574cd3589cdc989b350b2a24b68e1ddcd288fbb97d61f4",
+        "instance_id": "django__django-11138",
+        "materialized_tree": "7bb2d0d7f047e267e0146c34f89fab4cdaffaf53",
+        "submodules": [],
+        "tree": "7bb2d0d7f047e267e0146c34f89fab4cdaffaf53"
+      },
+      "stdout": "PASS: source Django configuration and SQLite execution\n",
+      "stderr": "",
+      "elapsed_seconds": 10.149495780002326,
+      "owned_containers_remaining": 0,
+      "owned_volumes_remaining": 0
+    },
+    {
+      "instance_id": "pylint-dev__pylint-8898",
+      "repo": "pylint-dev/pylint",
+      "passed": true,
+      "exit_code": 0,
+      "output_truncated": false,
+      "source_identity": {
+        "archive_sha256": "3c7cfc8c4de3d30034123ee4f52ca9b8a69cbf57825a097d21a39fbcee8d6b0e",
+        "base_commit": "1f8c4d9eb185c16a2c1d881c054f015e1c2eb334",
+        "baseline_commit": "835ec883f4b3e62d1ceba34da70cc686e6f3d875",
+        "image_id": "sha256:6a3950d518eac34eff08f89136006c94526afc1cdf2b34d1a4d8f598faa4eaea",
+        "instance_id": "pylint-dev__pylint-8898",
+        "materialized_tree": "ddc0b886ddafd87fdc3d3d0b0fbc77fe012d7df3",
+        "submodules": [],
+        "tree": "ddc0b886ddafd87fdc3d3d0b0fbc77fe012d7df3"
+      },
+      "stdout": "PASS: source Pylint detects the deliberately undefined variable\n",
+      "stderr": "Error processing line 1 of /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/distutils-precedence.pth:\n\n  Traceback (most recent call last):\n    File \"/opt/miniconda3/envs/testbed/lib/python3.9/site.py\", line 177, in addpackage\n      exec(line)\n    File \"<string>\", line 1, in <module>\n  ModuleNotFoundError: No module named '_distutils_hack'\n\nRemainder of file ignored\n",
+      "elapsed_seconds": 5.674594926007558,
+      "owned_containers_remaining": 0,
+      "owned_volumes_remaining": 0
+    },
+    {
+      "instance_id": "sphinx-doc__sphinx-8551",
+      "repo": "sphinx-doc/sphinx",
+      "passed": false,
+      "exit_code": 1,
+      "output_truncated": false,
+      "source_identity": {
+        "archive_sha256": "23255e6a66c9995e9901e790ae17c247d8baf683ec519f7a2e4ea1ba2aa0ccfe",
+        "base_commit": "57ed10c68057c96491acbd3e62254ccfaf9e3861",
+        "baseline_commit": "fff387479d256dffe3fb3cc3fba4929b7746ccfe",
+        "image_id": "sha256:0cee9556d1dab507161552be8bd82757ee1a835fe660a832a6df023bcb60b67d",
+        "instance_id": "sphinx-doc__sphinx-8551",
+        "materialized_tree": "613e1ebc64a732dceed6feaf040172d7e102ec88",
+        "submodules": [],
+        "tree": "613e1ebc64a732dceed6feaf040172d7e102ec88"
+      },
+      "stdout": "\u001b[01mRunning Sphinx v3.4.0+/fff3874\u001b[39;49;00m\n",
+      "stderr": "Traceback (most recent call last):\n  File \"<string>\", line 10, in <module>\n  File \"/testbed/sphinx/application.py\", line 241, in __init__\n    self.setup_extension(extension)\n  File \"/testbed/sphinx/application.py\", line 402, in setup_extension\n    self.registry.load_extension(self, extname)\n  File \"/testbed/sphinx/registry.py\", line 430, in load_extension\n    metadata = setup(app)\n  File \"/testbed/sphinx/addnodes.py\", line 415, in setup\n    app.add_node(meta)\n  File \"/testbed/sphinx/application.py\", line 580, in add_node\n    logger.warning(__('node class %r is already registered, '\n  File \"/opt/miniconda3/envs/testbed/lib/python3.9/logging/__init__.py\", line 1812, in warning\n    self.log(WARNING, msg, *args, **kwargs)\n  File \"/testbed/sphinx/util/logging.py\", line 126, in log\n    super().log(level, msg, *args, **kwargs)\n  File \"/opt/miniconda3/envs/testbed/lib/python3.9/logging/__init__.py\", line 1844, in log\n    self.logger.log(level, msg, *args, **kwargs)\n  File \"/opt/miniconda3/envs/testbed/lib/python3.9/logging/__init__.py\", line 1512, in log\n    self._log(level, msg, args, **kwargs)\n  File \"/opt/miniconda3/envs/testbed/lib/python3.9/logging/__init__.py\", line 1589, in _log\n    self.handle(record)\n  File \"/opt/miniconda3/envs/testbed/lib/python3.9/logging/__init__.py\", line 1599, in handle\n    self.callHandlers(record)\n  File \"/opt/miniconda3/envs/testbed/lib/python3.9/logging/__init__.py\", line 1661, in callHandlers\n    hdlr.handle(record)\n  File \"/opt/miniconda3/envs/testbed/lib/python3.9/logging/__init__.py\", line 948, in handle\n    rv = self.filter(record)\n  File \"/opt/miniconda3/envs/testbed/lib/python3.9/logging/__init__.py\", line 806, in filter\n    result = f.filter(record)\n  File \"/testbed/sphinx/util/logging.py\", line 422, in filter\n    raise exc\nsphinx.errors.SphinxWarning: node class 'meta' is already registered, its visitors will be overridden\n",
+      "elapsed_seconds": 4.026013444003183,
+      "owned_containers_remaining": 0,
+      "owned_volumes_remaining": 0
+    },
+    {
+      "instance_id": "pydata__xarray-3095",
+      "repo": "pydata/xarray",
+      "passed": true,
+      "exit_code": 0,
+      "output_truncated": false,
+      "source_identity": {
+        "archive_sha256": "b76fb825d5a88f864a4c4994d7774b7a88aebd9cdbfaf1a4dcb5ceea140a4b56",
+        "base_commit": "1757dffac2fa493d7b9a074b84cf8c830a706688",
+        "baseline_commit": "790e7b81f05b42c4de8d2ff8c76fc9963d1efbe1",
+        "image_id": "sha256:fb721923cba0d05faafdafb2fb76e6caa3adc22fd4fdcbf2de45741312f91c74",
+        "instance_id": "pydata__xarray-3095",
+        "materialized_tree": "365476022a400612fa9da253ba6f8d0bfe41baef",
+        "submodules": [],
+        "tree": "365476022a400612fa9da253ba6f8d0bfe41baef"
+      },
+      "stdout": "PASS: source Xarray deep copy preserves independent data\n",
+      "stderr": "/testbed/xarray/plot/plot.py:243: SyntaxWarning: \"is\" with a literal. Did you mean \"==\"?\n  if args is ():\n",
+      "elapsed_seconds": 4.118254803004675,
+      "owned_containers_remaining": 0,
+      "owned_volumes_remaining": 0
+    },
+    {
+      "instance_id": "matplotlib__matplotlib-14623",
+      "repo": "matplotlib/matplotlib",
+      "passed": false,
+      "exit_code": 1,
+      "output_truncated": false,
+      "source_identity": {
+        "archive_sha256": "5b4897a3a20f294d1cf34a49cc005a8ad5e93d4c2baa51792a8b102e9c7ea7d2",
+        "base_commit": "d65c9ca20ddf81ef91199e6d819f9d3506ef477c",
+        "baseline_commit": "c42ea0f5eafde6ceb0240dd3d87a15dd1512233a",
+        "image_id": "sha256:52cdd8ac0f4a8b05f40507d500680ec613092186310cbaf7895d1554e9d654dc",
+        "instance_id": "matplotlib__matplotlib-14623",
+        "materialized_tree": "191a666ebb854f74f7227c97f888e3616fd9804e",
+        "submodules": [],
+        "tree": "191a666ebb854f74f7227c97f888e3616fd9804e"
+      },
+      "stdout": "",
+      "stderr": "Traceback (most recent call last):\n  File \"<string>\", line 2, in <module>\n  File \"/testbed/lib/matplotlib/__init__.py\", line 205, in <module>\n    _check_versions()\n  File \"/testbed/lib/matplotlib/__init__.py\", line 190, in _check_versions\n    from . import ft2font\nImportError: cannot import name 'ft2font' from partially initialized module 'matplotlib' (most likely due to a circular import) (/testbed/lib/matplotlib/__init__.py)\n",
+      "elapsed_seconds": 7.632307460007723,
+      "owned_containers_remaining": 0,
+      "owned_volumes_remaining": 0
+    },
+    {
+      "instance_id": "astropy__astropy-8707",
+      "repo": "astropy/astropy",
+      "passed": false,
+      "exit_code": 1,
+      "output_truncated": false,
+      "source_identity": {
+        "archive_sha256": "c76a5d5c9f2c6700649815d36808a7adc66810c9d2708cc060bf0c8976e6179d",
+        "base_commit": "a85a0747c54bac75e9c3b2fe436b105ea029d6cf",
+        "baseline_commit": "dfd0c6f8e4a6a5b70dde788deb0af250313e970e",
+        "image_id": "sha256:c6531e6e77ca7f257057f793cf38fc84427cd36fd93d136c21aef2a6e0e8df6d",
+        "instance_id": "astropy__astropy-8707",
+        "materialized_tree": "c8dbd4e62bcbd0072613c78ff85582b4b01aa8d1",
+        "submodules": [
+          {
+            "archive_sha256": "4f6253436409da00672bf62804e54a66a3e564a4d013df8e50dc20bd5b2852ce",
+            "baseline_commit": "6bedbf4aeefabddf8e9c1f05ff8c835d1334771d",
+            "commit": "32b440b52f4c60592148b3254c7ddbf14df3c6e0",
+            "materialized_tree": "ef4aaee68761fa0e4f5100415943bb4f080db7d0",
+            "path": "astropy_helpers",
+            "tree": "ef4aaee68761fa0e4f5100415943bb4f080db7d0"
+          }
+        ],
+        "tree": "a1021067d1cbeaf94a58f631a49807d7bdd479dd"
+      },
+      "stdout": "Rebuilding extension modules [Done]\n",
+      "stderr": "WARNING: You appear to be trying to import astropy from within a source checkout without building the extension modules first.  Attempting to (re)build extension modules: [astropy]\nERROR: An error occurred while attempting to rebuild the extension modules.  Please try manually running `./setup.py develop` or `./setup.py build_ext --inplace` to see what the issue was.  Extension modules must be successfully compiled and importable in order to import astropy. [astropy]\nTraceback (most recent call last):\n  File \"/testbed/astropy/__init__.py\", line 185, in _initialize_astropy\n    from .utils import _compiler\nImportError: cannot import name '_compiler' from 'astropy.utils' (/testbed/astropy/utils/__init__.py)\n\nDuring handling of the above exception, another exception occurred:\n\nTraceback (most recent call last):\n  File \"/testbed/astropy/__init__.py\", line 194, in _initialize_astropy\n    _rebuild_extensions()\n  File \"/testbed/astropy/__init__.py\", line 249, in _rebuild_extensions\n    raise OSError('Running setup.py build_ext --inplace failed '\nOSError: Running setup.py build_ext --inplace failed with error code 1: try rerunning this command manually to check what the error was.\n\nDuring handling of the above exception, another exception occurred:\n\nTraceback (most recent call last):\n  File \"<string>\", line 1, in <module>\n  File \"/testbed/astropy/__init__.py\", line 290, in <module>\n    _initialize_astropy()\n  File \"/testbed/astropy/__init__.py\", line 196, in _initialize_astropy\n    _rollback_import(\n  File \"/testbed/astropy/__init__.py\", line 182, in _rollback_import\n    raise ImportError('astropy')\nImportError: astropy\n",
+      "elapsed_seconds": 6.890103351033758,
+      "owned_containers_remaining": 0,
+      "owned_volumes_remaining": 0
+    }
+  ],
+  "completed": true,
+  "all_passed": false
+}

@@ -1,0 +1,36 @@
+{
+  "purpose": "diagnosis_of_missing_runtime_build_artifacts",
+  "model_generations": 0,
+  "checks": [
+    {
+      "instance_id": "matplotlib__matplotlib-14623",
+      "image_id": "sha256:52cdd8ac0f4a8b05f40507d500680ec613092186310cbaf7895d1554e9d654dc",
+      "image_head": "ef37fbadf44f99a1fce661b003c32de454fd5e1a",
+      "expected_base_commit": "d65c9ca20ddf81ef91199e6d819f9d3506ef477c",
+      "python": "3.8.20 (default, Oct  3 2024, 15:24:27) \n[GCC 11.2.0]",
+      "artifacts": [
+        {
+          "path": "/testbed/lib/matplotlib/ft2font.cpython-38-x86_64-linux-gnu.so",
+          "size": 643160,
+          "sha256": "e8947b766cad7efad8bfe13d04fcb9300896fef9b72a742d75bbd80df3869b16",
+          "present_in_exported_source": false
+        }
+      ]
+    },
+    {
+      "instance_id": "astropy__astropy-8707",
+      "image_id": "sha256:c6531e6e77ca7f257057f793cf38fc84427cd36fd93d136c21aef2a6e0e8df6d",
+      "image_head": "7b678175afc80be7e98db40c6e44360fc5b437fe",
+      "expected_base_commit": "a85a0747c54bac75e9c3b2fe436b105ea029d6cf",
+      "python": "3.9.20 (main, Oct  3 2024, 07:27:41) \n[GCC 11.2.0]",
+      "artifacts": [
+        {
+          "path": "/testbed/astropy/utils/_compiler.cpython-39-x86_64-linux-gnu.so",
+          "size": 15632,
+          "sha256": "fa4cf3f3fdd238e104902cfcd07c9efa6216115b20b6b3140e186a6c8b87a075",
+          "present_in_exported_source": false
+        }
+      ]
+    }
+  ]
+}

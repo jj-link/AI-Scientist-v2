@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "decision": "no_go_prerequisites_not_met",
+  "pilot_status": "not_started",
+  "model_trials_attempted": 0,
+  "model_repair_outcomes": null,
+  "cohort_selected": 8,
+  "cohort_repositories": 7,
+  "pilot_protocol_frozen": false,
+  "budgets_frozen": false,
+  "controller_verification": {
+    "pre_fix_failed": 12,
+    "pre_fix_passed": 29,
+    "post_fix_passed": 41,
+    "post_fix_failed": 0,
+    "continuation_checks_passed": 10,
+    "pre_fix_runner_sha256": "97c67e11d7d18daa8a21c2380e45c98e07f968333aa73797ccdc9ec6b3266272",
+    "post_fix_runner_sha256": "510291eac5e1ac308ba60c261c7fe54f2c10bc066f2196c1c78010dd43f7d07b",
+    "test_sha256": "35ea358a09e35f3a9d82f0929117661b980f5ff595b2431c32d69508b5b3682a",
+    "real_qwen_tool_calls_verified": false
+  },
+  "source_environment": {
+    "initial_public_api_smokes": {
+      "passed": 5,
+      "total": 8
+    },
+    "corrected_public_api_smokes": {
+      "passed": 6,
+      "total": 8
+    },
+    "sphinx_amendment": "The initial qualification fixture unnecessarily made warnings fatal. The corrected fixture uses normal Sphinx warning behavior, retains its node-registration warning and requires a real successful HTML build with expected content. Both results are preserved; no model outcome or official score changed.",
+    "failed_issues": [
+      "matplotlib__matplotlib-14623",
+      "astropy__astropy-8707"
+    ],
+    "cause": "The pristine source export lacks required compiled extension modules. The corresponding binaries exist in the immutable evaluation images but their image HEADs differ from the benchmark base commits; their source provenance cannot be assumed.",
+    "proposal": "Build required runtime artifacts from the exact pinned source in an isolated, provenance-recorded environment, or establish equivalent artifact provenance before incorporating them. Do not copy arbitrary files from image HEAD or weaken source/history isolation.",
+    "owned_container_and_volume_leaks": 0
+  },
+  "runtime": {
+    "available": false,
+    "configured_endpoint": "http://localhost:8000/v1",
+    "container": "qwen3.8-27b-sglang-6000pro",
+    "local_model_works_desired_state": "stopped",
+    "local_model_works_observed_state": "stopped",
+    "backend": "sglang",
+    "retained_context_tokens": 65536,
+    "backend_integration_verified": false
+  },
+  "next_required_steps": [
+    "Authorize activation of the existing Local Model Works Qwen deployment; do not run upstream defaults or substitute another model.",
+    "Pin and qualify the actual loaded model, image and mounted source; implement and exercise the SGLang token-count and identity interfaces rather than forging llama.cpp fields.",
+    "Resolve the two pinned-source compiled-extension environments and rerun their native public API qualification.",
+    "Only after prerequisites pass, freeze the eight-issue direct-only protocol and budgets, then run one attempt per issue and grade every submitted patch with official SWE-bench scoring."
+  ],
+  "unchanged": {
+    "gemma_protocol_sha256": "3e5e16370aaaf382c574e758131314dff70f8038d7e123239a569976929b5927",
+    "gemma_results_sha256": "178e8fdadcedb4f3f0e3487cb106246149f32f7603d35d6753f609b59b55d9b2",
+    "official_scorer": "SWE-bench 5.0.2",
+    "full_study_started": false,
+    "paper_generation_started": false,
+    "model_service_changes": false,
+    "docker_desktop_used": false
+  }
+}

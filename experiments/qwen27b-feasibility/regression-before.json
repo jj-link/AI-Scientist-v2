@@ -1,0 +1,257 @@
+{
+  "mode": "before",
+  "runner_sha256": "97c67e11d7d18daa8a21c2380e45c98e07f968333aa73797ccdc9ec6b3266272",
+  "test_sha256": "35ea358a09e35f3a9d82f0929117661b980f5ff595b2431c32d69508b5b3682a",
+  "exit_code": 1,
+  "cases": [
+    {
+      "nodeid": "tests/test_fixed_study_budget.py::test_capped_action_still_delivers_terminal_within_total_allowance[notes-preparation-handoff]",
+      "phase": "call",
+      "outcome": "passed",
+      "failure": null
+    },
+    {
+      "nodeid": "tests/test_fixed_study_budget.py::test_capped_action_still_delivers_terminal_within_total_allowance[direct-direct-finish]",
+      "phase": "call",
+      "outcome": "failed",
+      "failure": "tests\\test_fixed_study_budget.py:131: in test_capped_action_still_delivers_terminal_within_total_allowance\n    assert termination == terminal\nE   AssertionError: assert 'budget_exhausted' == 'finish'\nE     \nE     - finish\nE     + budget_exhausted"
+    },
+    {
+      "nodeid": "tests/test_fixed_study_budget.py::test_capped_action_still_delivers_terminal_within_total_allowance[notes-repair-finish]",
+      "phase": "call",
+      "outcome": "failed",
+      "failure": "tests\\test_fixed_study_budget.py:131: in test_capped_action_still_delivers_terminal_within_total_allowance\n    assert termination == terminal\nE   AssertionError: assert 'budget_exhausted' == 'finish'\nE     \nE     - finish\nE     + budget_exhausted"
+    },
+    {
+      "nodeid": "tests/test_fixed_study_budget.py::test_growing_tool_history_leaves_capacity_for_terminal[input_tokens-notes-preparation-handoff]",
+      "phase": "call",
+      "outcome": "passed",
+      "failure": null
+    },
+    {
+      "nodeid": "tests/test_fixed_study_budget.py::test_growing_tool_history_leaves_capacity_for_terminal[input_tokens-direct-direct-finish]",
+      "phase": "call",
+      "outcome": "failed",
+      "failure": "tests\\test_fixed_study_budget.py:159: in test_growing_tool_history_leaves_capacity_for_terminal\n    assert termination == terminal\nE   AssertionError: assert 'budget_exhausted' == 'finish'\nE     \nE     - finish\nE     + budget_exhausted"
+    },
+    {
+      "nodeid": "tests/test_fixed_study_budget.py::test_growing_tool_history_leaves_capacity_for_terminal[input_tokens-notes-repair-finish]",
+      "phase": "call",
+      "outcome": "failed",
+      "failure": "tests\\test_fixed_study_budget.py:159: in test_growing_tool_history_leaves_capacity_for_terminal\n    assert termination == terminal\nE   AssertionError: assert 'budget_exhausted' == 'finish'\nE     \nE     - finish\nE     + budget_exhausted"
+    },
+    {
+      "nodeid": "tests/test_fixed_study_budget.py::test_growing_tool_history_leaves_capacity_for_terminal[context_tokens-notes-preparation-handoff]",
+      "phase": "call",
+      "outcome": "passed",
+      "failure": null
+    },
+    {
+      "nodeid": "tests/test_fixed_study_budget.py::test_growing_tool_history_leaves_capacity_for_terminal[context_tokens-direct-direct-finish]",
+      "phase": "call",
+      "outcome": "failed",
+      "failure": "tests\\test_fixed_study_budget.py:159: in test_growing_tool_history_leaves_capacity_for_terminal\n    assert termination == terminal\nE   AssertionError: assert 'budget_exhausted' == 'finish'\nE     \nE     - finish\nE     + budget_exhausted"
+    },
+    {
+      "nodeid": "tests/test_fixed_study_budget.py::test_growing_tool_history_leaves_capacity_for_terminal[context_tokens-notes-repair-finish]",
+      "phase": "call",
+      "outcome": "failed",
+      "failure": "tests\\test_fixed_study_budget.py:159: in test_growing_tool_history_leaves_capacity_for_terminal\n    assert termination == terminal\nE   AssertionError: assert 'budget_exhausted' == 'finish'\nE     \nE     - finish\nE     + budget_exhausted"
+    },
+    {
+      "nodeid": "tests/test_fixed_study_budget.py::test_tool_ceiling_terminal_can_spend_more_than_reserve[notes-preparation-handoff]",
+      "phase": "call",
+      "outcome": "failed",
+      "failure": "tests\\test_fixed_study_budget.py:177: in test_tool_ceiling_terminal_can_spend_more_than_reserve\n    assert termination == terminal\nE   AssertionError: assert 'budget_exhausted' == 'handoff'\nE     \nE     - handoff\nE     + budget_exhausted"
+    },
+    {
+      "nodeid": "tests/test_fixed_study_budget.py::test_tool_ceiling_terminal_can_spend_more_than_reserve[direct-direct-finish]",
+      "phase": "call",
+      "outcome": "passed",
+      "failure": null
+    },
+    {
+      "nodeid": "tests/test_fixed_study_budget.py::test_tool_ceiling_terminal_can_spend_more_than_reserve[notes-repair-finish]",
+      "phase": "call",
+      "outcome": "passed",
+      "failure": null
+    },
+    {
+      "nodeid": "tests/test_fixed_study_budget.py::test_complete_terminal_prompt_is_reserved_before_growing_history",
+      "phase": "call",
+      "outcome": "failed",
+      "failure": "tests\\test_fixed_study_budget.py:199: in test_complete_terminal_prompt_is_reserved_before_growing_history\n    assert termination == \"handoff\"\nE   AssertionError: assert 'budget_exhausted' == 'handoff'\nE     \nE     - handoff\nE     + budget_exhausted"
+    },
+    {
+      "nodeid": "tests/test_fixed_study_budget.py::test_unaffordable_terminal_never_starts_generation[input_tokens]",
+      "phase": "call",
+      "outcome": "passed",
+      "failure": null
+    },
+    {
+      "nodeid": "tests/test_fixed_study_budget.py::test_unaffordable_terminal_never_starts_generation[context_tokens]",
+      "phase": "call",
+      "outcome": "passed",
+      "failure": null
+    },
+    {
+      "nodeid": "tests/test_fixed_study_budget.py::test_visible_handoff_limit_remains_independent_of_terminal_output",
+      "phase": "call",
+      "outcome": "failed",
+      "failure": "tests\\test_fixed_study_budget.py:231: in test_visible_handoff_limit_remains_independent_of_terminal_output\n    assert termination == \"invalid_handoff\"\nE   AssertionError: assert 'budget_exhausted' == 'invalid_handoff'\nE     \nE     - invalid_handoff\nE     + budget_exhausted"
+    },
+    {
+      "nodeid": "tests/test_fixed_study_budget.py::test_finish_rejects_extra_arguments_without_reexecuting_or_discarding_edits[direct-direct]",
+      "phase": "call",
+      "outcome": "passed",
+      "failure": null
+    },
+    {
+      "nodeid": "tests/test_fixed_study_budget.py::test_finish_rejects_extra_arguments_without_reexecuting_or_discarding_edits[notes-repair]",
+      "phase": "call",
+      "outcome": "passed",
+      "failure": null
+    },
+    {
+      "nodeid": "tests/test_fixed_study_budget.py::test_empty_locations_are_schema_valid_and_delivered_unchanged",
+      "phase": "call",
+      "outcome": "failed",
+      "failure": "tests\\test_fixed_study_budget.py:267: in test_empty_locations_are_schema_valid_and_delivered_unchanged\n    jsonschema.validate(value, schema)\n.venv\\Lib\\site-packages\\jsonschema\\validators.py:1332: in validate\n    raise error\nE   jsonschema.exceptions.ValidationError: [] should be non-empty\nE   \nE   Failed validating 'minItems' in schema['properties']['locations']:\nE       {'type': 'array',\nE        'minItems': 1,\nE        'maxItems': 64,\nE        'items': {'type': 'object',\nE                  'properties': {'path': {'type': 'string'},\nE                                 'symbol': {'type': 'string'}},\nE                  'required': ['path', 'symbol'],\nE                  'additionalProperties': False}}\nE   \nE   On instance['locations']:\nE       []"
+    },
+    {
+      "nodeid": "tests/test_fixed_study_budget.py::test_exact_symbols_and_file_only_locations_are_preserved[Alpha.method]",
+      "phase": "call",
+      "outcome": "passed",
+      "failure": null
+    },
+    {
+      "nodeid": "tests/test_fixed_study_budget.py::test_exact_symbols_and_file_only_locations_are_preserved[Beta.method]",
+      "phase": "call",
+      "outcome": "passed",
+      "failure": null
+    },
+    {
+      "nodeid": "tests/test_fixed_study_budget.py::test_exact_symbols_and_file_only_locations_are_preserved[Alpha]",
+      "phase": "call",
+      "outcome": "passed",
+      "failure": null
+    },
+    {
+      "nodeid": "tests/test_fixed_study_budget.py::test_exact_symbols_and_file_only_locations_are_preserved[helper]",
+      "phase": "call",
+      "outcome": "passed",
+      "failure": null
+    },
+    {
+      "nodeid": "tests/test_fixed_study_budget.py::test_exact_symbols_and_file_only_locations_are_preserved[]",
+      "phase": "call",
+      "outcome": "passed",
+      "failure": null
+    },
+    {
+      "nodeid": "tests/test_fixed_study_budget.py::test_invalid_locations_are_rejected_not_rewritten[source.py-method]",
+      "phase": "call",
+      "outcome": "passed",
+      "failure": null
+    },
+    {
+      "nodeid": "tests/test_fixed_study_budget.py::test_invalid_locations_are_rejected_not_rewritten[source.py-Invented.method]",
+      "phase": "call",
+      "outcome": "passed",
+      "failure": null
+    },
+    {
+      "nodeid": "tests/test_fixed_study_budget.py::test_invalid_locations_are_rejected_not_rewritten[source.py-Alpha.missing]",
+      "phase": "call",
+      "outcome": "passed",
+      "failure": null
+    },
+    {
+      "nodeid": "tests/test_fixed_study_budget.py::test_invalid_locations_are_rejected_not_rewritten[missing.py-]",
+      "phase": "call",
+      "outcome": "passed",
+      "failure": null
+    },
+    {
+      "nodeid": "tests/test_fixed_study_budget.py::test_invalid_locations_are_rejected_not_rewritten[../source.py-]",
+      "phase": "call",
+      "outcome": "passed",
+      "failure": null
+    },
+    {
+      "nodeid": "tests/test_fixed_study_budget.py::test_invalid_locations_are_rejected_not_rewritten[/source.py-]",
+      "phase": "call",
+      "outcome": "passed",
+      "failure": null
+    },
+    {
+      "nodeid": "tests/test_fixed_study_budget.py::test_invalid_locations_are_rejected_not_rewritten[./source.py-]",
+      "phase": "call",
+      "outcome": "passed",
+      "failure": null
+    },
+    {
+      "nodeid": "tests/test_fixed_study_budget.py::test_invalid_locations_are_rejected_not_rewritten[.git/config-]",
+      "phase": "call",
+      "outcome": "passed",
+      "failure": null
+    },
+    {
+      "nodeid": "tests/test_fixed_study_budget.py::test_invalid_locations_are_rejected_not_rewritten[source.txt-Alpha.method]",
+      "phase": "call",
+      "outcome": "passed",
+      "failure": null
+    },
+    {
+      "nodeid": "tests/test_fixed_study_budget.py::test_code_bearing_handoffs_are_rejected_not_sanitized[def copied_method(): pass-notes]",
+      "phase": "call",
+      "outcome": "failed",
+      "failure": "tests\\test_fixed_study_budget.py:316: in test_code_bearing_handoffs_are_rejected_not_sanitized\n    assert study.valid_handoff(arm, value, workspace) is None\nE   assert '{\"notes\": \"def copied_method(): pass\"}' is None\nE    +  where '{\"notes\": \"def copied_method(): pass\"}' = <function valid_handoff at 0x000001B4C68F9300>('notes', {'notes': 'def copied_method(): pass'}, WindowsPath('C:/Users/josep/Projects/personal/AI-Scientist-v2/tests/fixed_study_budget_3ee3d1f3dbbf4b52a2e5fb7202c1d435'))\nE    +    where <function valid_handoff at 0x000001B4C68F9300> = study.valid_handoff"
+    },
+    {
+      "nodeid": "tests/test_fixed_study_budget.py::test_code_bearing_handoffs_are_rejected_not_sanitized[def copied_method(): pass-diagnosis]",
+      "phase": "call",
+      "outcome": "failed",
+      "failure": "tests\\test_fixed_study_budget.py:316: in test_code_bearing_handoffs_are_rejected_not_sanitized\n    assert study.valid_handoff(arm, value, workspace) is None\nE   assert '{\"cross_file_coordination\": \"None established\", \"evidence\": \"def copied_method(): pass\", \"intended_behavior\": \"The issue should not recur\", \"root_cause\": \"Not established\", \"uncertainties\": \"Further investigation is needed\"}' is None\nE    +  where '{\"cross_file_coordination\": \"None established\", \"evidence\": \"def copied_method(): pass\", \"intended_behavior\": \"The issue should not recur\", \"root_cause\": \"Not established\", \"uncertainties\": \"Further investigation is needed\"}' = <function valid_handoff at 0x000001B4C68F9300>('diagnosis', {'root_cause': 'Not established', 'evidence': 'def copied_method(): pass', 'cross_file_coordination': 'None established', 'intended_behavior': 'The issue should not recur', ...}, WindowsPath('C:/Users/josep/Projects/personal/AI-Scientist-v2/tests/fixed_study_budget_b86d8b75b4894c8d9056e28d8d814104'))\nE    +    where <function valid_handoff at 0x000001B4C68F9300> = study.valid_handoff"
+    },
+    {
+      "nodeid": "tests/test_fixed_study_budget.py::test_code_bearing_handoffs_are_rejected_not_sanitized[Observed the failure.\\nimport source-notes]",
+      "phase": "call",
+      "outcome": "passed",
+      "failure": null
+    },
+    {
+      "nodeid": "tests/test_fixed_study_budget.py::test_code_bearing_handoffs_are_rejected_not_sanitized[Observed the failure.\\nimport source-diagnosis]",
+      "phase": "call",
+      "outcome": "passed",
+      "failure": null
+    },
+    {
+      "nodeid": "tests/test_fixed_study_budget.py::test_code_bearing_handoffs_are_rejected_not_sanitized[Reproduction:\\n```python\\nassert source.method()\\n```-notes]",
+      "phase": "call",
+      "outcome": "passed",
+      "failure": null
+    },
+    {
+      "nodeid": "tests/test_fixed_study_budget.py::test_code_bearing_handoffs_are_rejected_not_sanitized[Reproduction:\\n```python\\nassert source.method()\\n```-diagnosis]",
+      "phase": "call",
+      "outcome": "passed",
+      "failure": null
+    },
+    {
+      "nodeid": "tests/test_fixed_study_budget.py::test_code_bearing_handoffs_are_rejected_not_sanitized[diff --git a/source.py b/source.py\\n@@ -1 +1 @@\\n-broken\\n+fixed-notes]",
+      "phase": "call",
+      "outcome": "passed",
+      "failure": null
+    },
+    {
+      "nodeid": "tests/test_fixed_study_budget.py::test_code_bearing_handoffs_are_rejected_not_sanitized[diff --git a/source.py b/source.py\\n@@ -1 +1 @@\\n-broken\\n+fixed-diagnosis]",
+      "phase": "call",
+      "outcome": "passed",
+      "failure": null
+    }
+  ],
+  "scope": "Deterministic controller regressions, not real model generation or benchmark repairs.",
+  "passed": 29,
+  "failed": 12
+}

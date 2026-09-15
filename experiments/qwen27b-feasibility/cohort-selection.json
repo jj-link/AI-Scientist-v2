@@ -1,0 +1,85 @@
+{
+  "schema_version": 1,
+  "purpose": "development_feasibility_not_held_out",
+  "selection_rule": "Rank all original twenty development issues by SHA256(salt + instance_id); select the first from each of seven repositories, then the highest-ranked remaining issue; execute in hash order.",
+  "selection_salt": "qwen27b-development-v1:",
+  "source_protocol_sha256": "3e5e16370aaaf382c574e758131314dff70f8038d7e123239a569976929b5927",
+  "selected_before_qwen_generations": true,
+  "prior_exposure": "All candidates have already been used in the separate Gemma study. None of these eight may be represented as held-out in a subsequent comparison.",
+  "cohort": [
+    {
+      "instance_id": "sympy__sympy-20438",
+      "repo": "sympy/sympy",
+      "base_commit": "33b47e4bd60e2302e42616141e76285038b724d6",
+      "image": "swebench/sweb.eval.x86_64.sympy_1776_sympy-20438@sha256:cb6d4d5d94b5ef2dbf611a8caf1a82b52b88564c286767cd460c33cad9965ae0",
+      "image_id": "sha256:cb6d4d5d94b5ef2dbf611a8caf1a82b52b88564c286767cd460c33cad9965ae0",
+      "selection_sha256": "002c5261005425a32585f5261b7187cf7a1ddc334236756d14deb93c4fb2a3e7"
+    },
+    {
+      "instance_id": "sympy__sympy-22080",
+      "repo": "sympy/sympy",
+      "base_commit": "3f8c8c2377cb8e0daaf8073e8d03ac7d87580813",
+      "image": "swebench/sweb.eval.x86_64.sympy_1776_sympy-22080@sha256:3696601f9ada5905f3ea490181f6f83058e4d89e7e546500fd078c101e55d64e",
+      "image_id": "sha256:3696601f9ada5905f3ea490181f6f83058e4d89e7e546500fd078c101e55d64e",
+      "selection_sha256": "039a460556061435fc464624562012a641f15f2d2d05c26b9f5190e5bd5892c9"
+    },
+    {
+      "instance_id": "django__django-11138",
+      "repo": "django/django",
+      "base_commit": "c84b91b7603e488f7171fdff8f08368ef3d6b856",
+      "image": "swebench/sweb.eval.x86_64.django_1776_django-11138@sha256:811f9bf0ca067b334b574cd3589cdc989b350b2a24b68e1ddcd288fbb97d61f4",
+      "image_id": "sha256:811f9bf0ca067b334b574cd3589cdc989b350b2a24b68e1ddcd288fbb97d61f4",
+      "selection_sha256": "1da6e4b6eec3bd7a3968a1e58091c25d68080ff53ef6c474e5a74e2b44ab59d9"
+    },
+    {
+      "instance_id": "pylint-dev__pylint-8898",
+      "repo": "pylint-dev/pylint",
+      "base_commit": "1f8c4d9eb185c16a2c1d881c054f015e1c2eb334",
+      "image": "swebench/sweb.eval.x86_64.pylint-dev_1776_pylint-8898@sha256:6a3950d518eac34eff08f89136006c94526afc1cdf2b34d1a4d8f598faa4eaea",
+      "image_id": "sha256:6a3950d518eac34eff08f89136006c94526afc1cdf2b34d1a4d8f598faa4eaea",
+      "selection_sha256": "3f04563f512572036d6039311676fa34f58b9be021e3c952d829696013b1b957"
+    },
+    {
+      "instance_id": "sphinx-doc__sphinx-8551",
+      "repo": "sphinx-doc/sphinx",
+      "base_commit": "57ed10c68057c96491acbd3e62254ccfaf9e3861",
+      "image": "swebench/sweb.eval.x86_64.sphinx-doc_1776_sphinx-8551@sha256:0cee9556d1dab507161552be8bd82757ee1a835fe660a832a6df023bcb60b67d",
+      "image_id": "sha256:0cee9556d1dab507161552be8bd82757ee1a835fe660a832a6df023bcb60b67d",
+      "selection_sha256": "827927a1f3cc3f7d703252b7f0cb32e3fdaf02123d3da9c2563ad0f7749c43d4"
+    },
+    {
+      "instance_id": "pydata__xarray-3095",
+      "repo": "pydata/xarray",
+      "base_commit": "1757dffac2fa493d7b9a074b84cf8c830a706688",
+      "image": "swebench/sweb.eval.x86_64.pydata_1776_xarray-3095@sha256:fb721923cba0d05faafdafb2fb76e6caa3adc22fd4fdcbf2de45741312f91c74",
+      "image_id": "sha256:fb721923cba0d05faafdafb2fb76e6caa3adc22fd4fdcbf2de45741312f91c74",
+      "selection_sha256": "9777acfaa8576e0627d1bbb94d5ad31c97924d7097ad819c5cd8963c822b49bf"
+    },
+    {
+      "instance_id": "matplotlib__matplotlib-14623",
+      "repo": "matplotlib/matplotlib",
+      "base_commit": "d65c9ca20ddf81ef91199e6d819f9d3506ef477c",
+      "image": "swebench/sweb.eval.x86_64.matplotlib_1776_matplotlib-14623@sha256:52cdd8ac0f4a8b05f40507d500680ec613092186310cbaf7895d1554e9d654dc",
+      "image_id": "sha256:52cdd8ac0f4a8b05f40507d500680ec613092186310cbaf7895d1554e9d654dc",
+      "selection_sha256": "9e556bd7035701133f6cda06900cb00f64cbc719d123a70c9f311c526fa03afc"
+    },
+    {
+      "instance_id": "astropy__astropy-8707",
+      "repo": "astropy/astropy",
+      "base_commit": "a85a0747c54bac75e9c3b2fe436b105ea029d6cf",
+      "image": "swebench/sweb.eval.x86_64.astropy_1776_astropy-8707@sha256:c6531e6e77ca7f257057f793cf38fc84427cd36fd93d136c21aef2a6e0e8df6d",
+      "image_id": "sha256:c6531e6e77ca7f257057f793cf38fc84427cd36fd93d136c21aef2a6e0e8df6d",
+      "selection_sha256": "b338c4763b6930a8c3a8bda732e97d35a0cc4f14d9128d5257d564c4dc4b497f"
+    }
+  ],
+  "model_attempts_per_issue": 1,
+  "arms": [
+    "direct"
+  ],
+  "feasibility_gate": {
+    "minimum_distinct_resolved_issues": 2,
+    "required_protocol_checks": "valid tool calling, strict finalization, code-free handoffs and terminal budget boundaries",
+    "scoring": "unchanged official SWE-bench 5.0.2 scorer"
+  },
+  "pre_fix_runner_sha256": "97c67e11d7d18daa8a21c2380e45c98e07f968333aa73797ccdc9ec6b3266272"
+}

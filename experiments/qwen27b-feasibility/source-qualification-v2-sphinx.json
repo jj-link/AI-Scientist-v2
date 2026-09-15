@@ -1,0 +1,35 @@
+{
+  "purpose": "model_workspace_public_api_smoke_not_benchmark_scoring",
+  "runner_sha256": "510291eac5e1ac308ba60c261c7fe54f2c10bc066f2196c1c78010dd43f7d07b",
+  "cohort_sha256": "314db47ec45ebe5fe380743c9db2e3e5141612d384791987159836f173fab784",
+  "qualification_script_sha256": "656bf0145ba9d9a0c4f2e81ad5972859f2d319c3aeea0f20fe57c3ab518afb0a",
+  "resource_policy_source_sha256": "3e5e16370aaaf382c574e758131314dff70f8038d7e123239a569976929b5927",
+  "model_generations": 0,
+  "reference_material_used": false,
+  "checks": [
+    {
+      "instance_id": "sphinx-doc__sphinx-8551",
+      "repo": "sphinx-doc/sphinx",
+      "passed": true,
+      "exit_code": 0,
+      "output_truncated": false,
+      "source_identity": {
+        "archive_sha256": "23255e6a66c9995e9901e790ae17c247d8baf683ec519f7a2e4ea1ba2aa0ccfe",
+        "base_commit": "57ed10c68057c96491acbd3e62254ccfaf9e3861",
+        "baseline_commit": "fff387479d256dffe3fb3cc3fba4929b7746ccfe",
+        "image_id": "sha256:0cee9556d1dab507161552be8bd82757ee1a835fe660a832a6df023bcb60b67d",
+        "instance_id": "sphinx-doc__sphinx-8551",
+        "materialized_tree": "613e1ebc64a732dceed6feaf040172d7e102ec88",
+        "submodules": [],
+        "tree": "613e1ebc64a732dceed6feaf040172d7e102ec88"
+      },
+      "stdout": "\u001b[01mRunning Sphinx v3.4.0+/fff3874\u001b[39;49;00m\n\u001b[01mmaking output directory... \u001b[39;49;00mdone\n\u001b[01mbuilding [mo]: \u001b[39;49;00mall of 0 po files\n\u001b[01mbuilding [html]: \u001b[39;49;00mall source files\n\u001b[01mupdating environment: \u001b[39;49;00m[new config] 1 added, 0 changed, 0 removed\n\u001b[01mreading sources... \u001b[39;49;00m[100%] \u001b[35mindex\u001b[39;49;00m                                                \r\n\u001b[01mlooking for now-outdated files... \u001b[39;49;00mnone found\n\u001b[01mpickling environment... \u001b[39;49;00mdone\n\u001b[01mchecking consistency... \u001b[39;49;00mdone\n\u001b[01mpreparing documents... \u001b[39;49;00mdone\n\u001b[01mwriting output... \u001b[39;49;00m[100%] \u001b[32mindex\u001b[39;49;00m                                                 \r\n\u001b[01mgenerating indices... \u001b[39;49;00mgenindex done\n\u001b[01mwriting additional pages... \u001b[39;49;00msearch done\n\u001b[01mcopying static files... \u001b[39;49;00mdone\n\u001b[01mcopying extra files... \u001b[39;49;00mdone\n\u001b[01mdumping search index in English (code: en)... \u001b[39;49;00mdone\n\u001b[01mdumping object inventory... \u001b[39;49;00mdone\n\u001b[01mbuild succeeded, 1 warning.\u001b[39;49;00m\n\nThe HTML pages are in ../workspace/qualification-docs/html.\nPASS: source Sphinx builds actual HTML documentation\n",
+      "stderr": "\u001b[91mWARNING: while setting up extension sphinx.addnodes: node class 'meta' is already registered, its visitors will be overridden\u001b[39;49;00m\n",
+      "elapsed_seconds": 4.2588681830093265,
+      "owned_containers_remaining": 0,
+      "owned_volumes_remaining": 0
+    }
+  ],
+  "completed": true,
+  "all_passed": true
+}

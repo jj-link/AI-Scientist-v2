@@ -1,0 +1,112 @@
+{
+  "schema_version": 1,
+  "status": "blocked_runtime_stopped",
+  "live_qualification_passed": false,
+  "model_generations": 0,
+  "configured_base_url": "http://localhost:8000/v1",
+  "candidate_native_base_url": "http://127.0.0.1:8000",
+  "container": {
+    "id": "1c861cf6a5235a7ee804cc1dd072494251bf98f94de7b3faf6e8cad97aee5816",
+    "name": "/qwen3.8-27b-sglang-6000pro",
+    "image_id": "sha256:febfb971c7352570fc445c466ebd6ffc9d896024958e544a60f2137fd85856b1",
+    "state": {
+      "Status": "exited",
+      "Running": false,
+      "Paused": false,
+      "Restarting": false,
+      "OOMKilled": false,
+      "Dead": false,
+      "Pid": 0,
+      "ExitCode": 0,
+      "Error": "",
+      "StartedAt": "2026-09-14T03:49:42.097533741Z",
+      "FinishedAt": "2026-09-14T10:23:36.188109975Z"
+    }
+  },
+  "retained_launch_argv": [
+    "python3",
+    "-m",
+    "sglang.launch_server",
+    "--model-path",
+    "RadixArk/Qwen3.8-27B-NVFP4-BF16-LMHead",
+    "--served-model-name",
+    "qwen3.8-27b-6000pro",
+    "--trust-remote-code",
+    "--mem-fraction-static",
+    "0.6",
+    "--attention-backend",
+    "flashinfer",
+    "--chunked-prefill-size",
+    "4096",
+    "--max-prefill-tokens",
+    "4096",
+    "--kv-cache-dtype",
+    "auto",
+    "--context-length",
+    "65536",
+    "--max-running-requests",
+    "8",
+    "--speculative-algorithm",
+    "DFLASH",
+    "--speculative-draft-model-path",
+    "z-lab/Qwen3.8-27B-DFlash2",
+    "--speculative-num-draft-tokens",
+    "8",
+    "--speculative-draft-model-quantization",
+    "unquant",
+    "--speculative-draft-attention-backend",
+    "flashinfer",
+    "--min-free-slots-delay",
+    "1",
+    "--reasoning-parser",
+    "qwen3",
+    "--tool-call-parser",
+    "qwen3_coder",
+    "--sampling-defaults",
+    "model",
+    "--host",
+    "0.0.0.0",
+    "--port",
+    "8000"
+  ],
+  "gpu_visibility": "CUDA_VISIBLE_DEVICES=GPU-6ac06ab6-ac30-f3ad-b246-064a8e6f1309",
+  "placement": {
+    "device": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
+    "uuid": "GPU-6ac06ab6-ac30-f3ad-b246-064a8e6f1309",
+    "memory_mib": 97887
+  },
+  "local_model_works": {
+    "deployment_id": "09df0f9a-70c5-8d5f-8ed0-d7dd6ebdfcf0",
+    "desired_state": "stopped",
+    "observed_state": "stopped",
+    "endpoint": null
+  },
+  "cached_target": {
+    "repo": "RadixArk/Qwen3.8-27B-NVFP4-BF16-LMHead",
+    "revision": "009632fef96dd349150baa780c984e62e70e91fe",
+    "weight_bytes_rehashed": false,
+    "loaded_identity_verified": false
+  },
+  "cached_draft": {
+    "repo": "z-lab/Qwen3.8-27B-DFlash2",
+    "revision": "50307d4c4cde6860d4eee73e2547cd786fe8e8a4"
+  },
+  "runtime_sources": {
+    "image_package_version": "0.0.0.dev0+qwen38.27b.g561c8f3",
+    "overlay_checkout_revision": "a0743929ee2b8946bbc62aa0835c7634ae823ffc",
+    "mounted_overlay_files": 12
+  },
+  "metadata_routes": [
+    "/v1/models",
+    "/model_info",
+    "/server_info"
+  ],
+  "health_warning": "The installed SGLang /health route generates a token by default; do not treat it as a metadata-only probe.",
+  "integration_blockers": [
+    "The configured service is stopped; no live model, token-count or tool-call qualification is possible.",
+    "The existing runner is llama.cpp/Gemma-specific. SGLang uses /v1/tokenize with prompt or messages, not the llama.cpp template/tokenization routes.",
+    "SGLang does not supply system_fingerprint; a real container/model/overlay identity guard is required rather than a forged fingerprint.",
+    "The retained context is 65536 and maximum concurrency is 8; model-native context and recipe defaults are not the live configuration."
+  ],
+  "scope_decision": "No model startup, service reconfiguration, downloads, fallback target, benchmark execution or paper generation. Retained launch settings and cache presence are offline evidence, not a verified future load."
+}

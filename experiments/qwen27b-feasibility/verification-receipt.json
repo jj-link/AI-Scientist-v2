@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "source_commit": "8678ef3",
+  "source_commit_pushed": true,
+  "controller_runner_sha256": "510291eac5e1ac308ba60c261c7fe54f2c10bc066f2196c1c78010dd43f7d07b",
+  "controller_tests_sha256": "35ea358a09e35f3a9d82f0929117661b980f5ff595b2431c32d69508b5b3682a",
+  "commands": [
+    {
+      "command": ".venv/Scripts/python.exe experiments/qwen27b-feasibility/check_budget_regressions.py before",
+      "outcome": "Expected reproduction: 12 failed, 29 passed against unchanged original controller source."
+    },
+    {
+      "command": ".venv/Scripts/python.exe experiments/qwen27b-feasibility/check_budget_regressions.py after",
+      "outcome": "41 passed against corrected controller."
+    },
+    {
+      "command": ".venv/Scripts/python.exe -m pytest tests/test_study_continuation.py -q",
+      "outcome": "10 passed."
+    },
+    {
+      "command": "Native Python 3.10 qualification through real Workspace containers on unix:///run/docker.sock",
+      "outcome": "Six of eight public-API environments passed after correcting the Sphinx fixture; Matplotlib and Astropy failed on missing compiled extensions."
+    }
+  ],
+  "historical_fixture_adaptation": "The original controller received the historical handoff_output_reserve key with the same numerical amount. This isolates behavioral regressions from the intentional protocol-field rename; original source bytes were not modified.",
+  "disposable_files_removed": [
+    "baseline-runner.py",
+    "check_budget_regressions.py",
+    "__pycache__/baseline-runner.cpython-311.pyc",
+    "__pycache__/"
+  ],
+  "qualification_method_retained": "qualify_source.py is retained to reproduce the real sandbox qualification and its two unresolved environment failures.",
+  "generated_native_source_copies_removed": 28,
+  "owned_native_containers_remaining": 0,
+  "owned_native_volumes_remaining": 0,
+  "gemma_evidence_unchanged": {
+    "protocol_sha256": "3e5e16370aaaf382c574e758131314dff70f8038d7e123239a569976929b5927",
+    "results_sha256": "178e8fdadcedb4f3f0e3487cb106246149f32f7603d35d6753f609b59b55d9b2"
+  },
+  "model_generations": 0,
+  "benchmark_attempts": 0,
+  "pilot_outcomes": null,
+  "artifact_sha256": {
+    "cohort-selection.json": "314db47ec45ebe5fe380743c9db2e3e5141612d384791987159836f173fab784",
+    "runtime-qualification.json": "0e86c410b29eef053a19c2d48990c9b0ac1572b9fdfbc17a254e23297ea696b2",
+    "source-artifact-diagnosis.json": "28926dc446dd9bd67fefb21e983f9f3b1ebb465759735511300610a7a37f1c3e",
+    "source-qualification-v1.json": "f5f20355db26d3626fb84abcd4bc166d29fdd9b0c1bf055fafc9b0f03316c2b4",
+    "source-qualification-v2-sphinx.json": "46524b2bb97fda232f4fca2cb858f7cf6dd4c99d84dcbe75254a6520eb8bc363",
+    "regression-before.json": "715a48f8f25f3a0dc4f47588323e066123c5c1531f0dd6810cd5ea3bfd7ffe33",
+    "regression-after.json": "51f5080ac4a1d6a36640aa8a2e47f5a132670d7262add6f93d94b1c37bb02786",
+    "qualification-summary.json": "58d068c7e95a37c05b8c154f281996d394e1009aecc41b523000acd086d20565",
+    "cleanup-receipt.json": "0f1bc5526954a1f05c502f18bce4de591bf7001e72dc7fd2cb8093d6e0249cc9",
+    "qualify_source.py": "656bf0145ba9d9a0c4f2e81ad5972859f2d319c3aeea0f20fe57c3ab518afb0a"
+  }
+}
