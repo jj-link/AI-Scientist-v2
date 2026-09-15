@@ -8,7 +8,6 @@ import subprocess
 import traceback
 import unicodedata
 import uuid
-import tempfile
 
 from ai_scientist.llm import (
     get_response_from_llm,
@@ -120,6 +119,28 @@ def clean_lines(content):
     return [line for line in lines if not is_header_or_footer(line)]
 
 
+def _extract_page_text(pdf_file, page):
+    result = subprocess.run(
+        [
+            resolve_tex_tool("pdftotext"),
+            "-layout",
+            "-f",
+            str(page),
+            "-l",
+            str(page),
+            "-q",
+            pdf_file,
+            "-",
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        encoding="utf-8",
+        errors="ignore",
+    )
+    return result.stdout if result.returncode == 0 else None
+
+
 def detect_references_position_clean(pdf_file):
     """
     Locate the first occurrence of the word "References" (or variations like
@@ -138,42 +159,13 @@ def detect_references_position_clean(pdf_file):
 
     # Loop through pages (limit to 50 pages by default)
     for page in range(1, 51):
-        temp_dir = tempfile.mkdtemp()
-        page_txt = osp.join(temp_dir, f"page_{page}.txt")
         try:
-            subprocess.run(
-                [
-                    "pdftotext",
-                    "-layout",
-                    "-f",
-                    str(page),
-                    "-l",
-                    str(page),
-                    "-q",
-                    pdf_file,
-                    page_txt,
-                ],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-            )
-            if not osp.exists(page_txt):
-                shutil.rmtree(temp_dir)
+            content = _extract_page_text(pdf_file, page)
+            if content is None:
                 break
-            try:
-                with open(page_txt, "r", encoding="utf-8", errors="ignore") as fp:
-                    content = fp.read()
-            except Exception as e:
-                print(f"Error reading page {page}: {e}")
-                print(traceback.format_exc())
-                shutil.rmtree(temp_dir)
-                continue
-            finally:
-                shutil.rmtree(temp_dir)
         except Exception as e:
             print(f"Error running pdftotext for page {page}: {e}")
             print(traceback.format_exc())
-            shutil.rmtree(temp_dir)
             continue
 
         # Clean the lines before searching for "References"
@@ -194,42 +186,13 @@ def extract_page_line_counts(pdf_file, first_page, last_page):
     """
     page_lines = {}
     for page in range(first_page, last_page + 1):
-        temp_dir = tempfile.mkdtemp()
-        page_txt = osp.join(temp_dir, f"page_{page}.txt")
         try:
-            subprocess.run(
-                [
-                    "pdftotext",
-                    "-layout",
-                    "-f",
-                    str(page),
-                    "-l",
-                    str(page),
-                    "-q",
-                    pdf_file,
-                    page_txt,
-                ],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-            )
-            if not osp.exists(page_txt):
-                shutil.rmtree(temp_dir)
+            content = _extract_page_text(pdf_file, page)
+            if content is None:
                 break
-            try:
-                with open(page_txt, "r", encoding="utf-8", errors="ignore") as fp:
-                    content = fp.read()
-            except Exception as e:
-                print(f"Error reading page {page}: {e}")
-                print(traceback.format_exc())
-                shutil.rmtree(temp_dir)
-                continue
-            finally:
-                shutil.rmtree(temp_dir)
         except Exception as e:
             print(f"Error running pdftotext for page {page}: {e}")
             print(traceback.format_exc())
-            shutil.rmtree(temp_dir)
             continue
         # Clean the extracted text and count the number of remaining lines.
         cleaned = clean_lines(content)
@@ -239,9 +202,9 @@ def extract_page_line_counts(pdf_file, first_page, last_page):
 
 def check_page_limit(pdf_file, page_limit=4, timeout=30):
     """
-    Compile the LaTeX project in a temporary folder, then determine where the
-    "References" section begins using cleaned text extraction. Next, count the
-    number of cleaned text lines used before the word "References" and compare that
+    Determine where the "References" section begins using cleaned text extracted
+    directly from pdftotext stdout. Count the number of cleaned text lines used
+    before the word "References" and compare that
     to the total number of cleaned lines available in the allowed number of pages (page_limit).
 
     Returns a dictionary with:
@@ -252,7 +215,7 @@ def check_page_limit(pdf_file, page_limit=4, timeout=30):
       - 'excess': if used_lines > allowed_lines (number of lines over the limit),
       - 'available': if used_lines < allowed_lines (number of lines still available)
 
-    If compilation or extraction fails, returns None.
+    If the PDF is missing or extraction fails, returns None.
     """
     try:
         # Ensure the PDF was produced
@@ -863,6 +826,64 @@ def gather_citations(base_folder, num_cite_rounds=20, small_model="gpt-4o-2024-0
         return citations_text if citations_text else None
 
 
+def _finalize_writeup(
+    latex_folder,
+    reflection_pdf,
+    final_pdf,
+    page_limit,
+    client,
+    model,
+    system_message,
+):
+    """Refine the page budget, then publish even when no edits are needed."""
+    writeup_file = osp.join(latex_folder, "template.tex")
+    with open(writeup_file, "r", encoding="utf-8") as source:
+        current_latex = source.read()
+    reflection_page_info = get_reflection_page_info(reflection_pdf, page_limit)
+    response, _ = get_response_from_llm(
+        prompt=f"""{reflection_page_info}
+USE MINIMAL EDITS TO OPTIMIZE THE PAGE LIMIT USAGE.
+Preserve the scientific facts. Return the complete LaTeX in a ```latex``` block
+if edits are needed; otherwise reply "I am done".
+
+Current complete manuscript:
+```latex
+{current_latex}
+```""",
+        client=client,
+        model=model,
+        system_message=system_message,
+        print_debug=False,
+    )
+    match = re.search(r"```latex(.*?)```", response, re.DOTALL)
+    if match and match.group(1).strip() != current_latex.strip():
+        final_text = match.group(1).strip()
+        cleanup_map = {
+            "</end": r"\\end",
+            "</begin": r"\\begin",
+            "’": "'",
+        }
+        for bad_str, repl_str in cleanup_map.items():
+            final_text = final_text.replace(bad_str, repl_str)
+        final_text = re.sub(r"(\d+(?:\.\d+)?)%", r"\1\\%", final_text)
+        with open(writeup_file, "w", encoding="utf-8") as destination:
+            destination.write(final_text)
+    else:
+        print("No final LaTeX edits supplied; publishing the current manuscript.")
+
+    # A failed compilation must not be mistaken for an older published PDF.
+    candidate_pdf = f"{final_pdf}.{uuid.uuid4().hex}"
+    try:
+        compile_latex(latex_folder, candidate_pdf)
+        if not osp.isfile(candidate_pdf):
+            return False
+        os.replace(candidate_pdf, final_pdf)
+        return True
+    finally:
+        if osp.exists(candidate_pdf):
+            os.remove(candidate_pdf)
+
+
 def perform_writeup(
     base_folder,
     citations_text=None,
@@ -1018,6 +1039,7 @@ def perform_writeup(
         with open(writeup_file, "w") as f:
             f.write(updated_latex_code)
 
+        reflection_pdf = pdf_file
         # Multiple reflection loops on the final LaTeX
         for i in range(n_writeup_reflections):
             with open(writeup_file, "r") as f:
@@ -1195,55 +1217,18 @@ If you believe you are done with reflection, simply say: "I am done"."""
                 print(f"No valid LaTeX code block found in reflection step {i+1}.")
                 break
 
-        # Final reflection on page limit
-        # Save PDF with reflection
-
-        # Get new reflection_page_info
-        reflection_page_info = get_reflection_page_info(reflection_pdf, page_limit)
-
-        final_reflection_prompt = """{reflection_page_info}
-USE MINIMAL EDITS TO OPTIMIZE THE PAGE LIMIT USAGE."""
-        reflection_response, msg_history = get_response_from_llm(
-            prompt=final_reflection_prompt,
+        return _finalize_writeup(
+            latex_folder=latex_folder,
+            reflection_pdf=reflection_pdf,
+            final_pdf=osp.join(
+                base_folder,
+                f"{osp.basename(base_folder)}_reflection_final_page_limit.pdf",
+            ),
+            page_limit=page_limit,
             client=big_client,
             model=big_client_model,
             system_message=big_model_system_message,
-            msg_history=msg_history[-1:],
-            print_debug=False,
         )
-
-        reflection_pdf = osp.join(
-            base_folder, f"{osp.basename(base_folder)}_reflection_final_page_limit.pdf"
-        )
-        # Compile current version before reflection
-        print(f"[green]Compiling PDF for reflection final page limit...[/green]")
-
-        print(f"reflection step {i+1}")
-
-        reflection_code_match = re.search(
-            r"```latex(.*?)```", reflection_response, re.DOTALL
-        )
-        if reflection_code_match:
-            reflected_latex_code = reflection_code_match.group(1).strip()
-            if reflected_latex_code != current_latex:
-                final_text = reflected_latex_code
-                cleanup_map = {
-                    "</end": r"\\end",
-                    "</begin": r"\\begin",
-                    "’": "'",
-                }
-                for bad_str, repl_str in cleanup_map.items():
-                    final_text = final_text.replace(bad_str, repl_str)
-                final_text = re.sub(r"(\d+(?:\.\d+)?)%", r"\1\\%", final_text)
-
-                with open(writeup_file, "w") as fo:
-                    fo.write(final_text)
-
-                compile_latex(latex_folder, reflection_pdf)
-            else:
-                print(f"No changes in reflection page step.")
-
-        return osp.exists(reflection_pdf)
 
     except Exception:
         print("EXCEPTION in perform_writeup:")

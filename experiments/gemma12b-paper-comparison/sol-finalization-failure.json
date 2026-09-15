@@ -1,0 +1,17 @@
+{
+  "kind": "observed_noop_finalization_failure",
+  "job_id": "bf0b79f0-080b-427f-a0e6-5597c8aa00ae",
+  "preserved_pdf": "experiments\\ui_bf0b79f0-080b-427f-a0e6-5597c8aa00ae\\writeup_attempts\\attempt_1\\ui_bf0b79f0-080b-427f-a0e6-5597c8aa00ae_reflection2.pdf",
+  "pdf_pages": 8,
+  "pdf_sha256": "c7d9352033de19a261d79da0fd0ec78f60b0d9a0d6686f61384449e925fe706e",
+  "preserved_latex_sha256": "da6b071215dee1eb2df216903dce23747c74ec81b35242455d3f70bda57dba7b",
+  "expected_final_pdf_exists": false,
+  "log_boundary": {
+    "path": "ui_data/jobs/bf0b79f0-080b-427f-a0e6-5597c8aa00ae/technical.log",
+    "lines": [
+      21692,
+      21698
+    ]
+  },
+  "native_results_sha256": "178e8fdadcedb4f3f0e3487cb106246149f32f7603d35d6753f609b59b55d9b2"
+}

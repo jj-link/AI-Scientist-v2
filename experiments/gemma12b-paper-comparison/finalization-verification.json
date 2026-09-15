@@ -1,0 +1,31 @@
+{
+  "kind": "actual-tex-finalization-smoke",
+  "model_requests": 0,
+  "model_response_source": "Controlled no-op inputs; not a research run or authored paper.",
+  "cases": [
+    {
+      "case": "no-code-edits",
+      "published": true,
+      "pages": 1,
+      "source_unchanged": true
+    },
+    {
+      "case": "unchanged-latex",
+      "published": true,
+      "pages": 1,
+      "source_unchanged": true
+    },
+    {
+      "case": "compiler-produces-no-pages",
+      "published": false,
+      "previous_pdf_preserved": true
+    }
+  ],
+  "final_pdf_sha256": "743c0309b57e95c8b71f80ca8f826bc0e7eb102152ea2f1c31c848f5f9693810",
+  "implementation_sha256": "a507d536b3997a6d580f1590767a709c40d9427cde29960c23da6a4ffe22e333",
+  "focused_regressions": {
+    "command": ".venv/Scripts/python.exe -X utf8 -m pytest tests/test_writeup_finalization.py -q",
+    "passed": 4,
+    "skipped": 0
+  }
+}
