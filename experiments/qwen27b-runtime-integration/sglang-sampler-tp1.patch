@@ -1,0 +1,18 @@
+--- a/sglang/srt/layers/sampler.py
++++ b/sglang/srt/layers/sampler.py
+@@ -89,0 +90 @@
++        self.tp_sync_group_size = torch.distributed.get_world_size(group=self.tp_sync_group)
+@@ -531,6 +532,7 @@
+-
+-            torch.distributed.all_reduce(
+-                batch_next_token_ids,
+-                op=dist.ReduceOp.MIN,
+-                group=self.tp_sync_group,
+-            )
++            # A singleton synchronization group makes this collective an identity operation, but the raw call still initializes an NCCL communicator, which can hang (observed in TP=1 deployments); mirror the world-size guard used by GroupCoordinator.all_reduce.
++            if self.tp_sync_group_size > 1:
++                torch.distributed.all_reduce(
++                    batch_next_token_ids,
++                    op=dist.ReduceOp.MIN,
++                    group=self.tp_sync_group,
++                )

@@ -72,6 +72,8 @@ def _protocol(idea):
     protocol = json.loads(raw)
     _require(protocol.get("kind") == KIND and protocol.get("schema_version") == 1,
              "unsupported protocol.")
+    _require(protocol.get("purpose") != "development_feasibility",
+             "development feasibility is native-only and cannot start comparative analysis or paper generation.")
     _require(protocol.get("purpose") in {"comparative_study", "runtime_smoke"}, "missing study purpose.")
     _require(protocol.get("arms") == ARMS and protocol.get("repetitions") == 1,
              "expected four frozen arms and one repetition.")
@@ -125,6 +127,8 @@ def stop_fixed_study(run_dir):
 
 def validate_results(results, protocol, digest, execution_id):
     """Reject partial, duplicated, mismatched, or unaccounted trials before any analysis."""
+    _require(protocol.get("purpose") != "development_feasibility",
+             "development feasibility cannot be published as comparative paper evidence.")
     _require(results.get("schema_version") == 1 and results.get("completed") is True,
              "native study did not complete.")
     for key, expected in (("protocol_id", protocol["protocol_id"]), ("protocol_sha256", digest),
@@ -176,8 +180,20 @@ def validate_results(results, protocol, digest, execution_id):
         safe_trials[-1]["metrics"] = {name: metrics[name] for name in METRICS}
     # Export only deliberately safe fields, never arbitrary native telemetry or evaluator paths.
     runtime = results.get("runtime", {})
-    target_keys = ("base_url", "model", "system_fingerprint", "context_tokens", "temperature",
-                   "seed", "thinking", "mtp", "cache_k", "cache_v")
+    target = protocol["target"]
+    target_keys = ("base_url", "model", "context_tokens", "temperature", "seed", "thinking")
+    if "backend" in target:
+        _require(target["backend"] in {"llama_cpp", "sglang"}, "unsupported runtime backend.")
+        target_keys += ("backend",)
+    else:
+        _require("handoff_output_reserve" in protocol["budgets"],
+                 "new execution evidence requires an explicit backend.")
+    if target.get("backend") == "sglang":
+        _require(not any(key in target for key in ("system_fingerprint", "mtp", "cache_k", "cache_v")),
+                 "SGLang evidence contains fabricated llama.cpp identity fields.")
+        target_keys += ("reasoning_effort", "preserve_thinking", "runtime_manifest_sha256")
+    else:
+        target_keys += ("system_fingerprint", "mtp", "cache_k", "cache_v")
     _require(all(runtime.get("target", {}).get(key) == protocol["target"][key] for key in target_keys),
              "runtime target provenance differs from frozen protocol.")
     _require(runtime.get("harness_version") == "5.0.2", "incompatible evaluator harness provenance.")
@@ -216,6 +232,16 @@ def validate_results(results, protocol, digest, execution_id):
                  and re.fullmatch(r"[0-9a-f]{64}", qualification["sha256"]) is not None,
                  "model workspaces were not qualified before execution.")
         safe_runtime["workspace_qualification"] = dict(qualification)
+    if target.get("backend") == "sglang":
+        runtime_qualification = runtime.get("runtime_qualification")
+        _require(isinstance(runtime_qualification, dict)
+                 and set(runtime_qualification) == {"passed", "sha256", "runtime_manifest_sha256"}
+                 and runtime_qualification["passed"] is True
+                 and isinstance(runtime_qualification["sha256"], str)
+                 and re.fullmatch(r"[0-9a-f]{64}", runtime_qualification["sha256"]) is not None
+                 and runtime_qualification["runtime_manifest_sha256"] == target["runtime_manifest_sha256"],
+                 "SGLang runtime was not qualified against its frozen manifest.")
+        safe_runtime["runtime_qualification"] = dict(runtime_qualification)
     continuation = protocol.get("continuation")
     lineage = runtime.get("continuation")
     if "continuation" not in protocol:

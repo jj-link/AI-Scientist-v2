@@ -63,7 +63,7 @@ class CappedInvestigation:
                     },
                 }]},
             }
-        return {"choices": [choice], "system_fingerprint": "budget-fixture",
+        return {"choices": [choice], "model": body["model"], "system_fingerprint": "budget-fixture",
                 "usage": {"prompt_tokens": self.prompt_count(body, deadline),
                           "completion_tokens": generated}}
 
@@ -107,7 +107,7 @@ def protocol():
             "tool_output_tokens": 2048,
             "tool_timeout_seconds": 30,
         },
-        "target": {"model": "budget-fixture", "system_fingerprint": "budget-fixture",
+        "target": {"backend": "llama_cpp", "model": "budget-fixture", "system_fingerprint": "budget-fixture",
                    "temperature": 0, "seed": 7, "context_tokens": 262144, "thinking": False},
         "prompts": {"notes": "Investigate, then provide an honest visible handoff.",
                     "locations": "Report established locations, or an empty list if none are established.",
@@ -134,6 +134,26 @@ def test_capped_action_still_delivers_terminal_within_total_allowance(workspace,
     assert totals["tool_calls"] == 0
     assert totals["output_tokens"] <= protocol["budgets"][name]["output_tokens"]
     assert totals["input_tokens"] <= protocol["budgets"][name]["input_tokens"]
+
+
+def test_length_stopped_but_parseable_action_is_not_executed(workspace, protocol):
+    class CappedInspection(RepeatedInspection):
+        def request(self, path, body, deadline, events_path):
+            self.requests += 1
+            if self.requests == 1:
+                response = self.response(body, deadline, "execute", {"command": "must-not-run"}, body["max_tokens"])
+                response["choices"][0]["finish_reason"] = "length"
+                return response
+            return self.response(body, deadline, "finish", {}, self.terminal_output)
+
+    commands = []
+    target = SimpleNamespace(execute=lambda command, deadline: (commands.append(command) or 0, b"", b"", False))
+    totals = study.metrics()
+    termination, _ = study.phase(protocol, "direct", "direct", {"problem_statement": "Synthetic cap boundary"},
+                                  "", workspace, target, workspace, CappedInspection("finish"), totals)
+    assert commands == []
+    assert termination == "finish"
+    assert totals["tool_calls"] == 0
 
 
 @pytest.mark.parametrize("arm,name,terminal", PHASES)

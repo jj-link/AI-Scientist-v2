@@ -184,7 +184,7 @@ def publication():
            "image": "fixture@sha256:" + "a" * 64, "image_id": "sha256:" + "a" * 64}
     phase = {"input_tokens": 10000, "output_tokens": 1000, "tool_calls": 10, "seconds": 100}
     protocol = {"protocol_id": "workspace-regression", "purpose": "runtime_smoke", "cohort": [row],
-                "target": {"base_url": "http://127.0.0.1:8080", "model": "fixture", "system_fingerprint": "fixture",
+                "target": {"backend": "llama_cpp", "base_url": "http://127.0.0.1:8080", "model": "fixture", "system_fingerprint": "fixture",
                            "context_tokens": 4096, "temperature": 0, "seed": 7, "thinking": False,
                            "mtp": False, "cache_k": "f16", "cache_v": "f16"},
                 "budgets": {"direct": phase, "preparation": phase, "repair": phase,
@@ -241,6 +241,8 @@ def test_archived_results_are_read_without_rewriting_the_old_budget():
     protocol, results = publication()
     for budgets in (protocol["budgets"], results["runtime"]["budgets"]):
         budgets["handoff_output_reserve"] = budgets.pop("terminal_output_reserve")
+    for target in (protocol["target"], results["runtime"]["target"]):
+        del target["backend"]
     del results["runtime"]["workspace_qualification"]
     safe = validate_publication(protocol, results)
     assert safe["runtime"]["budgets"]["handoff_output_reserve"] == 100

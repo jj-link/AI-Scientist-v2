@@ -471,6 +471,162 @@ class Control:
         self.containers.discard(container.id)
 
 
+SGLANG_FILES = r"""import hashlib, json, os, pathlib, sys
+settings = json.loads(sys.argv[1])
+root = pathlib.Path('/root/.cache/huggingface/hub')
+paths = set(pathlib.Path('/sgl-workspace/sglang/python/sglang').rglob('*.py'))
+paths.update(pathlib.Path(path) for path in settings['extra_paths'])
+models = []
+for repo in settings['repos']:
+    cache = root / ('models--' + repo.replace('/', '--'))
+    reference = cache / 'refs/main'
+    revision = reference.read_text().strip()
+    snapshot = cache / 'snapshots' / revision
+    snapshots = sorted(path.name for path in (cache / 'snapshots').iterdir())
+    if snapshots != [revision]:
+        raise RuntimeError('Ambiguous cached model revision: ' + repo)
+    paths.add(reference)
+    model_files = [path for path in snapshot.rglob('*') if path.is_file()]
+    if not any(path.suffix == '.safetensors' for path in model_files):
+        raise RuntimeError('Cached model weights missing: ' + repo)
+    paths.update(model_files)
+    models.append({'repo': repo, 'revision': revision, 'snapshot': str(snapshot)})
+records = []
+hashes = []
+for path in sorted(paths):
+    before, link = path.stat(), path.lstat()
+    record = {'path': str(path), 'resolved': str(path.resolve()), 'bytes': before.st_size,
+              'mtime_ns': before.st_mtime_ns, 'ctime_ns': before.st_ctime_ns,
+              'inode': before.st_ino, 'device': before.st_dev,
+              'link_mtime_ns': link.st_mtime_ns, 'link_ctime_ns': link.st_ctime_ns,
+              'link_inode': link.st_ino}
+    records.append(record)
+    if settings['hash_files']:
+        sha = hashlib.sha256()
+        expected = path.resolve().name if '/snapshots/' in str(path) else None
+        if expected is not None and len(expected) not in (40, 64):
+            raise RuntimeError('Unrecognized cached blob identity: ' + str(path))
+        blob = (hashlib.sha1(('blob ' + str(before.st_size) + '\0').encode())
+                if expected is not None and len(expected) == 40 else None)
+        with path.open('rb') as stream:
+            for chunk in iter(lambda: stream.read(4 * 1024**2), b''):
+                sha.update(chunk)
+                if blob is not None:
+                    blob.update(chunk)
+        after = path.stat()
+        if (before.st_size, before.st_mtime_ns, before.st_ctime_ns, before.st_ino) != (
+                after.st_size, after.st_mtime_ns, after.st_ctime_ns, after.st_ino):
+            raise RuntimeError('Runtime file changed during hashing: ' + str(path))
+        if expected is not None:
+            actual = sha.hexdigest() if len(expected) == 64 else blob.hexdigest()
+            if expected != actual:
+                raise RuntimeError('Cached file does not match its content-addressed blob: ' + str(path))
+        hashes.append(dict(record, sha256=sha.hexdigest()))
+inodes = set()
+for line in pathlib.Path('/proc/net/tcp').read_text().splitlines()[1:]:
+    fields = line.split()
+    if int(fields[1].split(':')[1], 16) == settings['port'] and fields[3] == '0A':
+        inodes.add('socket:[' + fields[9] + ']')
+owners = []
+for process in pathlib.Path('/proc').iterdir():
+    if not process.name.isdigit():
+        continue
+    try:
+        if not any(os.readlink(fd) in inodes for fd in (process / 'fd').iterdir()):
+            continue
+        command = (process / 'cmdline').read_bytes().decode().strip('\0').split('\0')
+        if 'sglang.launch_server' in command:
+            stat = (process / 'stat').read_text()
+            owners.append({'pid': int(process.name), 'start': stat[stat.rindex(')') + 2:].split()[19],
+                           'command': command})
+    except (OSError, ValueError):
+        continue
+if not owners:
+    raise RuntimeError('No SGLang process in the pinned container owns the endpoint listener')
+encoded = json.dumps({'models': models, 'files': records}, sort_keys=True, separators=(',', ':')).encode()
+print(json.dumps({'models': models, 'file_state_sha256': hashlib.sha256(encoded).hexdigest(),
+                  'file_count': len(records), 'hashed_bytes': sum(item['bytes'] for item in hashes),
+                  'files': hashes, 'listeners': owners}))
+"""
+
+
+def _sglang_snapshot(control, container_id, repos, *, port, hash_files, deadline):
+    """Bind an existing native deployment; never start, reconfigure, or download."""
+    require(re.fullmatch(r"[0-9a-f]{64}", container_id), "Invalid SGLang container identity")
+    require(all(re.fullmatch(r"[A-Za-z0-9_-]+/[A-Za-z0-9_.-]+", repo) for repo in repos),
+            "Invalid SGLang model repository")
+    require(type(port) is int and 0 < port < 65536, "Invalid SGLang endpoint port")
+    container = control.client.containers.get(container_id)
+    attrs = container.attrs
+    state = attrs["State"]
+    require(state["Running"] and not state["Paused"] and not state["Restarting"],
+            "Pinned SGLang container is not running")
+    require(attrs["HostConfig"]["NetworkMode"] == "host", "SGLang must use the verified native host network")
+    mounts = [{key: mount[key] for key in ("Type", "Source", "Destination", "RW")}
+              for mount in attrs["Mounts"]]
+    mounts.sort(key=lambda mount: mount["Destination"])
+    require(all(not mount["RW"] for mount in mounts
+                if mount["Destination"].startswith("/sgl-workspace/")),
+            "SGLang source overlays must be read-only")
+    configuration = {"image_id": attrs["Image"], "entrypoint": attrs["Config"]["Entrypoint"],
+                     "argv": attrs["Config"]["Cmd"], "mounts": mounts,
+                     "environment_sha256": digest(json_bytes(sorted(attrs["Config"]["Env"])))}
+    # NVIDIA's native WSL runtime injects driver libraries outside the image.
+    # Bind every added/modified code file rather than silently trusting that layer.
+    changed_code = sorted((item for item in (container.diff() or [])
+        if item["Path"].startswith(("/usr/", "/opt/", "/sgl-workspace/"))
+        and re.search(r"\.(py|pth|sh|so(?:\.[0-9]+)*)$", item["Path"])), key=lambda item: item["Path"])
+    require(all(item["Kind"] in (0, 1) for item in changed_code), "SGLang image code was deleted")
+    configuration["code_overlays"] = changed_code
+    code, out, err, cut = docker_command(control, container,
+        ["python3", "-I", "-c", SGLANG_FILES,
+         json.dumps({"repos": repos, "port": port, "hash_files": hash_files,
+                     "extra_paths": [item["Path"] for item in changed_code]})],
+        deadline)
+    require(code == 0 and not cut, "SGLang source/cache identity probe failed: "
+            + err.decode(errors="replace")[:2000])
+    files = json.loads(out)
+    require(files["file_count"] > 0, "SGLang runtime source inventory is empty")
+    require(process_identity(state["Pid"]) is not None, "Cannot identify the native SGLang process")
+    return {"container_id": container.id, "started_at": state["StartedAt"],
+            "pid": state["Pid"], "process_start": process_identity(state["Pid"]),
+            "configuration": configuration, **files}
+
+
+def _sglang_state(snapshot):
+    return {key: snapshot[key] for key in
+            ("container_id", "started_at", "pid", "process_start", "configuration",
+             "models", "file_state_sha256", "file_count", "listeners")}
+
+
+SGLANG_SETTINGS = (
+    "model_path", "tokenizer_path", "revision", "context_length", "served_model_name",
+    "weight_version", "reasoning_parser", "tool_call_parser", "chat_template",
+    "hf_chat_template_name", "default_chat_template_kwargs", "strip_thinking_cache",
+    "enable_strict_thinking", "allow_auto_truncate", "skip_tokenizer_init",
+    "tokenizer_backend", "model_impl", "dtype", "quantization", "kv_cache_dtype",
+    "speculative_algorithm", "speculative_draft_model_path", "speculative_draft_model_revision",
+    "speculative_num_draft_tokens", "speculative_draft_model_quantization",
+    "speculative_draft_attention_backend", "max_running_requests", "random_seed",
+    "sampling_defaults", "version", "enable_unified_memory",
+    "disable_radix_cache", "disable_chunked_prefix_cache", "enable_cache_report",
+    "speculative_dflash_block_size", "mem_fraction_static", "attention_backend",
+    "chunked_prefill_size", "max_prefill_tokens", "tp_size", "dp_size",
+)
+
+
+def _sglang_settings(info):
+    require(all(key in info for key in SGLANG_SETTINGS), "SGLang server metadata is incomplete")
+    return {key: info[key] for key in SGLANG_SETTINGS}
+
+
+def _response_identity(target, response):
+    require(response.get("model") == target["model"], "Response model identity mismatch")
+    if target["backend"] == "llama_cpp":
+        require(response.get("system_fingerprint") == target["system_fingerprint"],
+                "Response runtime fingerprint mismatch")
+
+
 class Endpoint:
     def __init__(self, protocol, control):
         import requests
@@ -481,6 +637,22 @@ class Endpoint:
         self.control = control
         self.server_identity = None
         self.runner_sha256 = file_digest(__file__)
+        self.runtime_manifest_path = protocol["native"].get("runtime_manifest_path")
+        self.runtime_pin = None
+
+    def check_sglang(self, deadline):
+        require(self.runtime_pin is not None, "SGLang runtime must qualify before generation")
+        expected = self.runtime_pin["snapshot"]
+        observed = _sglang_snapshot(self.control, expected["container_id"],
+            [item["repo"] for item in expected["models"]],
+            port=urllib.parse.urlparse(self.base).port or 80, hash_files=False, deadline=deadline)
+        require(_sglang_state(observed) == _sglang_state(expected),
+                "Pinned SGLang container, source, or model cache changed")
+        info = self.request("/server_info", deadline=deadline)
+        require(_sglang_settings(info) == self.runtime_pin["server_settings"]
+                and [state["effective_max_running_requests_per_dp"] for state in info["internal_states"]]
+                    == self.runtime_pin["effective_max_running_requests_per_dp"],
+                "Live SGLang configuration changed")
 
     def request(self, path, data=None, deadline=None, events_path=None):
         deadline = deadline or time.monotonic() + 30
@@ -488,6 +660,9 @@ class Endpoint:
         require(file_digest(__file__) == self.runner_sha256, "Runner source changed during execution")
         if self.server_identity is not None:
             require(process_identity(self.server_identity[0]) == self.server_identity[1], "Native server restarted during execution")
+        generation = path == "/v1/chat/completions" and self.target["backend"] == "sglang"
+        if generation:
+            self.check_sglang(deadline)
         response = self.session.request("GET" if data is None else "POST", self.base + path,
                                         json=data, timeout=(3, max(0.1, deadline - time.monotonic())), stream=True)
         with self.control.lock:
@@ -495,13 +670,19 @@ class Endpoint:
         try:
             response.raise_for_status()
             if events_path is not None:
-                return self.chat_events(response, events_path, deadline)
+                result = self.chat_events(response, events_path, deadline)
+                if generation:
+                    self.check_sglang(deadline)
+                return result
             chunks = bytearray()
             for block in response.iter_content(65536):
                 self.control.check(deadline)
                 chunks.extend(block)
                 require(len(chunks) <= MAX_RESPONSE, "Endpoint response exceeds bound")
-            return json.loads(chunks)
+            result = json.loads(chunks)
+            if generation:
+                self.check_sglang(deadline)
+            return result
         finally:
             response.close()
             self.control.responses.discard(response)
@@ -533,7 +714,7 @@ class Endpoint:
                         continue
                     chunk = json.loads(payload)
                     require("error" not in chunk, "Streaming model request failed")
-                    if "system_fingerprint" in chunk:
+                    if self.target["backend"] == "llama_cpp" and "system_fingerprint" in chunk:
                         require(chunk["system_fingerprint"] == self.target["system_fingerprint"], "Streaming runtime fingerprint mismatch")
                         result["system_fingerprint"] = chunk["system_fingerprint"]
                     for key in ("usage", "timings", "model"):
@@ -544,12 +725,13 @@ class Endpoint:
                         delta = choice.get("delta", {})
                         for key in ("content", "reasoning_content"):
                             message[key] += delta.get(key) or ""
-                        for update in delta.get("tool_calls", []):
+                        for update in delta.get("tool_calls") or []:
                             item = tools.setdefault(update["index"], {"id": "", "type": "function", "function": {"name": "", "arguments": ""}})
                             if update.get("id"):
                                 item["id"] = update["id"]
+                            function = update.get("function") or {}
                             for key in ("name", "arguments"):
-                                item["function"][key] += update.get("function", {}).get(key) or ""
+                                item["function"][key] += function.get(key) or ""
                         if choice.get("finish_reason") is not None:
                             result["choices"][0]["finish_reason"] = choice["finish_reason"]
             os.fsync(evidence.fileno())
@@ -559,6 +741,12 @@ class Endpoint:
         return result
 
     def tokens(self, text, deadline=None):
+        if self.target["backend"] == "sglang":
+            result = self.request("/v1/tokenize", {"model": self.target["model"],
+                "prompt": text, "add_special_tokens": False}, deadline)
+            require(type(result.get("count")) is int and result["count"] == len(result["tokens"]),
+                    "SGLang text tokenizer count mismatch")
+            return result["tokens"]
         return self.request("/tokenize", {"content": text, "add_special": False, "parse_special": False}, deadline)["tokens"]
 
     def bounded(self, text, cap, deadline, truncated=False):
@@ -577,6 +765,13 @@ class Endpoint:
         return result
 
     def prompt_count(self, body, deadline):
+        if self.target["backend"] == "sglang":
+            fields = ("model", "messages", "tools", "tool_choice", "parallel_tool_calls",
+                      "chat_template_kwargs", "reasoning_effort")
+            result = self.request("/v1/tokenize", {key: body[key] for key in fields if key in body}, deadline)
+            require(type(result.get("count")) is int and result["count"] == len(result["tokens"]),
+                    "SGLang chat tokenizer count mismatch")
+            return result["count"]
         rendered = self.request("/apply-template", body, deadline)["prompt"]
         tokens = self.request("/tokenize", {"content": rendered, "add_special": True, "parse_special": True}, deadline)["tokens"]
         counted = self.request("/v1/chat/completions/input_tokens", body, deadline)["input_tokens"]
@@ -586,17 +781,26 @@ class Endpoint:
 
 def validate_protocol(protocol, raw):
     require(protocol.get("schema_version") == 1 and protocol.get("kind") == "fixed_swebench_repair", "Unsupported protocol")
-    require(protocol.get("purpose") in {"comparative_study", "runtime_smoke"}, "Missing study purpose")
-    require(protocol.get("arms") == ARMS and protocol.get("repetitions") == 1, "Four fixed arms and one repetition required")
+    purpose = protocol.get("purpose")
+    require(purpose in {"comparative_study", "runtime_smoke", "development_feasibility"}, "Missing study purpose")
+    pilot = purpose == "development_feasibility"
+    require(protocol.get("arms") == (["direct"] if pilot else ARMS)
+            and protocol.get("repetitions") == 1, "Unexpected frozen arms or repetitions")
     require(protocol["dataset"]["name"] == "SWE-bench/SWE-bench_Verified" and protocol["dataset"]["revision"] == "78f471bf655a3137b2e8a75af1501690ec009ec3", "Dataset pin mismatch")
     require(HEX.fullmatch(protocol["dataset"]["records_sha256"]), "Invalid records hash")
     cohort = protocol["cohort"]
-    require(bool(cohort) and (len(cohort) == 20 or protocol["purpose"] == "runtime_smoke"), "Comparative cohort must have twenty issues")
+    require(bool(cohort) and (len(cohort) == (8 if pilot else 20) or purpose == "runtime_smoke"),
+            "Unexpected frozen cohort size")
+    if pilot:
+        require("continuation" not in protocol, "Development pilot attempts cannot inherit earlier studies")
+        require(protocol.get("feasibility_gate") == {"minimum_distinct_resolved_issues": 2,
+                "requires_complete_execution": True, "held_out": False},
+                "Development pilot requires the preselected, non-held-out feasibility gate")
     require(len({row["instance_id"] for row in cohort}) == len(cohort), "Duplicate cohort issue")
     for row in cohort:
         require(SAFE_ID.fullmatch(row["instance_id"]) and re.fullmatch(r"[0-9a-f]{40}", row["base_commit"]), "Invalid source identity")
         require("@sha256:" in row["image"] and re.fullmatch(r"sha256:[0-9a-f]{64}", row["image_id"]), "Images must be immutable")
-    for name in ARMS + ["repair"]:
+    for name in (["direct"] if pilot else ARMS + ["repair"]):
         require(isinstance(protocol["prompts"].get(name), str) and protocol["prompts"][name].strip(), "Missing frozen prompt")
     b = protocol["budgets"]
     for field in ("output_tokens", "input_tokens", "tool_calls", "seconds"):
@@ -611,11 +815,32 @@ def validate_protocol(protocol, raw):
         require(b["repair"] == dict(output_tokens=8192, input_tokens=524288, tool_calls=24, seconds=600), "Comparative repair budget differs")
         require(b["handoff_tokens"] == 1024 and b["terminal_output_reserve"] == 1024 and b["tool_output_tokens"] == 2048, "Comparative token caps differ")
     target = protocol["target"]
-    require(target["model"] == "unsloth/gemma-4-12B-it-qat-GGUF:UD-Q4_K_XL" and target["system_fingerprint"] == "b1-5266f24", "Unexpected tested runtime")
-    require(target["context_tokens"] == 262144 and target["temperature"] == 0 and target["seed"] == 7 and target["thinking"] is True, "Sampling/context mismatch")
-    require(target["mtp"] == {"type": "draft-mtp", "max_draft_tokens": 4} and target["cache_k"] == target["cache_v"] == "q8_0", "MTP/cache mismatch")
+    require(target.get("backend") in {"llama_cpp", "sglang"}, "New protocols require an explicit supported backend")
+    require(target["temperature"] == 0 and target["seed"] == 7 and target["thinking"] is True,
+            "Sampling policy differs from the frozen design")
+    if target["backend"] == "llama_cpp":
+        require(target["model"] == "unsloth/gemma-4-12B-it-qat-GGUF:UD-Q4_K_XL"
+                and target["system_fingerprint"] == "b1-5266f24", "Unexpected tested llama.cpp runtime")
+        require(target["context_tokens"] == 262144, "Gemma context mismatch")
+        require(target["mtp"] == {"type": "draft-mtp", "max_draft_tokens": 4}
+                and target["cache_k"] == target["cache_v"] == "q8_0", "MTP/cache mismatch")
+    else:
+        require(not any(key in target for key in ("system_fingerprint", "mtp", "cache_k", "cache_v")),
+                "SGLang identity/speculation cannot be represented as llama.cpp fields")
+        require(isinstance(target["model"], str) and target["model"]
+                and type(target["context_tokens"]) is int and target["context_tokens"] > 0,
+                "Invalid SGLang served model/context")
+        require(target["reasoning_effort"] in {"xhigh", "medium", "low"}
+                and target["preserve_thinking"] is True, "Unqualified Qwen reasoning policy")
+        require(HEX.fullmatch(target["runtime_manifest_sha256"])
+                and isinstance(protocol["native"].get("runtime_manifest_path"), str),
+                "SGLang requires a byte-pinned native runtime manifest")
+        require(protocol["native"].get("runner_sha256") == file_digest(__file__),
+                "SGLang protocol must pin the qualified controller before execution")
     parsed = urllib.parse.urlparse(target["base_url"])
-    require(parsed.scheme == "http" and parsed.hostname == "127.0.0.1" and not parsed.username and parsed.path in {"", "/"}, "Target must be native loopback")
+    require(parsed.scheme == "http" and parsed.hostname == "127.0.0.1" and not parsed.username
+            and parsed.path in {"", "/"} and not parsed.query and not parsed.fragment,
+            "Target must be native loopback without credentials or URL suffixes")
     require(protocol["resources"]["docker_host"] == "unix:///run/docker.sock", "Unexpected Docker backend")
     require(protocol["resources"]["evaluator_writable_limits_bytes"] ==
             dict((*EVALUATOR_STORAGE, ("/workspace", EVALUATOR_SCRATCH))),
@@ -630,7 +855,56 @@ def validate_protocol(protocol, raw):
     return digest(raw)
 
 
+def _sglang_runtime_check(protocol, endpoint, directory):
+    target = protocol["target"]
+    path = Path(endpoint.runtime_manifest_path)
+    require(file_digest(path) == target["runtime_manifest_sha256"], "Frozen SGLang manifest changed")
+    manifest = load(path)
+    require(manifest["base_url"] == target["base_url"], "SGLang endpoint differs from its qualified identity")
+    expected = manifest["snapshot"]
+    deadline = time.monotonic() + 600
+    observed = _sglang_snapshot(endpoint.control, expected["container_id"],
+        [item["repo"] for item in expected["models"]],
+        port=urllib.parse.urlparse(endpoint.base).port or 80, hash_files=True, deadline=deadline)
+    require(_sglang_state(observed) == _sglang_state(expected) and observed["files"] == expected["files"],
+            "Pinned SGLang deployment/source/cache identity changed")
+    require(all(max(item["mtime_ns"], item["ctime_ns"], item["link_mtime_ns"], item["link_ctime_ns"])
+                <= manifest["ready_ns"] for item in observed["files"]),
+            "Runtime source/cache changed after the recorded model startup")
+    cards = endpoint.request("/v1/models", deadline=deadline)["data"]
+    require(len(cards) == 1 and cards[0]["id"] == target["model"]
+            and cards[0]["max_model_len"] == target["context_tokens"], "Live SGLang model/context mismatch")
+    info = endpoint.request("/model_info", deadline=deadline)
+    server_info = endpoint.request("/server_info", deadline=deadline)
+    settings = _sglang_settings(server_info)
+    require(settings == manifest["server_settings"]
+            and [state["effective_max_running_requests_per_dp"] for state in server_info["internal_states"]]
+                == manifest["effective_max_running_requests_per_dp"],
+            "SGLang resolved configuration differs from its pin")
+    require(settings["served_model_name"] == target["model"]
+            and settings["context_length"] == target["context_tokens"]
+            and info["model_path"] == settings["model_path"]
+            and info["tokenizer_path"] == settings["tokenizer_path"]
+            and info["weight_version"] == settings["weight_version"]
+            and info["is_generation"] is True, "SGLang loaded model metadata mismatch")
+    require(settings["allow_auto_truncate"] is False and settings["enable_unified_memory"] is False
+            and settings["skip_tokenizer_init"] is False
+            and settings["reasoning_parser"] == "qwen3" and settings["tool_call_parser"] == "qwen3_coder",
+            "SGLang truncation, memory, or parser policy differs from the qualified recipe")
+    require([item["repo"] for item in observed["models"]] ==
+            [settings["model_path"], settings["speculative_draft_model_path"]],
+            "SGLang source revisions do not identify the loaded target and draft")
+    endpoint.runtime_pin = manifest
+    endpoint.server_identity = (observed["pid"], observed["process_start"])
+    save(directory / "runtime-private.json", {"backend": "sglang", "manifest_sha256": file_digest(path),
+         "identity": _sglang_state(observed), "server_settings": settings,
+         "verified_file_count": observed["file_count"], "verified_bytes": observed["hashed_bytes"],
+         "identity_assurance": "Pinned deployment, startup evidence and byte-verified on-disk sources/cache; not an in-memory weight attestation."})
+
+
 def runtime_check(protocol, endpoint, directory):
+    if protocol["target"]["backend"] == "sglang":
+        return _sglang_runtime_check(protocol, endpoint, directory)
     props = endpoint.request("/props")
     require(props["total_slots"] == 1 and props["default_generation_settings"]["n_ctx"] == protocol["target"]["context_tokens"], "Server slot/context mismatch")
     require(not props.get("is_sleeping") and "5266f24" in str(props["build_info"]), "Server build mismatch or sleeping")
@@ -1182,15 +1456,16 @@ def tools_for(arm, preparation):
         name, description = "finish", "Freeze the current filesystem patch. Call with exactly {}: no description, summary or other arguments. No further edits or turns."
     elif arm == "locations":
         parameters = {"type": "object", "properties": {"locations": {"type": "array", "minItems": 0, "maxItems": 64, "items": {"type": "object", "properties": {"path": {"type": "string"}, "symbol": {"type": "string"}}, "required": ["path", "symbol"], "additionalProperties": False}}}, "required": ["locations"], "additionalProperties": False}
-        name, description = "handoff", 'Transfer only existing relative source paths and exact Python qualified function/class names. Methods require dotted Class.method names (including enclosing scopes), not bare method names. Use symbol "" for a file-only location, or locations [] if no location is established. No prose, patches, implementation or copied source code, transcripts, or fenced code/reproductions.'
+        name, description = "handoff", 'Transfer only existing relative source paths and exact Python qualified function/class names. Symbols must be the bare definition name (for example "sympify"), not a dotted module path; only methods take dotted Class.method names (including enclosing scopes), never module prefixes. Use symbol "" for a file-only location, or locations [] if no location is established. No prose, patches, implementation or copied source code, transcripts, or fenced code/reproductions.'
     elif arm == "diagnosis":
         keys = ["root_cause", "evidence", "cross_file_coordination", "intended_behavior", "uncertainties"]
         parameters = {"type": "object", "properties": {key: {"type": "string"} for key in keys}, "required": keys, "additionalProperties": False}
-        name, description = "handoff", "Transfer a code-free diagnosis covering all five fields. Do not include patches, implementation or copied source code, transcripts, hidden reasoning, or fenced code/reproductions. Describe evidence and reproduction observations in prose only."
+        name, description = "handoff", "Transfer a code-free diagnosis covering all five fields. Each field must be 1-2 sentences (60 words maximum); the complete handoff must fit well within the token cap. Do not include patches, implementation or copied source code, transcripts, hidden reasoning, or fenced code/reproductions."
     else:
         parameters = {"type": "object", "properties": {"notes": {"type": "string"}}, "required": ["notes"], "additionalProperties": False}
         name, description = "handoff", "Transfer concise code-free visible investigation notes. No patches, implementation or copied source code, transcripts, hidden reasoning, or fenced code/reproductions; describe observations in prose only. Diagnosis is optional, not required."
-    return [execute, {"type": "function", "function": {"name": name, "description": description, "parameters": parameters}}]
+    finish_strict = {} if name == "finish" else {"strict": True}
+    return [execute, {"type": "function", "function": dict({"name": name, "description": description, "parameters": parameters}, **finish_strict)}]
 
 
 def valid_handoff(arm, value, base):
@@ -1302,7 +1577,8 @@ def phase(protocol, arm, name, issue, handoff, base, workspace, directory, endpo
     finalizing = False
     finalization_reason = ""
     terminal = "handoff" if preparation else "finish"
-    terminal_tools = [item for item in tools if item["function"]["name"] == terminal]
+    terminal_tools = [dict(item, function=dict(item["function"], strict=True) if not preparation else item["function"])
+                      for item in tools if item["function"]["name"] == terminal]
     terminal_choice = {"type": "function", "function": {"name": terminal}}
 
     def terminal_notice(remaining, reason):
@@ -1334,8 +1610,12 @@ def phase(protocol, arm, name, issue, handoff, base, workspace, directory, endpo
                     "temperature": protocol["target"]["temperature"], "seed": protocol["target"]["seed"],
                     "max_tokens": allowance,
                     "stream": True, "stream_options": {"include_usage": True},
-                    "cache_prompt": False, "return_tokens": True,
                     "chat_template_kwargs": {"enable_thinking": protocol["target"]["thinking"]}}
+            if protocol["target"]["backend"] == "llama_cpp":
+                body.update(cache_prompt=False, return_tokens=True)
+            else:
+                body["reasoning_effort"] = protocol["target"]["reasoning_effort"]
+                body["chat_template_kwargs"]["preserve_thinking"] = protocol["target"]["preserve_thinking"]
             count = endpoint.prompt_count(body, deadline)
             if not finalizing:
                 # Count the complete terminal prompt, including its own schema
@@ -1372,11 +1652,13 @@ def phase(protocol, arm, name, issue, handoff, base, workspace, directory, endpo
                 duration = time.monotonic() - started
                 spent["model_seconds"] += duration
             save(directory / f"{name}-request-{request_number:03d}-response.json", response)
-            require(response.get("system_fingerprint") == protocol["target"]["system_fingerprint"], "Response runtime fingerprint mismatch")
+            _response_identity(protocol["target"], response)
             usage = response["usage"]
             require(usage["prompt_tokens"] == count, "Actual prompt token usage differs from pre-request count")
             generated = usage["completion_tokens"]
-            require(isinstance(generated, int) and 0 <= generated <= body["max_tokens"], "Invalid delivered target usage")
+            require(type(generated) is int and 0 <= generated <= body["max_tokens"], "Invalid delivered target usage")
+            if protocol["target"]["backend"] == "sglang":
+                require(usage.get("total_tokens") == count + generated, "SGLang total token usage mismatch")
             spent["input_tokens"] += count
             spent["output_tokens"] += generated
             spent["max_context_tokens"] = max(spent["max_context_tokens"], count + generated)
@@ -1397,12 +1679,15 @@ def phase(protocol, arm, name, issue, handoff, base, workspace, directory, endpo
             trace.write(json.dumps({"standalone_reasoning_text_tokens": len(endpoint.tokens(reasoning, deadline)),
                                     "standalone_visible_text_tokens": len(endpoint.tokens(visible, deadline)),
                                     "delivered_target_tokens": generated,
-                                    "reasoning_usage_tokens": usage.get("completion_tokens_details", {}).get("reasoning_tokens")}) + "\n")
+                                    "reasoning_usage_tokens": (usage.get("reasoning_tokens")
+                                        if protocol["target"]["backend"] == "sglang" else
+                                        usage.get("completion_tokens_details", {}).get("reasoning_tokens"))}) + "\n")
             trace.write(json.dumps({"response": response, "model_seconds": duration}, ensure_ascii=False) + "\n")
             trace.flush()
             request_number += 1
             calls = message.get("tool_calls") or []
-            invalid = "invalid_finalization" if len(calls) != 1 else ""
+            invalid = ("incomplete_tool_action" if choice.get("finish_reason") == "length" else
+                       "invalid_finalization" if len(calls) != 1 else "")
             if not invalid:
                 call = calls[0]
                 function = call["function"]
@@ -1863,8 +2148,7 @@ def inherit_continuation(protocol, directory):
                                   for row in protocol["cohort"]]
             and safe.get("arms") == ARMS and safe.get("repetitions") == 1,
             "Continuation publication cohort mismatch")
-    schedule = [(row, arm) for index, row in enumerate(protocol["cohort"])
-                for arm in ARMS[index % 4:] + ARMS[:index % 4]]
+    schedule = _trial_schedule(protocol)
     results = safe.get("trials")
     require(isinstance(results, list) and 1 < len(results) <= len(schedule),
             "Continuation requires a completed prefix and one failed tail")
@@ -1997,6 +2281,28 @@ def stop_execution(protocol, execution_id):
     raise InfrastructureError("Stop could not verify termination and owned-resource removal")
 
 
+def _trial_schedule(protocol):
+    arms = protocol["arms"]
+    return [(row, arm) for index, row in enumerate(protocol["cohort"])
+            for arm in arms[index % len(arms):] + arms[:index % len(arms)]]
+
+
+def _feasibility_assessment(protocol, trials, completed):
+    expected = {(row["instance_id"], "direct", 0) for row in protocol["cohort"]}
+    actual = [(row["instance_id"], row["arm"], row["repetition"]) for row in trials]
+    require(len(set(actual)) == len(actual) and set(actual) <= expected,
+            "Development feasibility contains duplicate or unexpected attempts")
+    valid = (completed and set(actual) == expected
+             and all(row["status"] in VALID and type(row["resolved"]) is bool for row in trials))
+    require(not completed or valid, "A complete development pilot requires every accounted official outcome")
+    resolved = sorted({row["instance_id"] for row in trials if row["resolved"] is True})
+    minimum = protocol["feasibility_gate"]["minimum_distinct_resolved_issues"]
+    passed = valid and len(resolved) >= minimum
+    return {"decision": "go" if passed else "no_go" if valid else "incomplete",
+            "feasibility_gate_passed": passed, "minimum_distinct_resolved_issues": minimum,
+            "distinct_resolved_issues": resolved, "completed": bool(valid), "held_out": False}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--protocol", required=True)
@@ -2019,12 +2325,13 @@ def main():
         require(trial_path.is_relative_to(expected_root), "Evaluator trial path outside owned execution")
         evaluate_child(protocol_path, trial_path)
         return 0
+    schedule = _trial_schedule(protocol)
     # Continuation is audited before Docker/model imports or runtime requests.
     import fcntl
     root = Path(protocol["native"]["run_root"]).resolve()
     require(root.is_relative_to(Path(protocol["native"]["root"]).resolve()), "Run root outside native runtime")
     root.mkdir(parents=True, exist_ok=True)
-    model_lock = open(root / "gemma-study.lock", "a+b")
+    model_lock = open(root / "repair-study.lock", "a+b")
     fcntl.flock(model_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
     directory = root / args.execution_id
     directory.mkdir(mode=0o700, exist_ok=True)
@@ -2047,9 +2354,9 @@ def main():
         require((directory / "completed.json").exists() and
                 load(directory / "completed.json")["safe_results_sha256"] == file_digest(directory / "safe_results.json"),
                 "Completed study publication identity mismatch")
-        require(len(existing["trials"]) == len(protocol["cohort"]) * 4 and
+        require(len(existing["trials"]) == len(schedule) and
                 {(r["instance_id"], r["arm"], r["repetition"]) for r in existing["trials"]} ==
-                {(r["instance_id"], arm, 0) for r in protocol["cohort"] for arm in ARMS},
+                {(row["instance_id"], arm, 0) for row, arm in schedule},
                 "Completed study trial key mismatch")
         for result in existing["trials"]:
             trial = directory / "trials" / (result["instance_id"] + "--" + result["arm"])
@@ -2092,22 +2399,19 @@ def main():
         del records, by_id
         prepared = prepare_workspaces(protocol, directory, control)
         runtime_check(protocol, endpoint, directory)
-        slot = 0
-        for index, row in enumerate(protocol["cohort"]):
-            for arm in ARMS[index % 4:] + ARMS[:index % 4]:
-                slot += 1
-                if slot <= inherited_trials:
-                    continue
-                control.check()
-                require(file_digest(__file__) == identity["runner_sha256"], "Runner source changed during execution")
-                progress("trial_started", instance_id=row["instance_id"], arm=arm, repetition=0)
-                trial_dir = directory / "trials" / (row["instance_id"] + "--" + arm)
-                result = run_trial(protocol, protocol_path, protocol_sha, args.execution_id, row, issues[row["instance_id"]], arm, trial_dir, endpoint, control, prepared[row["instance_id"]])
-                results.append(result)
-                progress("trial_finished", instance_id=row["instance_id"], arm=arm, status=result["status"])
-                if result["status"] not in VALID:
-                    raise InfrastructureError("Trial interrupted or infrastructure failed; remaining trials not attempted")
-        complete = len(results) == len(protocol["cohort"]) * 4
+        for slot, (row, arm) in enumerate(schedule, 1):
+            if slot <= inherited_trials:
+                continue
+            control.check()
+            require(file_digest(__file__) == identity["runner_sha256"], "Runner source changed during execution")
+            progress("trial_started", instance_id=row["instance_id"], arm=arm, repetition=0)
+            trial_dir = directory / "trials" / (row["instance_id"] + "--" + arm)
+            result = run_trial(protocol, protocol_path, protocol_sha, args.execution_id, row, issues[row["instance_id"]], arm, trial_dir, endpoint, control, prepared[row["instance_id"]])
+            results.append(result)
+            progress("trial_finished", instance_id=row["instance_id"], arm=arm, status=result["status"])
+            if result["status"] not in VALID:
+                raise InfrastructureError("Trial interrupted or infrastructure failed; remaining trials not attempted")
+        complete = len(results) == len(schedule)
     except Exception:
         atomic(directory / "failure-private.txt", traceback.format_exc().encode())
         progress("study_failed", execution_id=args.execution_id, completed_trials=len(results))
@@ -2122,7 +2426,7 @@ def main():
         control.closed.set()
         endpoint.session.close()
     safe = {"schema_version": 1, "protocol_id": protocol["protocol_id"], "protocol_sha256": protocol_sha, "execution_id": args.execution_id, "completed": complete,
-            "cohort": [{"instance_id": row["instance_id"], "repo": row["repo"]} for row in protocol["cohort"]], "arms": ARMS, "repetitions": 1, "trials": results,
+            "cohort": [{"instance_id": row["instance_id"], "repo": row["repo"]} for row in protocol["cohort"]], "arms": protocol["arms"], "repetitions": 1, "trials": results,
             "runtime": {"harness_version": "5.0.2", "runner_sha256": identity["runner_sha256"], "target": protocol["target"],
                         "budgets": protocol["budgets"], "resources": protocol["resources"],
                         "dataset": {key: protocol["dataset"][key] for key in ("name", "revision")},
@@ -2132,6 +2436,12 @@ def main():
     if qualification.exists():
         safe["runtime"]["workspace_qualification"] = {
             "passed": load(qualification)["passed"], "sha256": file_digest(qualification)}
+    runtime_receipt = directory / "runtime-private.json"
+    if protocol["target"]["backend"] == "sglang" and runtime_receipt.exists():
+        safe["runtime"]["runtime_qualification"] = {"passed": True, "sha256": file_digest(runtime_receipt),
+            "runtime_manifest_sha256": protocol["target"]["runtime_manifest_sha256"]}
+    if protocol["purpose"] == "development_feasibility":
+        safe["feasibility"] = _feasibility_assessment(protocol, results, complete)
     if continuation is not None:
         safe["runtime"]["continuation"] = continuation
     save(directory / "safe_results.json", safe)

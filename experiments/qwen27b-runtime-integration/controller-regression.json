@@ -1,0 +1,25 @@
+{
+  "purpose": "length_stopped_parseable_action_regression",
+  "before_commit": "561ee39",
+  "real_model_requests_in_regression_checks": 0,
+  "controller_sha256": "12519e413250cbe58485d42ebadc7f2190ab94ef41370034d2514857e0c59a75",
+  "test_file_sha256": "6efbe5e84c062d44f6ba71e2d70ec3918e212ecfaf1f4ac092d9b378a705ed00",
+  "before": {
+    "regression_failed": true,
+    "executed_commands": [
+      "must-not-run"
+    ],
+    "termination_reason": "finish"
+  },
+  "after": {
+    "regression_passed": true,
+    "length_stopped_action_executed": false,
+    "strict_finish_succeeded": true
+  },
+  "suite": {
+    "command": ".venv/Scripts/python.exe -m pytest -q -p no:cacheprovider tests/test_fixed_study_budget.py tests/test_study_continuation.py tests/test_study_workspaces.py tests/test_study_sglang.py",
+    "passed": 77,
+    "failed": 0,
+    "elapsed_seconds": 2.13
+  }
+}

@@ -50,7 +50,7 @@ def predecessor(monkeypatch):
             "kind": "fixed_swebench_repair", "purpose": "runtime_smoke",
             "dataset": {"name": "SWE-bench/SWE-bench_Verified", "revision": "a" * 40,
                         "records_path": str(root / "records.json"), "records_sha256": "b" * 64},
-            "target": {"model": "fixture-gemma", "temperature": 0, "seed": 7},
+            "target": {"backend": "llama_cpp", "model": "fixture-gemma", "temperature": 0, "seed": 7},
             "cohort": cohort, "arms": list(study.ARMS), "repetitions": 1,
             "budgets": {"direct": {"output_tokens": 30}, "preparation": {"output_tokens": 10},
                         "repair": {"output_tokens": 20}},

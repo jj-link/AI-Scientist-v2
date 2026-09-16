@@ -364,10 +364,20 @@ Archived Gemma protocols and results retain their original
 `handoff_output_reserve` and execution identities. Do not rewrite them to use the
 new controller semantics. Their evidence-only importer preserves the historical
 budget field instead of translating it.
-The native runner still validates the pinned Gemma/llama.cpp runtime; selecting
-another Studio model does not make it compatible with SGLang. A different target
-requires live runtime, token-accounting, tool-call, and source-environment
-qualification before a separately frozen study can run.
+The native runner supports the pinned Gemma/llama.cpp path and a separately
+qualified SGLang path. The corrected Qwen pilot is frozen at
+`experiments/qwen27b-feasibility/pilot-protocol.json`: eight previously exposed
+issues, one direct attempt each, for development feasibility only. It is not
+held-out, comparative, or paper evidence. Synthetic qualification of those exact
+protocol bytes passed 18/18 controls with 31/31 generation requests carrying
+final usage; the pilot itself remains unstarted with zero official evaluations.
+The byte-pinned native receipt is
+`evidence/qwen-runtime-behavior-v14/qualification-receipt.json` under the native
+study root. SGLang's required singleton-TP sampler guard is retained as
+`experiments/qwen27b-runtime-integration/sglang-sampler-tp1.patch`. Recreating
+the serving container requires reapplying that patch, recapturing the runtime
+manifest, and repeating live qualification. A frozen or qualified protocol is
+not authorization to start the pilot.
 
 ### Supported Models and API Keys
 
