@@ -314,6 +314,29 @@ use the remaining phase output; `handoff_tokens` independently limits the visibl
 material transferred. Complete terminal prompts are included in input/context
 reservation, and incomplete tool actions are never executed or retried.
 
+Complete action responses may contain multiple `execute` calls. The controller
+validates the entire batch before any command runs, then executes it sequentially
+in response order, charging each command separately against the tool budget.
+Each result retains its own timeout and output cap. A batch that exceeds the
+remaining command allowance or reserved terminal input/context capacity is not
+partially executed. Malformed or length-stopped batches execute no commands.
+An optional `finish` or `handoff` must be the final call; once forced finalization
+has begun, only one terminal call is allowed. Historical protocols and results
+remain unchanged; the revised runner requires fresh qualification and pinning.
+
+Live Qwen batch regression qualification uses
+`experiments/qwen27b-runtime-integration/qualify_multicall.py --output NAME --runtime-manifest PATH`
+with the pinned native WSL Python and a fresh `capture_runtime.py` manifest for an
+already-running Qwen server. It sends real model requests through the production
+controller and networkless sandboxes: direct repair, read-only preparation,
+fresh post-handoff repair, and a deliberately length-stopped action. The first
+three cases explicitly request an initial two-call response. Repairs are checked
+on four public synthetic examples; this is not benchmark scoring or proof of
+general repair correctness. Its qualification configuration cannot be admitted
+as a benchmark execution protocol. The audited live result is retained in
+`experiments/qwen27b-runtime-integration/multicall-live-verification.json`;
+historical pilot protocols and results are not rewritten.
+
 `finish` accepts exactly `{}`. Location handoffs may honestly contain an empty
 list; nonempty entries require existing canonical relative paths and either an
 empty symbol for a file or an exact qualified name such as `Class.method`.

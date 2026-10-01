@@ -1687,64 +1687,111 @@ def phase(protocol, arm, name, issue, handoff, base, workspace, directory, endpo
             request_number += 1
             calls = message.get("tool_calls") or []
             invalid = ("incomplete_tool_action" if choice.get("finish_reason") == "length" else
-                       "invalid_finalization" if len(calls) != 1 else "")
+                       "invalid_tool_arguments" if not isinstance(calls, list) or not calls else
+                       "invalid_finalization" if finalizing and len(calls) != 1 else "")
+            actions = []
+            call_ids = set()
+            next_handoff = ""
+            handoff_tokens = 0
+            # Validate the entire response before executing any command. A bad
+            # later call must not leave behind edits from an otherwise valid prefix.
             if not invalid:
-                call = calls[0]
-                function = call["function"]
-                try:
-                    arguments = json.loads(function["arguments"])
-                except (ValueError, TypeError):
-                    invalid = "invalid_tool_arguments"
+                for index, call in enumerate(calls):
+                    if (not isinstance(call, dict) or call.get("type") != "function"
+                            or not isinstance(call.get("id"), str) or not call["id"]
+                            or call["id"] in call_ids or not isinstance(call.get("function"), dict)):
+                        invalid = "invalid_tool_arguments"
+                        break
+                    call_ids.add(call["id"])
+                    function = call["function"]
+                    try:
+                        arguments = json.loads(function.get("arguments"))
+                    except (ValueError, TypeError):
+                        invalid = "invalid_tool_arguments"
+                        break
+                    if finalizing and function.get("name") != terminal:
+                        invalid = "invalid_finalization"
+                    elif function.get("name") == "execute":
+                        if (not isinstance(arguments, dict) or set(arguments) != {"command"}
+                                or not isinstance(arguments["command"], str)):
+                            invalid = "invalid_tool_arguments"
+                    elif function.get("name") == terminal and index == len(calls) - 1:
+                        if preparation:
+                            next_handoff = valid_handoff(arm, arguments, base) or ""
+                            handoff_tokens = len(endpoint.tokens(next_handoff, deadline)) if next_handoff else 0
+                            if not next_handoff or handoff_tokens > protocol["budgets"]["handoff_tokens"]:
+                                invalid = "invalid_handoff"
+                        elif arguments != {}:
+                            invalid = "invalid_finalization" if finalizing else "invalid_tool_arguments"
+                    else:
+                        invalid = "invalid_tool_arguments"
+                    if invalid:
+                        break
+                    actions.append((call, function, arguments))
             if invalid:
+                if invalid == "invalid_handoff":
+                    result = invalid
+                    break
                 if not finalizing:
-                    # Follow an incomplete action with one explicit terminal
-                    # request, never a retry or execution of the partial action.
+                    # Never execute or retry an incomplete/malformed response.
                     messages.append({key: value for key, value in message.items()
                                      if key in {"role", "content", "reasoning_content"}})
                     finalizing = True
-                    finalization_reason = f"Action ended with {invalid}; no incomplete tool action was executed."
+                    finalization_reason = f"Action ended with {invalid}; no rejected tool action was executed."
                     continue
                 result = "budget_exhausted" if generated == body["max_tokens"] else invalid
                 break
-            if function["name"] == "handoff" and preparation:
-                visible_handoff = valid_handoff(arm, arguments, base) or ""
-                if not visible_handoff:
-                    result = "invalid_handoff"
+            command_count = sum(function["name"] == "execute" for _, function, _ in actions)
+            assistant = {key: value for key, value in message.items()
+                         if key in {"role", "content", "reasoning_content", "tool_calls"}}
+            if command_count > budget["tool_calls"] - spent["tool_calls"]:
+                finalizing = True
+                finalization_reason = "Complete tool batch exceeds the remaining execute allowance; no commands were executed."
+            elif command_count > 1 and actions[-1][1]["name"] != terminal:
+                # The pre-request guard reserves one result. Once a complete
+                # batch arrives, reserve all its bounded results before any edits.
+                batch_remaining = budget["output_tokens"] - spent["output_tokens"]
+                batch_terminal = dict(terminal_body, max_tokens=batch_remaining)
+                batch_terminal["messages"] = [
+                    {"role": "system", "content": prompt + terminal_notice(
+                        batch_remaining, "Remaining input/context capacity is reserved for finalization.")}
+                ] + messages[1:] + [assistant] + [
+                    {"role": "tool", "tool_call_id": call["id"], "content": ""}
+                    for call, function, _ in actions if function["name"] == "execute"
+                ]
+                batch_bound = (endpoint.prompt_count(batch_terminal, deadline)
+                               + command_count * protocol["budgets"]["tool_output_tokens"] + 1024)
+                if (spent["input_tokens"] + batch_bound > budget["input_tokens"]
+                        or batch_bound + batch_remaining > protocol["target"]["context_tokens"]):
+                    finalizing = True
+                    finalization_reason = "Complete tool batch exceeds reserved terminal input/context capacity; no commands were executed."
+            if finalizing and command_count:
+                messages.append({key: value for key, value in assistant.items() if key != "tool_calls"})
+                continue
+            if command_count:
+                # One assistant batch, then one result per call in response order.
+                # A new phase receives only its validated visible handoff.
+                messages.append(assistant)
+            for call, function, arguments in actions:
+                if function["name"] == terminal:
+                    visible_handoff = next_handoff
+                    spent["handoff_tokens"] = handoff_tokens
+                    result = terminal
                     break
-                handoff_tokens = len(endpoint.tokens(visible_handoff, deadline))
-                if handoff_tokens > protocol["budgets"]["handoff_tokens"]:
-                    visible_handoff = ""
-                    result = "invalid_handoff"
-                    break
-                spent["handoff_tokens"] = handoff_tokens
-                result = "handoff"
+                endpoint.control.check(deadline)
+                spent["tool_calls"] += 1
+                tool_start = time.monotonic()
+                try:
+                    code, out, err, truncated = workspace.execute(arguments["command"], min(deadline, tool_start + protocol["budgets"]["tool_timeout_seconds"]))
+                finally:
+                    spent["tool_seconds"] += time.monotonic() - tool_start
+                text = f"exit_code={code}\nstdout:\n" + out.decode(errors="replace") + "\nstderr:\n" + err.decode(errors="replace")
+                bounded = endpoint.bounded(text, protocol["budgets"]["tool_output_tokens"], deadline, truncated)
+                trace.write(json.dumps({"tool": function, "exit_code": code, "stdout": out.decode(errors="replace"), "stderr": err.decode(errors="replace"), "byte_truncated": truncated, "delivered": bounded}) + "\n")
+                trace.flush()
+                messages.append({"role": "tool", "tool_call_id": call["id"], "content": bounded})
+            if result == terminal:
                 break
-            if function["name"] == "finish" and not preparation and arguments == {}:
-                result = "finish"
-                break
-            if finalizing:
-                result = "invalid_finalization"
-                break
-            if function["name"] != "execute" or not isinstance(arguments, dict) or set(arguments) != {"command"} or not isinstance(arguments["command"], str):
-                result = "invalid_tool_arguments"
-                break
-            if spent["tool_calls"] >= budget["tool_calls"]:
-                break
-            spent["tool_calls"] += 1
-            tool_start = time.monotonic()
-            try:
-                code, out, err, truncated = workspace.execute(arguments["command"], min(deadline, tool_start + protocol["budgets"]["tool_timeout_seconds"]))
-            finally:
-                spent["tool_seconds"] += time.monotonic() - tool_start
-            text = f"exit_code={code}\nstdout:\n" + out.decode(errors="replace") + "\nstderr:\n" + err.decode(errors="replace")
-            bounded = endpoint.bounded(text, protocol["budgets"]["tool_output_tokens"], deadline, truncated)
-            trace.write(json.dumps({"tool": function, "exit_code": code, "stdout": out.decode(errors="replace"), "stderr": err.decode(errors="replace"), "byte_truncated": truncated, "delivered": bounded}) + "\n")
-            trace.flush()
-            # Preserve the current tool conversation, including visible reasoning.
-            # A new phase creates new messages; only its visible handoff crosses.
-            messages.append({key: value for key, value in message.items()
-                             if key in {"role", "content", "reasoning_content", "tool_calls"}})
-            messages.append({"role": "tool", "tool_call_id": call["id"], "content": bounded})
     except BudgetExhausted:
         result = "budget_exhausted"
         if pending_generation:

@@ -3,6 +3,7 @@
 import json
 from pathlib import Path
 import shutil
+import subprocess
 import sys
 import threading
 from types import SimpleNamespace
@@ -154,6 +155,180 @@ def test_length_stopped_but_parseable_action_is_not_executed(workspace, protocol
     assert commands == []
     assert termination == "finish"
     assert totals["tool_calls"] == 0
+
+
+class BatchedInspection(RepeatedInspection):
+    def __init__(self, terminal="finish", include_terminal=False, capped=False):
+        super().__init__(terminal)
+        commands = [
+            "from pathlib import Path; Path('source.py').write_text('def answer():\\n    return 42\\n')",
+            "import source; assert source.answer() == 42; print(source.answer())",
+        ]
+        if terminal == "handoff":
+            commands = [
+                "from pathlib import Path; assert Path('source.py').is_file()",
+                "import source; assert source.answer() == 41; print(source.answer())",
+            ]
+        self.calls = [{
+            "id": f"batch-{index}", "type": "function",
+            "function": {"name": "execute", "arguments": json.dumps({"command": command})},
+        } for index, command in enumerate(commands)]
+        if include_terminal:
+            self.calls.append({
+                "id": "batch-terminal", "type": "function",
+                "function": {"name": terminal, "arguments": json.dumps(self.arguments)},
+            })
+        self.capped = capped
+
+    def request(self, path, body, deadline, events_path):
+        self.requests += 1
+        if self.requests > 1:
+            return self.response(body, deadline, self.terminal, self.arguments, self.terminal_output)
+        generated = body["max_tokens"] if self.capped else 100
+        response = self.response(body, deadline, "execute", {}, generated)
+        response["choices"][0]["message"]["tool_calls"] = self.calls
+        if self.capped:
+            response["choices"][0]["finish_reason"] = "length"
+        return response
+
+
+@pytest.fixture
+def python_workspace(workspace):
+    source = workspace / "source.py"
+    source.write_text("def answer():\n    return 41\n", encoding="utf-8")
+    results = []
+
+    def execute(command, deadline):
+        result = subprocess.run(
+            [sys.executable, "-B", "-c", command], cwd=workspace,
+            capture_output=True, timeout=30,
+        )
+        results.append(result)
+        return result.returncode, result.stdout, result.stderr, False
+
+    def answer():
+        namespace = {}
+        exec(source.read_text(encoding="utf-8"), namespace)
+        return namespace["answer"]()
+
+    return SimpleNamespace(execute=execute, answer=answer, results=results)
+
+
+@pytest.mark.parametrize("arm,name,terminal", PHASES)
+@pytest.mark.parametrize("include_terminal", [False, True])
+def test_complete_batch_edits_then_checks_in_order(
+        workspace, python_workspace, protocol, arm, name, terminal, include_terminal):
+    endpoint = BatchedInspection(terminal, include_terminal)
+    totals = study.metrics()
+    termination, _ = study.phase(
+        protocol, arm, name, {}, "", workspace, python_workspace, workspace, endpoint, totals,
+    )
+    assert termination == terminal
+    assert [result.returncode for result in python_workspace.results] == [0, 0]
+    expected = 41 if name == "preparation" else 42
+    assert int(python_workspace.results[-1].stdout) == expected
+    assert python_workspace.answer() == expected
+    assert totals["tool_calls"] == 2
+    assert endpoint.requests == (1 if include_terminal else 2)
+
+
+@pytest.mark.parametrize("malformed", ["json", "schema", "unknown", "duplicate_id", "terminal_first"])
+def test_malformed_batch_never_partially_edits(workspace, python_workspace, protocol, malformed):
+    endpoint = BatchedInspection()
+    if malformed == "json":
+        endpoint.calls[-1]["function"]["arguments"] = '{"command":'
+    elif malformed == "schema":
+        endpoint.calls[-1]["function"]["arguments"] = json.dumps({"command": "pass", "extra": True})
+    elif malformed == "unknown":
+        endpoint.calls[-1]["function"]["name"] = "unavailable"
+    elif malformed == "duplicate_id":
+        endpoint.calls[-1]["id"] = endpoint.calls[0]["id"]
+    else:
+        endpoint.calls.insert(0, {
+            "id": "terminal-first", "type": "function",
+            "function": {"name": "finish", "arguments": "{}"},
+        })
+    totals = study.metrics()
+    termination, _ = study.phase(
+        protocol, "direct", "direct", {}, "", workspace, python_workspace, workspace, endpoint, totals,
+    )
+    assert termination == "finish"
+    assert python_workspace.results == []
+    assert python_workspace.answer() == 41
+    assert totals["tool_calls"] == 0
+
+
+def test_length_stopped_complete_batch_is_not_executed(workspace, python_workspace, protocol):
+    totals = study.metrics()
+    termination, _ = study.phase(
+        protocol, "direct", "direct", {}, "", workspace, python_workspace, workspace,
+        BatchedInspection(capped=True), totals,
+    )
+    assert termination == "finish"
+    assert python_workspace.results == []
+    assert python_workspace.answer() == 41
+    assert totals["tool_calls"] == 0
+
+
+def test_complete_batch_cannot_reopen_forced_finalization(workspace, python_workspace, protocol):
+    class TerminalBatch(BatchedInspection):
+        def request(self, path, body, deadline, events_path):
+            self.requests += 1
+            if self.requests == 1:
+                return self.response(body, deadline, None, {}, body["max_tokens"])
+            response = self.response(body, deadline, "finish", {}, 100)
+            response["choices"][0]["message"]["tool_calls"] = self.calls
+            return response
+
+    totals = study.metrics()
+    termination, _ = study.phase(
+        protocol, "direct", "direct", {}, "", workspace, python_workspace, workspace,
+        TerminalBatch(include_terminal=True), totals,
+    )
+    assert termination == "invalid_finalization"
+    assert python_workspace.results == []
+    assert python_workspace.answer() == 41
+    assert totals["tool_calls"] == 0
+
+
+@pytest.mark.parametrize("tool_calls", [1, 2])
+def test_batch_admission_respects_individual_command_budget(
+        workspace, python_workspace, protocol, tool_calls):
+    protocol["budgets"]["direct"]["tool_calls"] = tool_calls
+    totals = study.metrics()
+    termination, _ = study.phase(
+        protocol, "direct", "direct", {}, "", workspace, python_workspace, workspace,
+        BatchedInspection(), totals,
+    )
+    assert termination == "finish"
+    assert totals["tool_calls"] == (2 if tool_calls == 2 else 0)
+    assert len(python_workspace.results) == totals["tool_calls"]
+    if tool_calls == 2:
+        assert int(python_workspace.results[-1].stdout) == 42
+        assert python_workspace.answer() == 42
+    else:
+        assert python_workspace.answer() == 41
+
+
+@pytest.mark.parametrize("resource", ["input_tokens", "context_tokens"])
+def test_batch_outputs_reserve_terminal_capacity_before_any_edit(
+        workspace, python_workspace, protocol, resource):
+    protocol["budgets"]["direct"]["output_tokens"] = 4096
+    if resource == "input_tokens":
+        protocol["budgets"]["direct"]["input_tokens"] = 14500
+    else:
+        protocol["target"]["context_tokens"] = 12000
+    endpoint = BatchedInspection()
+    totals = study.metrics()
+    termination, _ = study.phase(
+        protocol, "direct", "direct", {}, "", workspace, python_workspace, workspace, endpoint, totals,
+    )
+    assert termination == "finish"
+    assert python_workspace.results == []
+    assert python_workspace.answer() == 41
+    assert totals["tool_calls"] == 0
+    assert totals["input_tokens"] <= protocol["budgets"]["direct"]["input_tokens"]
+    assert totals["max_context_tokens"] <= protocol["target"]["context_tokens"]
 
 
 @pytest.mark.parametrize("arm,name,terminal", PHASES)

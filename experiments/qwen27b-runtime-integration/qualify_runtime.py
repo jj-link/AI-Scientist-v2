@@ -209,16 +209,18 @@ def phase_observations(directory, name):
     for index, response in enumerate(responses[:-1]):
         message = response['choices'][0]['message']
         calls = message.get('tool_calls', [])
-        if not message.get('reasoning_content') or len(calls) != 1 or calls[0]['function']['name'] != 'execute':
+        if (not message.get('reasoning_content') or not calls
+                or any(call['function']['name'] != 'execute' for call in calls)):
             continue
         assistant = {key: value for key, value in message.items()
                      if key in {'role', 'content', 'reasoning_content', 'tool_calls'}}
         following = requests[index + 1]['messages']
-        for offset, item in enumerate(following[:-1]):
-            tool = following[offset + 1]
-            if (item == assistant and tool.get('role') == 'tool'
-                    and tool.get('tool_call_id') == calls[0]['id']
-                    and any(tool.get('content') == entry['delivered'] for entry in tools)):
+        for offset, item in enumerate(following):
+            results = following[offset + 1:offset + 1 + len(calls)]
+            if (item == assistant and len(results) == len(calls)
+                    and all(tool.get('role') == 'tool' and tool.get('tool_call_id') == call['id']
+                            and any(tool.get('content') == entry['delivered'] for entry in tools)
+                            for call, tool in zip(calls, results))):
                 replayed = True
     return {
         'requests': requests, 'responses': responses,
@@ -408,10 +410,14 @@ def main():
                 require(result == expect, f'{case}: expected {expect}, observed {result}')
                 observed = phase_observations(directory, name)
                 if expect in {'finish', 'handoff'}:
+                    calls = [call for response in observed['responses']
+                             for call in response['choices'][0]['message'].get('tool_calls', [])]
                     require(len(observed['requests']) == len(observed['responses'])
-                            == observed['execute_calls'] + 1
+                            and sum(call['function']['name'] == 'execute' for call in calls) == observed['execute_calls']
+                            and sum(call['function']['name'] == expect for call in calls) == 1
+                            and all(call['function']['name'] in {'execute', expect} for call in calls)
                             and all(response['choices'][0]['finish_reason'] != 'length'
-                                    and len(response['choices'][0]['message'].get('tool_calls', [])) == 1
+                                    and response['choices'][0]['message'].get('tool_calls')
                                     for response in observed['responses']),
                             case + ': incomplete/invalid action was followed by controller recovery; qualification fails')
                 if expect in {'finish', 'handoff'} and case != 'terminal-only':
