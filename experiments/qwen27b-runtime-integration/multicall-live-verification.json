@@ -1,0 +1,121 @@
+{
+  "passed": true,
+  "purpose": "live_synthetic_controller_qualification_not_benchmark_scoring",
+  "qualification_receipt_path": "/home/workbench/Projects/personal/AI-Scientist-v2-study-runtime/evidence/qwen-controller-multicall-live-20261001-062829/qualification-receipt.json",
+  "qualification_receipt_sha256": "419a850dd5584f5a439eddb50c00a056e6a7f4f49dc7fe818a6ccf5c46284ab2",
+  "qualification_config_path": "/home/workbench/Projects/personal/AI-Scientist-v2-study-runtime/evidence/qwen-controller-multicall-live-20261001-062829/qualification-config.json",
+  "qualification_config_sha256": "4cf1fb83141c7dec0fabca2405ce8c5a1cb109b96904da2846b9dda47f072a9d",
+  "runner_sha256": "6f2a2262ccd381d6bb41718aa43d68f54ff3ca7b1bfd08cfd04eac4c89facb4e",
+  "qualification_script_sha256": "ea5bad5520a250c5fe99e2f927ca0509b00c14b8ef30ede1b9beb1515e4b6390",
+  "runtime_manifest_sha256": "b7783a7ec9f03a07ab8425a47ab2f08c82bccbbbf0e06a7083bc5e6d7c4f5f60",
+  "serving_container_id": "9a8e55e75f83e63d4cd1e72057cf29ca8206003ef49c1caeda9e56fa7a500f0f",
+  "model": "qwen3.8-27b-6000pro",
+  "thinking": true,
+  "reasoning_effort": "xhigh",
+  "preserve_thinking": true,
+  "temperature": 0,
+  "seed": 7,
+  "live_model_requests": 10,
+  "requests_with_final_usage": 10,
+  "unknown_usage_requests": 0,
+  "prompt_tokens": 14628,
+  "completion_tokens": 5159,
+  "checks": [
+    {
+      "name": "direct-batch-repair",
+      "passed": true,
+      "first_response_tool_names": [
+        "execute",
+        "execute"
+      ],
+      "execute_calls": 3,
+      "changed_files": 1,
+      "termination_reason": "finish",
+      "trusted_behavior_passed": true,
+      "reasoning_tool_history_replayed": true,
+      "model_public_checks": {
+        "exit_code": 0,
+        "stdout": "PASS four public normalization checks\n"
+      },
+      "output_tokens": 942,
+      "patch_sha256": "02caab73162030cf011c8ac25e78b95361013f6dcd8c42703763ab15eb26c922"
+    },
+    {
+      "name": "read-only-batch-preparation",
+      "passed": true,
+      "first_response_tool_names": [
+        "execute",
+        "execute"
+      ],
+      "execute_calls": 2,
+      "changed_files": 0,
+      "termination_reason": "handoff",
+      "trusted_behavior_passed": null,
+      "reasoning_tool_history_replayed": true,
+      "output_tokens": 2377,
+      "patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "fresh-post-handoff-batch-repair",
+      "passed": true,
+      "first_response_tool_names": [
+        "execute",
+        "execute"
+      ],
+      "execute_calls": 3,
+      "changed_files": 1,
+      "termination_reason": "finish",
+      "trusted_behavior_passed": true,
+      "reasoning_tool_history_replayed": true,
+      "model_public_checks": {
+        "exit_code": 0,
+        "stdout": "PASS four public normalization checks\n"
+      },
+      "output_tokens": 785,
+      "patch_sha256": "a43f1ef66976775d568ebfbd55c00c8013f1d1a013ebec2d234307d61593877d"
+    },
+    {
+      "name": "live-length-stopped-action-rejection",
+      "passed": true,
+      "first_response_tool_names": [
+        "execute"
+      ],
+      "execute_calls": 0,
+      "changed_files": 0,
+      "termination_reason": "budget_exhausted",
+      "trusted_behavior_passed": null,
+      "reasoning_tool_history_replayed": false,
+      "output_tokens": 1055,
+      "patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "runtime_postflight": {
+    "file_count": 3208,
+    "hashed_bytes": 27734647229,
+    "unchanged": true
+  },
+  "owned_workspace_containers_remaining": 0,
+  "owned_workspace_volumes_remaining": 0,
+  "pilot_model_trials": 0,
+  "official_evaluations": 0,
+  "limits": [
+    "Synthetic fixture tasks explicitly request an initial two-call response; this is not a benchmark solve-rate measurement.",
+    "Repair behavior is checked on four specified public input/output examples; no claim of general repair correctness.",
+    "The intentionally length-limited negative control ends budget_exhausted with no executed commands or source changes.",
+    "Serving-instance identity is captured and source/cache files are byte-verified; in-memory weights are not cryptographically attested."
+  ],
+  "service_cleanup": {
+    "path": "/home/workbench/Projects/personal/AI-Scientist-v2-study-runtime/evidence/qwen-controller-multicall-live-20261001-062829/service-cleanup.json",
+    "owned_serving_container_stopped_and_removed": true,
+    "managed_container_unchanged": true,
+    "managed_container_status": "exited",
+    "serving_session_log_sha256": "770cca81500858701fc20d748c04893c9197b7c8604f4e6557f326479566feca",
+    "serving_exit_code": 0
+  },
+  "regression_tests": {
+    "command": ".venv/Scripts/python.exe -B -m pytest -q tests/test_fixed_study_budget.py tests/test_study_sglang.py tests/test_study_continuation.py tests/test_study_workspaces.py -p no:cacheprovider",
+    "passed": 94,
+    "failed": 0,
+    "duration_seconds": 4.03
+  }
+}
