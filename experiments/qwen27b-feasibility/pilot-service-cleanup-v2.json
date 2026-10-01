@@ -1,0 +1,22 @@
+{
+  "passed": true,
+  "pilot_serving_container_removed": "055a333b5a751671a723d45502c0f23ad3f276ccb3b9c6fd30f3efc9f25badb2",
+  "failed_startup_container_removed": "ed4b584c50942522b1e35ffa76fd7b95d17e58eac8d13e2b1dab425ae08d2035",
+  "managed_container_untouched": "0a0f8951c3763d325fb52796f2905332897d895ba58db0916ac60274e7b133f1",
+  "pilot_serving_state_at_shutdown": {
+    "Status": "exited",
+    "Running": false,
+    "Paused": false,
+    "Restarting": false,
+    "OOMKilled": false,
+    "Dead": false,
+    "Pid": 0,
+    "ExitCode": 137,
+    "Error": "",
+    "StartedAt": "2026-10-01T06:10:18.795383892Z",
+    "FinishedAt": "2026-10-01T07:06:08.050642494Z"
+  },
+  "serving_logs_sha256": "cc4e257c616f32c686a9e73d8251f31a0933ba7363dadd79d3f0348c221fb4af",
+  "serving_logs_path": "/home/workbench/Projects/personal/AI-Scientist-v2-study-runtime/evidence/qwen-runtime-capture-20260930r2/serving-session.log",
+  "execution_id": "qwen27b-development-direct-v2-run1"
+}

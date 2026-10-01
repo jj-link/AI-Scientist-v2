@@ -1,0 +1,408 @@
+{
+  "arms": [
+    "direct"
+  ],
+  "cohort": [
+    {
+      "instance_id": "sympy__sympy-20438",
+      "repo": "sympy/sympy"
+    },
+    {
+      "instance_id": "sympy__sympy-22080",
+      "repo": "sympy/sympy"
+    },
+    {
+      "instance_id": "django__django-11138",
+      "repo": "django/django"
+    },
+    {
+      "instance_id": "pylint-dev__pylint-8898",
+      "repo": "pylint-dev/pylint"
+    },
+    {
+      "instance_id": "sphinx-doc__sphinx-8551",
+      "repo": "sphinx-doc/sphinx"
+    },
+    {
+      "instance_id": "pydata__xarray-3095",
+      "repo": "pydata/xarray"
+    },
+    {
+      "instance_id": "matplotlib__matplotlib-14623",
+      "repo": "matplotlib/matplotlib"
+    },
+    {
+      "instance_id": "astropy__astropy-8707",
+      "repo": "astropy/astropy"
+    }
+  ],
+  "completed": true,
+  "execution_id": "qwen27b-development-direct-v2-run1",
+  "feasibility": {
+    "completed": true,
+    "decision": "no_go",
+    "distinct_resolved_issues": [],
+    "feasibility_gate_passed": false,
+    "held_out": false,
+    "minimum_distinct_resolved_issues": 2
+  },
+  "notes": [
+    "Target output usage includes reasoning and tool-call syntax; speculative draft work is separate. Null telemetry means unavailable, not zero.",
+    "GPU memory is sampled device-wide across native visible GPUs, not attributed exclusively to this trial; peaks between samples can be missed.",
+    "Private request reservations retain unknown usage for interrupted requests. Such runs are never scientifically complete.",
+    "Notes-arm diagnosis is allowed; visible notes are retained verbatim for downstream qualitative coding, not automatically claimed as classified.",
+    "Source tool access is kernel-restricted with Landlock; official evaluation uses the installed SWE-bench 5.0.2 scorer after immutable patch freezing."
+  ],
+  "protocol_id": "qwen27b-development-direct-v2",
+  "protocol_sha256": "63f0325888a1d7256bc223f31894b231174bcfcb5bd23b4d0f05f022ae208983",
+  "repetitions": 1,
+  "runtime": {
+    "budgets": {
+      "direct": {
+        "input_tokens": 786432,
+        "output_tokens": 12288,
+        "seconds": 900,
+        "tool_calls": 36
+      },
+      "evaluation_timeout_seconds": 1800,
+      "handoff_tokens": 1024,
+      "preparation": {
+        "input_tokens": 262144,
+        "output_tokens": 4096,
+        "seconds": 300,
+        "tool_calls": 12
+      },
+      "repair": {
+        "input_tokens": 524288,
+        "output_tokens": 8192,
+        "seconds": 600,
+        "tool_calls": 24
+      },
+      "terminal_output_reserve": 1024,
+      "tool_output_tokens": 2048,
+      "tool_timeout_seconds": 60
+    },
+    "dataset": {
+      "name": "SWE-bench/SWE-bench_Verified",
+      "revision": "78f471bf655a3137b2e8a75af1501690ec009ec3"
+    },
+    "harness_version": "5.0.2",
+    "images": [
+      {
+        "image": "swebench/sweb.eval.x86_64.sympy_1776_sympy-20438@sha256:cb6d4d5d94b5ef2dbf611a8caf1a82b52b88564c286767cd460c33cad9965ae0",
+        "image_id": "sha256:cb6d4d5d94b5ef2dbf611a8caf1a82b52b88564c286767cd460c33cad9965ae0",
+        "instance_id": "sympy__sympy-20438"
+      },
+      {
+        "image": "swebench/sweb.eval.x86_64.sympy_1776_sympy-22080@sha256:3696601f9ada5905f3ea490181f6f83058e4d89e7e546500fd078c101e55d64e",
+        "image_id": "sha256:3696601f9ada5905f3ea490181f6f83058e4d89e7e546500fd078c101e55d64e",
+        "instance_id": "sympy__sympy-22080"
+      },
+      {
+        "image": "swebench/sweb.eval.x86_64.django_1776_django-11138@sha256:811f9bf0ca067b334b574cd3589cdc989b350b2a24b68e1ddcd288fbb97d61f4",
+        "image_id": "sha256:811f9bf0ca067b334b574cd3589cdc989b350b2a24b68e1ddcd288fbb97d61f4",
+        "instance_id": "django__django-11138"
+      },
+      {
+        "image": "swebench/sweb.eval.x86_64.pylint-dev_1776_pylint-8898@sha256:6a3950d518eac34eff08f89136006c94526afc1cdf2b34d1a4d8f598faa4eaea",
+        "image_id": "sha256:6a3950d518eac34eff08f89136006c94526afc1cdf2b34d1a4d8f598faa4eaea",
+        "instance_id": "pylint-dev__pylint-8898"
+      },
+      {
+        "image": "swebench/sweb.eval.x86_64.sphinx-doc_1776_sphinx-8551@sha256:0cee9556d1dab507161552be8bd82757ee1a835fe660a832a6df023bcb60b67d",
+        "image_id": "sha256:0cee9556d1dab507161552be8bd82757ee1a835fe660a832a6df023bcb60b67d",
+        "instance_id": "sphinx-doc__sphinx-8551"
+      },
+      {
+        "image": "swebench/sweb.eval.x86_64.pydata_1776_xarray-3095@sha256:fb721923cba0d05faafdafb2fb76e6caa3adc22fd4fdcbf2de45741312f91c74",
+        "image_id": "sha256:fb721923cba0d05faafdafb2fb76e6caa3adc22fd4fdcbf2de45741312f91c74",
+        "instance_id": "pydata__xarray-3095"
+      },
+      {
+        "image": "swebench/sweb.eval.x86_64.matplotlib_1776_matplotlib-14623@sha256:52cdd8ac0f4a8b05f40507d500680ec613092186310cbaf7895d1554e9d654dc",
+        "image_id": "sha256:52cdd8ac0f4a8b05f40507d500680ec613092186310cbaf7895d1554e9d654dc",
+        "instance_id": "matplotlib__matplotlib-14623"
+      },
+      {
+        "image": "ai-scientist/astropy-8707-workspace@sha256:0ebf92dd3a0a2e4512bb24bacb3d0910c0aa365dd87c35fda16c7c784b17de28",
+        "image_id": "sha256:0ebf92dd3a0a2e4512bb24bacb3d0910c0aa365dd87c35fda16c7c784b17de28",
+        "instance_id": "astropy__astropy-8707"
+      }
+    ],
+    "purpose": "development_feasibility",
+    "resources": {
+      "container_cpus": 4,
+      "container_memory_bytes": 8589934592,
+      "container_pids": 256,
+      "docker_host": "unix:///run/docker.sock",
+      "evaluator_cap_sys_admin": false,
+      "evaluator_command_output_bytes": 16777216,
+      "evaluator_read_only_root": true,
+      "evaluator_writable_limits_bytes": {
+        "/opt/miniconda3/envs/testbed": 2147483648,
+        "/root": 536870912,
+        "/testbed": 2147483648,
+        "/workspace": 536870912
+      },
+      "minimum_free_bytes": 103079215104,
+      "study_image_budget_bytes": 68719476736
+    },
+    "runner_sha256": "12519e413250cbe58485d42ebadc7f2190ab94ef41370034d2514857e0c59a75",
+    "runtime_qualification": {
+      "passed": true,
+      "runtime_manifest_sha256": "9e0f42bb49fe9471189d69a3883e4bc9cab3152a9529ae98af41c6b8918f064d",
+      "sha256": "553fa63678dbde1b4a182fecceef16eb7d5570ffcd0e1f3b832e010b2b005a36"
+    },
+    "target": {
+      "backend": "sglang",
+      "base_url": "http://127.0.0.1:8000",
+      "context_tokens": 65536,
+      "model": "qwen3.8-27b-6000pro",
+      "preserve_thinking": true,
+      "reasoning_effort": "xhigh",
+      "runtime_manifest_sha256": "9e0f42bb49fe9471189d69a3883e4bc9cab3152a9529ae98af41c6b8918f064d",
+      "seed": 7,
+      "temperature": 0,
+      "thinking": true
+    },
+    "workspace_qualification": {
+      "passed": true,
+      "sha256": "9052c393fe0da05badb9e19919c8ab6dc4f574a6872b8b9890e2317e1820acbd"
+    }
+  },
+  "schema_version": 1,
+  "trials": [
+    {
+      "arm": "direct",
+      "handoff": "",
+      "instance_id": "sympy__sympy-20438",
+      "metrics": {
+        "accepted_draft_tokens": null,
+        "changed_files": 0,
+        "draft_tokens": null,
+        "elapsed_seconds": 237.91521036199993,
+        "evaluation_seconds": 4.3375314680160955,
+        "generation_seconds": null,
+        "handoff_tokens": 0,
+        "input_tokens": 45850,
+        "max_context_tokens": 17114,
+        "model_seconds": 200.90025021805195,
+        "output_tokens": 12288,
+        "peak_gpu_memory_mib": 81233,
+        "prompt_seconds": null,
+        "tool_calls": 8,
+        "tool_seconds": 2.0691967369348276
+      },
+      "patch": "",
+      "patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "repetition": 0,
+      "repo": "sympy/sympy",
+      "resolved": false,
+      "status": "budget_exhausted",
+      "termination_reason": "budget_exhausted"
+    },
+    {
+      "arm": "direct",
+      "handoff": "",
+      "instance_id": "sympy__sympy-22080",
+      "metrics": {
+        "accepted_draft_tokens": null,
+        "changed_files": 0,
+        "draft_tokens": null,
+        "elapsed_seconds": 317.7187625169754,
+        "evaluation_seconds": 1.546167961001629,
+        "generation_seconds": null,
+        "handoff_tokens": 0,
+        "input_tokens": 99187,
+        "max_context_tokens": 16731,
+        "model_seconds": 286.6201709859597,
+        "output_tokens": 11425,
+        "peak_gpu_memory_mib": 81230,
+        "prompt_seconds": null,
+        "tool_calls": 13,
+        "tool_seconds": 3.3290402780112345
+      },
+      "patch": "",
+      "patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "repetition": 0,
+      "repo": "sympy/sympy",
+      "resolved": false,
+      "status": "empty_patch",
+      "termination_reason": "finish"
+    },
+    {
+      "arm": "direct",
+      "handoff": "",
+      "instance_id": "django__django-11138",
+      "metrics": {
+        "accepted_draft_tokens": null,
+        "changed_files": 0,
+        "draft_tokens": null,
+        "elapsed_seconds": 581.6206567120098,
+        "evaluation_seconds": 1.2229517999803647,
+        "generation_seconds": null,
+        "handoff_tokens": 0,
+        "input_tokens": 470289,
+        "max_context_tokens": 27583,
+        "model_seconds": 555.3683224758715,
+        "output_tokens": 12288,
+        "peak_gpu_memory_mib": 81181,
+        "prompt_seconds": null,
+        "tool_calls": 29,
+        "tool_seconds": 3.031497220013989
+      },
+      "patch": "",
+      "patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "repetition": 0,
+      "repo": "django/django",
+      "resolved": false,
+      "status": "budget_exhausted",
+      "termination_reason": "budget_exhausted"
+    },
+    {
+      "arm": "direct",
+      "handoff": "",
+      "instance_id": "pylint-dev__pylint-8898",
+      "metrics": {
+        "accepted_draft_tokens": null,
+        "changed_files": 0,
+        "draft_tokens": null,
+        "elapsed_seconds": 41.40295440799673,
+        "evaluation_seconds": 1.2775842559931334,
+        "generation_seconds": null,
+        "handoff_tokens": 0,
+        "input_tokens": 3812,
+        "max_context_tokens": 2132,
+        "model_seconds": 30.447338558995398,
+        "output_tokens": 259,
+        "peak_gpu_memory_mib": 81140,
+        "prompt_seconds": null,
+        "tool_calls": 0,
+        "tool_seconds": 0.0
+      },
+      "patch": "",
+      "patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "repetition": 0,
+      "repo": "pylint-dev/pylint",
+      "resolved": false,
+      "status": "empty_patch",
+      "termination_reason": "finish"
+    },
+    {
+      "arm": "direct",
+      "handoff": "",
+      "instance_id": "sphinx-doc__sphinx-8551",
+      "metrics": {
+        "accepted_draft_tokens": null,
+        "changed_files": 0,
+        "draft_tokens": null,
+        "elapsed_seconds": 38.680811747995904,
+        "evaluation_seconds": 1.2133676829980686,
+        "generation_seconds": null,
+        "handoff_tokens": 0,
+        "input_tokens": 2812,
+        "max_context_tokens": 1644,
+        "model_seconds": 30.496522213012213,
+        "output_tokens": 319,
+        "peak_gpu_memory_mib": 81148,
+        "prompt_seconds": null,
+        "tool_calls": 0,
+        "tool_seconds": 0.0
+      },
+      "patch": "",
+      "patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "repetition": 0,
+      "repo": "sphinx-doc/sphinx",
+      "resolved": false,
+      "status": "empty_patch",
+      "termination_reason": "finish"
+    },
+    {
+      "arm": "direct",
+      "handoff": "",
+      "instance_id": "pydata__xarray-3095",
+      "metrics": {
+        "accepted_draft_tokens": null,
+        "changed_files": 0,
+        "draft_tokens": null,
+        "elapsed_seconds": 78.66218174999813,
+        "evaluation_seconds": 1.2370918609958608,
+        "generation_seconds": null,
+        "handoff_tokens": 0,
+        "input_tokens": 2852,
+        "max_context_tokens": 13476,
+        "model_seconds": 66.31137579999631,
+        "output_tokens": 12288,
+        "peak_gpu_memory_mib": 81132,
+        "prompt_seconds": null,
+        "tool_calls": 0,
+        "tool_seconds": 0.0
+      },
+      "patch": "",
+      "patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "repetition": 0,
+      "repo": "pydata/xarray",
+      "resolved": false,
+      "status": "budget_exhausted",
+      "termination_reason": "budget_exhausted"
+    },
+    {
+      "arm": "direct",
+      "handoff": "",
+      "instance_id": "matplotlib__matplotlib-14623",
+      "metrics": {
+        "accepted_draft_tokens": null,
+        "changed_files": 0,
+        "draft_tokens": null,
+        "elapsed_seconds": 337.1384783149988,
+        "evaluation_seconds": 1.2175505449995399,
+        "generation_seconds": null,
+        "handoff_tokens": 0,
+        "input_tokens": 2392,
+        "max_context_tokens": 13271,
+        "model_seconds": 321.2656613619765,
+        "output_tokens": 12288,
+        "peak_gpu_memory_mib": 81157,
+        "prompt_seconds": null,
+        "tool_calls": 0,
+        "tool_seconds": 0.0
+      },
+      "patch": "",
+      "patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "repetition": 0,
+      "repo": "matplotlib/matplotlib",
+      "resolved": false,
+      "status": "budget_exhausted",
+      "termination_reason": "budget_exhausted"
+    },
+    {
+      "arm": "direct",
+      "handoff": "",
+      "instance_id": "astropy__astropy-8707",
+      "metrics": {
+        "accepted_draft_tokens": null,
+        "changed_files": 0,
+        "draft_tokens": null,
+        "elapsed_seconds": 148.9834082830057,
+        "evaluation_seconds": 1.3730170780036133,
+        "generation_seconds": null,
+        "handoff_tokens": 0,
+        "input_tokens": 15376,
+        "max_context_tokens": 14324,
+        "model_seconds": 138.1813413509808,
+        "output_tokens": 12288,
+        "peak_gpu_memory_mib": 81257,
+        "prompt_seconds": null,
+        "tool_calls": 4,
+        "tool_seconds": 0.4249096540152095
+      },
+      "patch": "",
+      "patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "repetition": 0,
+      "repo": "astropy/astropy",
+      "resolved": false,
+      "status": "budget_exhausted",
+      "termination_reason": "budget_exhausted"
+    }
+  ]
+}

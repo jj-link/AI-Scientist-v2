@@ -365,19 +365,30 @@ Archived Gemma protocols and results retain their original
 new controller semantics. Their evidence-only importer preserves the historical
 budget field instead of translating it.
 The native runner supports the pinned Gemma/llama.cpp path and a separately
-qualified SGLang path. The corrected Qwen pilot is frozen at
-`experiments/qwen27b-feasibility/pilot-protocol.json`: eight previously exposed
-issues, one direct attempt each, for development feasibility only. It is not
-held-out, comparative, or paper evidence. Synthetic qualification of those exact
-protocol bytes passed 18/18 controls with 31/31 generation requests carrying
-final usage; the pilot itself remains unstarted with zero official evaluations.
-The byte-pinned native receipt is
-`evidence/qwen-runtime-behavior-v14/qualification-receipt.json` under the native
-study root. SGLang's required singleton-TP sampler guard is retained as
-`experiments/qwen27b-runtime-integration/sglang-sampler-tp1.patch`. Recreating
-the serving container requires reapplying that patch, recapturing the runtime
-manifest, and repeating live qualification. A frozen or qualified protocol is
-not authorization to start the pilot.
+qualified SGLang path. The original Qwen preflight protocol at
+`experiments/qwen27b-feasibility/pilot-protocol.json` remains historical and
+unexecuted. Its exact bytes passed 18/18 synthetic controls with 31/31 generation
+requests carrying final usage; the native receipt is
+`evidence/qwen-runtime-behavior-v14/qualification-receipt.json`.
+
+The separately restored `pilot-protocol-v2.json` completed one direct attempt on
+each of the same eight previously exposed issues. It resolved **0/8**: five
+attempts exhausted their output allowance and three finished without a patch.
+All eight final patches were empty, so official SWE-bench empty-patch grading
+returned unresolved without running baseline test suites. The two-issue
+feasibility gate failed (`no_go`). All 70 generation requests had final usage.
+`pilot-results-v2.json`, `pilot-verification-v2.json`, and
+`pilot-service-cleanup-v2.json` in the feasibility directory retain the outcomes,
+accounting audit, and removal of the pilot-only serving containers. No retry,
+larger study, or paper generation was started. These are development results,
+not held-out, comparative, or paper evidence.
+
+SGLang's required singleton-TP sampler guard is retained as
+`experiments/qwen27b-runtime-integration/sglang-sampler-tp1.patch`. The restored
+recipe also uses `--mm-feature-transport cpu` after CUDA IPC failed during startup
+warmup. Starting a new serving container requires applying the patch, recapturing
+the runtime manifest, and repeating live qualification. A qualified protocol
+does not by itself authorize another study.
 
 ### Supported Models and API Keys
 

@@ -1,0 +1,177 @@
+{
+  "schema_version": 1,
+  "kind": "fixed_swebench_repair",
+  "purpose": "development_feasibility",
+  "protocol_id": "qwen27b-development-direct-v2",
+  "dataset": {
+    "name": "SWE-bench/SWE-bench_Verified",
+    "revision": "78f471bf655a3137b2e8a75af1501690ec009ec3",
+    "records_path": "/home/workbench/Projects/personal/AI-Scientist-v2-study-runtime/protocol/evaluator-records.json",
+    "records_sha256": "8287ded883c2f09d187ab0c24ba8ab34fbf48d49da91c4320e227ce645fec17a"
+  },
+  "native": {
+    "distro": "NVIDIA-Workbench",
+    "user": "workbench",
+    "python": "/home/workbench/Projects/personal/AI-Scientist-v2-study-runtime/harness/venv/bin/python",
+    "root": "/home/workbench/Projects/personal/AI-Scientist-v2-study-runtime",
+    "run_root": "/home/workbench/Projects/personal/AI-Scientist-v2-study-runtime/runs",
+    "protocol_path": "/mnt/c/Users/josep/Projects/personal/AI-Scientist-v2/experiments/qwen27b-feasibility/pilot-protocol-v2.json",
+    "runtime_manifest_path": "/home/workbench/Projects/personal/AI-Scientist-v2-study-runtime/evidence/qwen-runtime-capture-20260930r2/runtime-manifest.json",
+    "runner_sha256": "12519e413250cbe58485d42ebadc7f2190ab94ef41370034d2514857e0c59a75"
+  },
+  "target": {
+    "backend": "sglang",
+    "base_url": "http://127.0.0.1:8000",
+    "model": "qwen3.8-27b-6000pro",
+    "context_tokens": 65536,
+    "temperature": 0,
+    "seed": 7,
+    "thinking": true,
+    "reasoning_effort": "xhigh",
+    "preserve_thinking": true,
+    "runtime_manifest_sha256": "9e0f42bb49fe9471189d69a3883e4bc9cab3152a9529ae98af41c6b8918f064d"
+  },
+  "cohort": [
+    {
+      "instance_id": "sympy__sympy-20438",
+      "repo": "sympy/sympy",
+      "base_commit": "33b47e4bd60e2302e42616141e76285038b724d6",
+      "image": "swebench/sweb.eval.x86_64.sympy_1776_sympy-20438@sha256:cb6d4d5d94b5ef2dbf611a8caf1a82b52b88564c286767cd460c33cad9965ae0",
+      "image_id": "sha256:cb6d4d5d94b5ef2dbf611a8caf1a82b52b88564c286767cd460c33cad9965ae0"
+    },
+    {
+      "instance_id": "sympy__sympy-22080",
+      "repo": "sympy/sympy",
+      "base_commit": "3f8c8c2377cb8e0daaf8073e8d03ac7d87580813",
+      "image": "swebench/sweb.eval.x86_64.sympy_1776_sympy-22080@sha256:3696601f9ada5905f3ea490181f6f83058e4d89e7e546500fd078c101e55d64e",
+      "image_id": "sha256:3696601f9ada5905f3ea490181f6f83058e4d89e7e546500fd078c101e55d64e"
+    },
+    {
+      "instance_id": "django__django-11138",
+      "repo": "django/django",
+      "base_commit": "c84b91b7603e488f7171fdff8f08368ef3d6b856",
+      "image": "swebench/sweb.eval.x86_64.django_1776_django-11138@sha256:811f9bf0ca067b334b574cd3589cdc989b350b2a24b68e1ddcd288fbb97d61f4",
+      "image_id": "sha256:811f9bf0ca067b334b574cd3589cdc989b350b2a24b68e1ddcd288fbb97d61f4"
+    },
+    {
+      "instance_id": "pylint-dev__pylint-8898",
+      "repo": "pylint-dev/pylint",
+      "base_commit": "1f8c4d9eb185c16a2c1d881c054f015e1c2eb334",
+      "image": "swebench/sweb.eval.x86_64.pylint-dev_1776_pylint-8898@sha256:6a3950d518eac34eff08f89136006c94526afc1cdf2b34d1a4d8f598faa4eaea",
+      "image_id": "sha256:6a3950d518eac34eff08f89136006c94526afc1cdf2b34d1a4d8f598faa4eaea"
+    },
+    {
+      "instance_id": "sphinx-doc__sphinx-8551",
+      "repo": "sphinx-doc/sphinx",
+      "base_commit": "57ed10c68057c96491acbd3e62254ccfaf9e3861",
+      "image": "swebench/sweb.eval.x86_64.sphinx-doc_1776_sphinx-8551@sha256:0cee9556d1dab507161552be8bd82757ee1a835fe660a832a6df023bcb60b67d",
+      "image_id": "sha256:0cee9556d1dab507161552be8bd82757ee1a835fe660a832a6df023bcb60b67d"
+    },
+    {
+      "instance_id": "pydata__xarray-3095",
+      "repo": "pydata/xarray",
+      "base_commit": "1757dffac2fa493d7b9a074b84cf8c830a706688",
+      "image": "swebench/sweb.eval.x86_64.pydata_1776_xarray-3095@sha256:fb721923cba0d05faafdafb2fb76e6caa3adc22fd4fdcbf2de45741312f91c74",
+      "image_id": "sha256:fb721923cba0d05faafdafb2fb76e6caa3adc22fd4fdcbf2de45741312f91c74"
+    },
+    {
+      "instance_id": "matplotlib__matplotlib-14623",
+      "repo": "matplotlib/matplotlib",
+      "base_commit": "d65c9ca20ddf81ef91199e6d819f9d3506ef477c",
+      "image": "swebench/sweb.eval.x86_64.matplotlib_1776_matplotlib-14623@sha256:52cdd8ac0f4a8b05f40507d500680ec613092186310cbaf7895d1554e9d654dc",
+      "image_id": "sha256:52cdd8ac0f4a8b05f40507d500680ec613092186310cbaf7895d1554e9d654dc"
+    },
+    {
+      "instance_id": "astropy__astropy-8707",
+      "repo": "astropy/astropy",
+      "base_commit": "a85a0747c54bac75e9c3b2fe436b105ea029d6cf",
+      "image": "ai-scientist/astropy-8707-workspace@sha256:0ebf92dd3a0a2e4512bb24bacb3d0910c0aa365dd87c35fda16c7c784b17de28",
+      "image_id": "sha256:0ebf92dd3a0a2e4512bb24bacb3d0910c0aa365dd87c35fda16c7c784b17de28"
+    }
+  ],
+  "arms": [
+    "direct"
+  ],
+  "repetitions": 1,
+  "budgets": {
+    "direct": {
+      "output_tokens": 12288,
+      "input_tokens": 786432,
+      "tool_calls": 36,
+      "seconds": 900
+    },
+    "preparation": {
+      "output_tokens": 4096,
+      "input_tokens": 262144,
+      "tool_calls": 12,
+      "seconds": 300
+    },
+    "repair": {
+      "output_tokens": 8192,
+      "input_tokens": 524288,
+      "tool_calls": 24,
+      "seconds": 600
+    },
+    "handoff_tokens": 1024,
+    "tool_timeout_seconds": 60,
+    "tool_output_tokens": 2048,
+    "evaluation_timeout_seconds": 1800,
+    "terminal_output_reserve": 1024
+  },
+  "resources": {
+    "docker_host": "unix:///run/docker.sock",
+    "container_cpus": 4,
+    "container_memory_bytes": 8589934592,
+    "container_pids": 256,
+    "minimum_free_bytes": 103079215104,
+    "study_image_budget_bytes": 68719476736,
+    "evaluator_writable_limits_bytes": {
+      "/testbed": 2147483648,
+      "/opt/miniconda3/envs/testbed": 2147483648,
+      "/root": 536870912,
+      "/workspace": 536870912
+    },
+    "evaluator_read_only_root": true,
+    "evaluator_cap_sys_admin": false,
+    "evaluator_command_output_bytes": 16777216
+  },
+  "prompts": {
+    "direct": "You are repairing a real Python repository issue. The issue object is the complete task input. /testbed is an exact base-commit source snapshot with a fresh single-commit Git history, not the original repository history. The testbed Python environment is already installed and selected on PATH. Use only the supplied tools, exactly one tool call per response. execute runs in /testbed; HOME and TMPDIR are /workspace. Network access is unavailable. Do not download data, inspect hidden evaluator material, start background processes, or change the environment. Tool output is explicitly bounded to 2048 tokens and commands to 60 seconds. Reasoning and tool arguments count toward the output allowance. Investigate the actual code rather than assuming a solution from the issue wording. You have at most 12288 output tokens, 786432 cumulative input tokens, 36 execute calls, and 900 seconds. Investigate, implement a correct repair, and run focused checks where useful. Leave only intended repository changes. When done, call finish with an empty object. The current patch is the deliverable; do not substitute a prose answer for the finish call.",
+    "diagnosis": "You are repairing a real Python repository issue. The issue object is the complete task input. /testbed is an exact base-commit source snapshot with a fresh single-commit Git history, not the original repository history. The testbed Python environment is already installed and selected on PATH. Use only the supplied tools, exactly one tool call per response. execute runs in /testbed; HOME and TMPDIR are /workspace. Network access is unavailable. Do not download data, inspect hidden evaluator material, start background processes, or change the environment. Tool output is explicitly bounded to 2048 tokens and commands to 60 seconds. Reasoning and tool arguments count toward the output allowance. Investigate the actual code rather than assuming a solution from the issue wording. This is a READ-ONLY preparation phase: you cannot edit repository files. You have at most 4096 output tokens, 262144 cumulative input tokens, 12 execute calls, and 300 seconds. Inspect the repository to diagnose the issue. A fresh repair agent will receive only the original issue and your visible handoff, not this conversation, reasoning, tool transcript, or /workspace files. Finish by calling handoff with root_cause, evidence, cross_file_coordination, intended_behavior, and uncertainties. Explain the causal failure, cite concrete inspected paths/symbols and supporting observations, and identify cross-file coordination when the evidence supports it. Distinguish evidence from uncertainty; do not invent a coordination requirement. Keep the complete handoff within 1024 tokens. It must contain no patch, code block, or replacement code. The controller reserves 1024 of the 4096 output tokens for one explicit final handoff request; inspection output can consume at most 3072 tokens. Complete the handoff when the controller ends investigation, even if the evidence remains incomplete. No additional investigation commands are then allowed.",
+    "notes": "You are repairing a real Python repository issue. The issue object is the complete task input. /testbed is an exact base-commit source snapshot with a fresh single-commit Git history, not the original repository history. The testbed Python environment is already installed and selected on PATH. Use only the supplied tools, exactly one tool call per response. execute runs in /testbed; HOME and TMPDIR are /workspace. Network access is unavailable. Do not download data, inspect hidden evaluator material, start background processes, or change the environment. Tool output is explicitly bounded to 2048 tokens and commands to 60 seconds. Reasoning and tool arguments count toward the output allowance. Investigate the actual code rather than assuming a solution from the issue wording. This is a READ-ONLY preparation phase: you cannot edit repository files. You have at most 4096 output tokens, 262144 cumulative input tokens, 12 execute calls, and 300 seconds. Inspect the repository and collect useful general working notes for a fresh repair agent. No root-cause diagnosis or causal-report structure is required; include whatever observations seem useful. The agent receives only the original issue and these visible notes, not this conversation, reasoning, tool transcript, or /workspace files. Finish by calling handoff with a notes string. Keep the complete handoff within 1024 tokens. It must contain no patch, code block, or replacement code. The controller reserves 1024 of the 4096 output tokens for one explicit final handoff request; inspection output can consume at most 3072 tokens. Complete the handoff when the controller ends investigation, even if the evidence remains incomplete. No additional investigation commands are then allowed.",
+    "locations": "You are repairing a real Python repository issue. The issue object is the complete task input. /testbed is an exact base-commit source snapshot with a fresh single-commit Git history, not the original repository history. The testbed Python environment is already installed and selected on PATH. Use only the supplied tools, exactly one tool call per response. execute runs in /testbed; HOME and TMPDIR are /workspace. Network access is unavailable. Do not download data, inspect hidden evaluator material, start background processes, or change the environment. Tool output is explicitly bounded to 2048 tokens and commands to 60 seconds. Reasoning and tool arguments count toward the output allowance. Investigate the actual code rather than assuming a solution from the issue wording. This is a READ-ONLY preparation phase: you cannot edit repository files. You have at most 4096 output tokens, 262144 cumulative input tokens, 12 execute calls, and 300 seconds. Inspect the repository to locate likely relevant code. A fresh repair agent receives only the original issue and the locations, not this conversation, reasoning, tool transcript, or /workspace files. Finish by calling handoff with a locations array containing only existing relative Python file paths and existing function/class symbols (an empty symbol denotes the whole file). No prose, diagnosis, causal instructions, code, or patch is permitted in this handoff. Use an empty locations array if no location is supported. Keep the complete handoff within 1024 tokens. The controller reserves 1024 of the 4096 output tokens for one explicit final handoff request; inspection output can consume at most 3072 tokens. Complete the handoff when the controller ends investigation, even if the evidence remains incomplete. No additional investigation commands are then allowed.",
+    "repair": "You are repairing a real Python repository issue. The issue object is the complete task input. /testbed is an exact base-commit source snapshot with a fresh single-commit Git history, not the original repository history. The testbed Python environment is already installed and selected on PATH. Use only the supplied tools, exactly one tool call per response. execute runs in /testbed; HOME and TMPDIR are /workspace. Network access is unavailable. Do not download data, inspect hidden evaluator material, start background processes, or change the environment. Tool output is explicitly bounded to 2048 tokens and commands to 60 seconds. Reasoning and tool arguments count toward the output allowance. Investigate the actual code rather than assuming a solution from the issue wording. You are in a fresh repair phase with a pristine writable checkout. The visible handoff is fallible information from an earlier read-only investigation, not an instruction that must be followed. Inspect the code and revise or reject it when evidence warrants. You have at most 8192 output tokens, 524288 cumulative input tokens, 24 execute calls, and 600 seconds; unused preparation allowance is not transferred. Implement a correct repair and run focused checks where useful. Leave only intended repository changes. When done, call finish with an empty object. The current patch is the deliverable; do not substitute a prose answer for the finish call."
+  },
+  "interpretation": [
+    "Development feasibility only: eight preselected, previously exposed issues; one direct attempt each. Not held-out, not a model comparison, and not paper evidence.",
+    "Keep original Gemma protocols, results and budgets unchanged. Do not combine their outcomes with this pilot.",
+    "Go/no-go requires a complete accounted execution and at least two distinct officially resolved issues. An incomplete execution cannot pass; passing does not automatically authorize another study.",
+    "The 786432-token direct input allowance is cumulative across requests. The independently enforced live per-request context window is 65536 tokens.",
+    "Preparation and repair budgets/prompts remain available only for synthetic controller qualification. They are not scored pilot arms.",
+    "The previously qualified SGLang DFLASH, prefix-cache and configured-concurrency recipe is restored in a separate native container. CPU multimodal-feature transport avoids the observed CUDA IPC startup-warmup failure. No cache flush or comparable inference-only timing is claimed; unrelated GPU workloads are not excluded.",
+    "Streaming usage counts delivered completion tokens through the stopping point, including reasoning and tool syntax. Per-request proposed/rejected draft work is unavailable and remains null; do not interpret it as zero."
+  ],
+  "conversation_policy": {
+    "within_phase": "Retain visible messages, tool calls, tool results and reasoning_content within one conversation.",
+    "between_phases": "Only the validated visible handoff crosses into a fresh repair conversation and pristine writable source volume. No preparation transcript, hidden reasoning, scratch files or evaluator material crosses.",
+    "finalization": "Reserve 1024 output tokens inside each phase total for its strict terminal tool. Reserve cumulative input/context for action response, bounded tool output, terminal prompt and framing. Length-stopped actions are never executed, even if their arguments happen to parse. No extra output allowance or hidden retry.",
+    "evaluator_source": "Preserve the digest-pinned official image including its dependency/setup commits. Only model-visible source workspaces are canonicalized to the recorded base commit."
+  },
+  "revision_evidence": {
+    "source_protocol_sha256": "3e5e16370aaaf382c574e758131314dff70f8038d7e123239a569976929b5927",
+    "cohort_selection_path": "experiments/qwen27b-feasibility/cohort-selection.json",
+    "cohort_selection_sha256": "314db47ec45ebe5fe380743c9db2e3e5141612d384791987159836f173fab784",
+    "environment_protocol_path": "experiments/workspace-environment-repair/qualification-protocol.json",
+    "environment_protocol_sha256": "6557eac41a1a68e1b2778927b9fa2ba20b344597a98159517fabe6370e32b399",
+    "environment_correction": "Restore explicitly declared pinned-image runtime artifacts to exact source exports; change Astropy NumPy from 1.25.2 to 1.23.5 in a separately pinned shared image.",
+    "prior_exposure": "All candidates have already been used in the separate Gemma study. None of these eight may be represented as held-out in a subsequent comparison.",
+    "runtime_capture_manifest_sha256": "9e0f42bb49fe9471189d69a3883e4bc9cab3152a9529ae98af41c6b8918f064d",
+    "previous_pilot_protocol_sha256": "ffd7aac4f3df97266cccb4aefd31b9c76ac361ad5e64f5ad7cadd924f692b14d",
+    "serving_adjustment": "Restore the previously qualified serving recipe in a separate native container with the same model/source bytes and TP=1 sampler guard. Use SGLang CPU multimodal-feature transport after the current driver rejected CUDA IPC during startup warmup. Leave the stopped managed deployment unchanged."
+  },
+  "feasibility_gate": {
+    "minimum_distinct_resolved_issues": 2,
+    "requires_complete_execution": true,
+    "held_out": false
+  }
+}
